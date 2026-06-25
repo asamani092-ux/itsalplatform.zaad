@@ -1,0 +1,117 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum RequestStatus {
+  Pending_Manager
+  Approved_Pending_Assignment
+  In_Progress
+  Completed
+  Archived
+}
+
+model CommEmployee {
+  id                 String                @id @default(cuid())
+  name               String
+  email              String                @unique
+  isActive           Boolean               @default(true)
+  assignedRequests   CommunicationRequest[] @relation("AssignedEmployee")
+  assignmentHistory  AssignmentHistory[]
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+
+  @@index([isActive])
+}
+
+model CommunicationRequest {
+  id                 String              @id @default(cuid())
+  title              String
+  description        String
+  requiredDate       DateTime
+  contactEmail       String
+  contactPhone       String
+  managerEmail       String
+  approvalToken      String              @unique
+  status             RequestStatus       @default(Pending_Manager)
+  assignedEmployeeId String?
+  assignedEmployee   CommEmployee?       @relation("AssignedEmployee", fields: [assignedEmployeeId], references: [id])
+  managerApprovedAt  DateTime?
+  assignedAt         DateTime?
+  completedAt        DateTime?
+  assignmentHistory  AssignmentHistory[]
+  statusHistory      StatusHistory[]
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  @@index([status])
+  @@index([approvalToken])
+  @@index([assignedEmployeeId])
+  @@index([createdAt])
+}
+
+model AssignmentHistory {
+  id         String               @id @default(cuid())
+  requestId  String
+  request    CommunicationRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  employeeId String
+  employee   CommEmployee         @relation(fields: [employeeId], references: [id])
+  assignedBy String?
+  note       String?
+  assignedAt DateTime             @default(now())
+  createdAt  DateTime             @default(now())
+
+  @@index([requestId])
+  @@index([employeeId])
+}
+
+model StatusHistory {
+  id         String               @id @default(cuid())
+  requestId  String
+  request    CommunicationRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  fromStatus RequestStatus?
+  toStatus   RequestStatus
+  changedBy  String?
+  note       String?
+  changedAt  DateTime             @default(now())
+  createdAt  DateTime             @default(now())
+
+  @@index([requestId])
+  @@index([toStatus])
+}
+
+model HospitalityBooking {
+  id              String   @id @default(cuid())
+  requesterName   String
+  requesterEmail  String
+  requesterPhone  String
+  roomName        String
+  meetingDate     DateTime
+  startTime       String
+  endTime         String
+  attendeesCount  Int
+  notes           String   @default("")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([meetingDate])
+}
+
+model MediaDocument {
+  id          String   @id @default(cuid())
+  title       String
+  description String   @default("")
+  category    String
+  fileUrl     String
+  sortOrder   Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([category])
+  @@index([isActive])
+}
