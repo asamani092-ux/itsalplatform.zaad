@@ -1,85 +1,39 @@
-# منصة قسم الاتصال المؤسسي — جمعية الزاد
+# منصة قسم الاتصال المؤسسي — نموذج أولي
 
-بوابة MVP لإدارة طلبات التواصل المؤسسي، الحجوزات، ومركز الوثائق الإعلامية.
+نموذج أولي بصري لفكرة بوابة قسم الاتصال المؤسسي في **جمعية الزاد**، مبني على **نظام تصميم الزاد** فقط.
+
+> لا يوجد backend أو قاعدة بيانات — المشروع للمعاينة والتصميم.
 
 ## المتطلبات
 
 - Node.js 20+
-- Docker (لـ PostgreSQL محلياً)
 
-## الإعداد السريع
+## التشغيل
 
 ```bash
-# 1) نسخ متغيرات البيئة
-cp .env.example .env
-
-# 2) تشغيل قاعدة البيانات
-docker compose up -d
-
-# 3) تثبيت الاعتماديات
 npm install
-
-# 4) تطبيق الهجرات والبذور
-npx prisma migrate dev --name init
-npm run db:seed
-
-# 5) تشغيل الخادم
 npm run dev
 ```
 
-المنفذ الافتراضي: `http://localhost:3001`
+المنفذ: `http://localhost:3001`
+
+## هيكل المشروع
+
+```
+design-system/     نظام التصميم الكامل (tokens, components, preset)
+app/               نموذج أولي Next.js للمعاينة
+```
 
 ## نظام التصميم
 
-مدمج من `design-system/` (Tajawal، RTL، ألوان جمعية الزاد).
+راجع `design-system/README.md` للتفاصيل الكاملة.
 
 ```ts
 // tailwind.config.ts
-import tmkeenPreset from "./design-system/tailwind.preset";
+import zaadPreset from "./design-system/tailwind.preset";
 ```
 
-## واجهات API
-
-| Method | Endpoint | الوصف |
-|--------|----------|-------|
-| POST | `/api/requests` | تقديم طلب جديد + إرسال رابط موافقة للمدير |
-| GET/POST | `/api/approve` | موافقة المدير عبر `token` |
-| GET | `/api/dashboard/requests` | قائمة الطلبات (`view=active\|archive\|all`) |
-| GET | `/api/dashboard/requests/:id` | تفاصيل طلب |
-| POST | `/api/dashboard/requests/:id/assign` | إسناد لموظف |
-| POST | `/api/dashboard/requests/:id/reassign` | إعادة إسناد |
-| PATCH | `/api/dashboard/requests/:id/status` | تحديث الحالة |
-| GET/POST | `/api/employees` | موظفو قسم الاتصال |
-| GET/POST | `/api/hospitality/bookings` | حجوزات القاعات |
-| GET/POST | `/api/media/documents` | مركز الوثائق |
-
-## سير العمل
-
-```
-Pending_Manager → Approved_Pending_Assignment → In_Progress → Completed → Archived
-```
-
-## SLA Timestamps
-
-- `createdAt` — وقت الإنشاء
-- `managerApprovedAt` — موافقة المدير
-- `assignedAt` — الإسناد
-- `completedAt` — الإكمال
-
-## مثال: تقديم طلب
-
-```bash
-curl -X POST http://localhost:3001/api/requests \
-  -H "Content-Type: application/json" \
-  -d '{
-    "title": "تصميم بوستر فعالية",
-    "description": "بوستر لفعالية التمكين السنوية",
-    "requiredDate": "2026-07-15",
-    "contactEmail": "user@example.com",
-    "contactPhone": "+966500000000",
-    "managerEmail": "manager@example.com"
-  }'
-```
+معاينة HTML بدون إطار عمل: `design-system/examples/html-rtl-demo.html`
 
 ## الترخيص
 

@@ -1,6 +1,6 @@
-# نظام تصميم الزاد (Tmkeen Design System)
+# نظام تصميم الزاد
 
-حزمة قابلة للنقل لاعتماد هوية **جمعية الزاد — ** في أي مشروع (Next.js، React، Vue، WordPress، HTML).
+حزمة قابلة للنقل لاعتماد هوية **جمعية الزاد** في أي مشروع (Next.js، React، Vue، WordPress، HTML).
 
 ## محتويات الحزمة
 
@@ -81,10 +81,12 @@
 
 | Class | الوصف |
 |-------|-------|
+| `.zaad-root` | جذر RTL للصفحة |
 | `.page-shell` | خلفية الصفحة الكاملة |
 | `.page-container` | `max-width: 72rem` — لوحات التحكم |
 | `.page-container-narrow` | `max-width: 28rem` — تسجيل/دخول |
 | `.tab-bar` | شريط تبويبات segmented |
+| `.zaad-table` | جدول بيانات موحّد |
 
 ## التبنّي حسب المنصة
 
@@ -92,10 +94,10 @@
 
 ```ts
 // tailwind.config.ts
-import tmkeenPreset from "./design-system/tailwind.preset";
+import zaadPreset from "./design-system/tailwind.preset";
 
 const config = {
-  presets: [tmkeenPreset],
+  presets: [zaadPreset],
   content: ["./app/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}"],
 };
 export default config;
@@ -104,25 +106,21 @@ export default config;
 ```tsx
 // app/layout.tsx
 <html lang="ar" dir="rtl">
-  <body className="min-h-screen bg-surface-muted font-sans antialiased">
+  <body className="zaad-root min-h-screen bg-surface-muted font-sans antialiased">
 ```
 
-انسخ `@layer components` من `app/globals.css` أو استورد `design-system/components.css`.
-
-**اعتماديات UI في المشروع الحالي:**
-- `lucide-react` — أيقونات
-- `sonner` — إشعارات Toast
-- `@/components/ui/SubmitButton` — زر مع حالة تحميل
-- `@/components/ui/DataTable` — جدول موحّد
-- `@/components/admin/FloatingModal` — نافذة منبثقة
-- `@/components/SlideOver` — درج جانبي (RTL: `start-0`)
+```css
+/* app/globals.css */
+@import "../design-system/tokens.css";
+@import "../design-system/components.css";
+```
 
 ### 2) HTML / WordPress / PHP
 
 ```html
 <link rel="stylesheet" href="/design-system/tokens.css" />
 <link rel="stylesheet" href="/design-system/components.css" />
-<body class="tmkeen-root page-shell">
+<body class="zaad-root page-shell">
 ```
 
 ### 3) Figma
@@ -141,38 +139,19 @@ export default config;
 
 ```
 min-h-screen bg-surface-muted
-  └─ Navbar (border-b, bg-surface, shadow-sm, max-w-6xl)
-  └─ main.mx-auto.max-w-6xl.space-y-6.px-4.py-8
+  └─ Navbar (border-b, bg-surface, shadow-sm, max-w-page)
+  └─ main.page-container.space-y-6
        └─ KPI grid: grid gap-4 sm:grid-cols-2 lg:grid-cols-4
        └─ .card
-       └─ tab-bar (AdminDashboardTabs)
+       └─ .tab-bar
 ```
 
 ### صفحة auth
 
 ```
 min-h-screen bg-surface-muted
-  └─ main.mx-auto.max-w-md.px-4.py-12
+  └─ main.page-container-narrow
        └─ .card + form.space-y-4
-```
-
-### Toast (Sonner)
-
-```tsx
-<Toaster
-  position="top-center"
-  dir="rtl"
-  richColors
-  expand
-  duration={4000}
-  toastOptions={{
-    classNames: {
-      toast: "font-sans text-start shadow-lg border border-surface-border px-4 py-3",
-      title: "font-bold text-primary",
-      description: "text-brand-gray",
-    },
-  }}
-/>
 ```
 
 ## قواعد RTL
@@ -180,8 +159,6 @@ min-h-screen bg-surface-muted
 1. استخدم `text-start` / `text-end` — **لا** `text-right` / `text-left` للمحتوى العربي
 2. استخدم `ms-*` / `me-*` / `ps-*` / `pe-*` — **لا** `ml-*` / `mr-*`
 3. `dir="ltr"` للأرقام والبريد والجوال فقط
-4. `SlideOver` يفتح من `start-0` (يمين في RTL)
-5. أيقونات السهم في CTA: `ArrowLeft` (اتجاه بصري للأمام في RTL)
 
 ## Typography Scale (Tailwind)
 
@@ -194,41 +171,14 @@ min-h-screen bg-surface-muted
 | تسمية حقل | `text-xs font-semibold text-brand-gray` |
 | KPI رقم | `text-2xl font-bold text-primary` |
 
-## Spacing & Radius
-
-| Token | قيمة Tailwind |
-|-------|---------------|
-| Card padding | `p-6` |
-| Card section | `p-5` |
-| Input | `px-4 py-3 rounded-lg` |
-| Button | `px-6 py-3 rounded-lg` |
-| Card radius | `rounded-xl` |
-| Button/input radius | `rounded-lg` |
-
-## مكوّنات React القابلة للنسخ
-
-من `components/ui/`:
-
-- `SubmitButton.tsx` — زر + Loader2
-- `DataTable.tsx` — جدول generic مع hover وzebra
-- `ContactLinks.tsx` — Phone / Mail / WhatsApp
-- `AppToaster.tsx` — إعداد Sonner
-
-من `components/`:
-
-- `FloatingModal.tsx` — modal مركزي
-- `SlideOver.tsx` — panel جانبي
-- `Navbar.tsx` — شريط علوي
-
 ## التحقق
 
 افتح `design-system/examples/html-rtl-demo.html` في المتصفح للمعاينة الفورية.
 
 ```bash
-# Next.js — تأكد أن preset مدمج
 npm run build
 ```
 
 ## الترخيص
 
-جزء من مشروع tmkeen — للاستخدام الداخلي لجمعية الزاد والمشاريع التابعة.
+للاستخدام الداخلي لجمعية الزاد والمشاريع التابعة.

@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "منصة قسم الاتصال المؤسسي — جمعية الزاد",
-  description: "بوابة قسم الاتصال المؤسسي — API",
+  title: "منصة قسم الاتصال المؤسسي — نموذج أولي",
+  description: "نموذج أولي لنظام تصميم جمعية الزاد — قسم الاتصال المؤسسي",
 };
 
 export default function RootLayout({
@@ -13,7 +13,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ar" dir="rtl">
-      <body className="min-h-screen bg-surface-muted font-sans antialiased">
+      <body className="zaad-root min-h-screen bg-surface-muted font-sans antialiased">
         {children}
       </body>
     </html>
