@@ -15,14 +15,23 @@ MVP Backend لإدارة طلبات التواصل المؤسسي، الحجوز
 
 ```bash
 cp .env.example .env
-# عدّل DATABASE_URL إلى المنفذ 5433 إذا استخدمت Docker:
-# postgresql://itsal:itsal_dev@localhost:5433/itsalplatform?schema=public
-docker compose up -d
+# استخدم منفذ 5433 مع Docker (افتراضي في التعليقات داخل .env.example)
+bash scripts/docker-up.sh
 npm install
 npx prisma migrate deploy
 npm run db:seed
 npm run dev
 ```
+
+**إذا ظهر `permission denied` على `docker.sock`:**
+
+```bash
+sudo service docker start
+sudo chmod 666 /var/run/docker.sock
+docker compose up -d
+```
+
+أو أعد فتح الطرفية بعد إضافتك لمجموعة `docker`، أو نفّذ: `newgrp docker`
 
 ### الخيار ب — PostgreSQL محلي (بدون Docker)
 
