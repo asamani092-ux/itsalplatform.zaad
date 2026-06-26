@@ -7,18 +7,40 @@ MVP Backend لإدارة طلبات التواصل المؤسسي، الحجوز
 ## المتطلبات
 
 - Node.js 20+
-- Docker (PostgreSQL محلياً)
+- PostgreSQL 16 (عبر Docker **أو** تثبيت محلي)
 
 ## الإعداد
 
+### الخيار أ — Docker
+
 ```bash
 cp .env.example .env
+# عدّل DATABASE_URL إلى المنفذ 5433 إذا استخدمت Docker:
+# postgresql://itsal:itsal_dev@localhost:5433/itsalplatform?schema=public
 docker compose up -d
 npm install
 npx prisma migrate deploy
 npm run db:seed
 npm run dev
 ```
+
+### الخيار ب — PostgreSQL محلي (بدون Docker)
+
+```bash
+# Ubuntu/Debian
+sudo apt-get install -y postgresql postgresql-contrib
+sudo pg_ctlcluster 16 main start
+sudo -u postgres psql -c "CREATE USER itsal WITH PASSWORD 'itsal_dev';" \
+  -c "CREATE DATABASE itsalplatform OWNER itsal;"
+
+cp .env.example .env
+npm install
+npx prisma migrate deploy
+npm run db:seed
+npm run dev
+```
+
+> `.env.example` الافتراضي يستخدم المنفذ **5432** (PostgreSQL محلي).
 
 المنفذ: `http://localhost:3001`
 
