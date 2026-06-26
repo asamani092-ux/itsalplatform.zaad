@@ -1,6 +1,3 @@
--- CreateSchema
-CREATE SCHEMA IF NOT EXISTS "public";
-
 -- CreateEnum
 CREATE TYPE "RequestStatus" AS ENUM ('Pending_Manager', 'Approved_Pending_Assignment', 'In_Progress', 'Completed', 'Archived');
 

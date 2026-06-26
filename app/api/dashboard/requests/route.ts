@@ -1,24 +1,27 @@
 import { NextRequest } from "next/server";
-import { RequestStatus } from "@/generated/prisma/client";
-import { handleApiError, jsonOk } from "@/lib/api-utils";
 import { listRequests } from "@/lib/request-service";
+import { handleApiError, jsonOk } from "@/lib/api-utils";
+import { RequestStatus } from "@/generated/prisma/client";
 
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = request.nextUrl;
-    const view = (searchParams.get("view") ?? "active") as
+    const view = request.nextUrl.searchParams.get("view") as
       | "active"
       | "archive"
-      | "all";
-    const statusParam = searchParams.get("status");
+      | "all"
+      | null;
+    const statusParam = request.nextUrl.searchParams.get("status");
 
     const status = statusParam
       ? (statusParam as RequestStatus)
       : undefined;
 
-    const requests = await listRequests({ view, status });
+    const requests = await listRequests({
+      view: view ?? "all",
+      status,
+    });
 
-    return jsonOk({ requests, count: requests.length, view });
+    return jsonOk({ requests, count: requests.length });
   } catch (error) {
     return handleApiError(error);
   }

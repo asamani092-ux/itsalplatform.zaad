@@ -1,42 +1,29 @@
-import { RequestStatus } from "@/generated/prisma/client";
 import { prisma } from "./prisma";
 import { calculateSlaMetrics } from "./sla";
+import { ARCHIVE_STATUSES, ACTIVE_STATUSES } from "./workflow";
+import { RequestStatus } from "../generated/prisma/client";
 
-export type RequestListFilter = "active" | "archive" | "all";
+type DashboardView = "active" | "archive" | "all";
 
-// Time: O(n) with DB indexes on status — n = result set size
-// Space: O(n) — mapped response array
-export async function listRequests(params: {
-  view?: RequestListFilter;
+export async function listRequests(options: {
+  view?: DashboardView;
   status?: RequestStatus;
 }) {
-  const { view = "active", status } = params;
+  const { view = "all", status } = options;
 
-  const where: {
-    status?: RequestStatus | { in: RequestStatus[] };
-  } = {};
-
+  let statusFilter: RequestStatus[] | undefined;
   if (status) {
-    where.status = status;
+    statusFilter = [status];
   } else if (view === "active") {
-    where.status = {
-      in: [
-        RequestStatus.Approved_Pending_Assignment,
-        RequestStatus.In_Progress,
-      ],
-    };
+    statusFilter = ACTIVE_STATUSES;
   } else if (view === "archive") {
-    where.status = {
-      in: [RequestStatus.Completed, RequestStatus.Archived],
-    };
+    statusFilter = ARCHIVE_STATUSES;
   }
 
   const requests = await prisma.communicationRequest.findMany({
-    where,
+    where: statusFilter ? { status: { in: statusFilter } } : undefined,
     include: {
-      assignedEmployee: {
-        select: { id: true, name: true, email: true },
-      },
+      assignedEmployee: { select: { id: true, name: true, email: true } },
     },
     orderBy: { createdAt: "desc" },
   });
@@ -56,22 +43,18 @@ export async function getRequestById(id: string) {
   const request = await prisma.communicationRequest.findUnique({
     where: { id },
     include: {
-      assignedEmployee: {
-        select: { id: true, name: true, email: true },
-      },
+      assignedEmployee: { select: { id: true, name: true, email: true } },
       assignmentHistory: {
-        include: {
-          employee: { select: { id: true, name: true, email: true } },
-        },
-        orderBy: { assignedAt: "asc" },
+        include: { employee: { select: { id: true, name: true, email: true } } },
+        orderBy: { assignedAt: "desc" },
       },
-      statusHistory: {
-        orderBy: { changedAt: "asc" },
-      },
+      statusHistory: { orderBy: { changedAt: "desc" } },
     },
   });
 
-  if (!request) return null;
+  if (!request) {
+    throw new Error("NOT_FOUND: الطلب غير موجود");
+  }
 
   return {
     ...request,
@@ -84,14 +67,36 @@ export async function getRequestById(id: string) {
   };
 }
 
-// Time: O(k) where k = assignment history entries for request
-// Space: O(k) — history included in response
-export async function getAssignmentHistory(requestId: string) {
-  return prisma.assignmentHistory.findMany({
-    where: { requestId },
-    include: {
-      employee: { select: { id: true, name: true, email: true } },
+export async function recordStatusChange(params: {
+  requestId: string;
+  fromStatus: RequestStatus | null;
+  toStatus: RequestStatus;
+  changedBy?: string;
+  note?: string;
+}) {
+  return prisma.statusHistory.create({
+    data: {
+      requestId: params.requestId,
+      fromStatus: params.fromStatus,
+      toStatus: params.toStatus,
+      changedBy: params.changedBy,
+      note: params.note,
     },
-    orderBy: { assignedAt: "asc" },
+  });
+}
+
+export async function recordAssignment(params: {
+  requestId: string;
+  employeeId: string;
+  assignedBy?: string;
+  note?: string;
+}) {
+  return prisma.assignmentHistory.create({
+    data: {
+      requestId: params.requestId,
+      employeeId: params.employeeId,
+      assignedBy: params.assignedBy,
+      note: params.note,
+    },
   });
 }

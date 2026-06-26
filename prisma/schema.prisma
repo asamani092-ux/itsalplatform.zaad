@@ -16,14 +16,14 @@ enum RequestStatus {
 }
 
 model CommEmployee {
-  id                 String                @id @default(cuid())
-  name               String
-  email              String                @unique
-  isActive           Boolean               @default(true)
-  assignedRequests   CommunicationRequest[] @relation("AssignedEmployee")
-  assignmentHistory  AssignmentHistory[]
-  createdAt          DateTime              @default(now())
-  updatedAt          DateTime              @updatedAt
+  id                String                @id @default(cuid())
+  name              String
+  email             String                @unique
+  isActive          Boolean               @default(true)
+  assignedRequests  CommunicationRequest[] @relation("AssignedEmployee")
+  assignmentHistory AssignmentHistory[]
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
 
   @@index([isActive])
 }
@@ -85,18 +85,18 @@ model StatusHistory {
 }
 
 model HospitalityBooking {
-  id              String   @id @default(cuid())
-  requesterName   String
-  requesterEmail  String
-  requesterPhone  String
-  roomName        String
-  meetingDate     DateTime
-  startTime       String
-  endTime         String
-  attendeesCount  Int
-  notes           String   @default("")
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id             String   @id @default(cuid())
+  requesterName  String
+  requesterEmail String
+  requesterPhone String
+  roomName       String
+  meetingDate    DateTime
+  startTime      String
+  endTime        String
+  attendeesCount Int
+  notes          String   @default("")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   @@index([meetingDate])
 }
