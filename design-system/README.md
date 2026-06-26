@@ -1,6 +1,6 @@
-# نظام تصميم منصة التمكين (Tmkeen Design System)
+# نظام تصميم الزاد (Tmkeen Design System)
 
-حزمة قابلة للنقل لاعتماد هوية **جمعية الزاد — منصة التمكين المستدام** في أي مشروع (Next.js، React، Vue، WordPress، HTML).
+حزمة قابلة للنقل لاعتماد هوية **جمعية الزاد — ** في أي مشروع (Next.js، React، Vue، WordPress، HTML).
 
 ## محتويات الحزمة
 
