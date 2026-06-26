@@ -2,15 +2,21 @@ import Link from "next/link";
 
 const PORTAL_LINKS = [
   {
-    href: "/submit",
+    href: "/submit/communications",
     title: "تقديم طلب",
-    desc: "نموذج للموظفين — يُرسل رابط موافقة للمدير",
+    desc: "نموذج ديناميكي حسب القسم ونوع الطلب",
     accent: "border-primary",
   },
   {
-    href: "/dashboard",
-    title: "لوحة التحكم",
-    desc: "Kanban — إسناد الطلبات ومتابعة SLA",
+    href: "/login",
+    title: "تسجيل الدخول",
+    desc: "مساحة الموظف أو مركز تحكم المدير",
+    accent: "border-secondary",
+  },
+  {
+    href: "/manager/kanban",
+    title: "لوحة Kanban",
+    desc: "للمدير بعد الدخول — إسناد ومتابعة SLA",
     accent: "border-secondary",
   },
 ] as const;
@@ -23,10 +29,10 @@ export default function HomePage() {
           <h1 className="text-3xl font-extrabold text-primary">
             منصة قسم الاتصال المؤسسي
           </h1>
-          <p className="text-sm text-brand-gray">جمعية الزاد — الواجهات جاهزة</p>
+          <p className="text-sm text-brand-gray">جمعية الزاد</p>
         </div>
 
-        <div className="mb-10 grid gap-4 sm:grid-cols-2">
+        <div className="mb-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {PORTAL_LINKS.map((link) => (
             <Link
               key={link.href}
@@ -38,34 +44,23 @@ export default function HomePage() {
             </Link>
           ))}
           <div className="card border-t-4 border-surface-border">
-            <h2 className="text-lg font-bold text-primary">موافقة المدير</h2>
+            <h2 className="text-lg font-bold text-primary">الاستقبال</h2>
             <p className="mt-2 text-xs text-brand-gray">
-              يفتح عبر الرابط من البريد — مثال:{" "}
-              <code dir="ltr" className="text-[11px]">/approve?token=xyz</code>
+              <code dir="ltr" className="text-[11px]">
+                /reception/reception-demo-token
+              </code>
             </p>
           </div>
         </div>
 
-        <div className="card-section space-y-3 text-sm text-brand-gray">
-          <h2 className="text-lg font-bold text-primary">كيف تظهر البطاقات في اللوحة؟</h2>
-          <ol className="list-decimal space-y-2 ps-5">
-            <li>
-              قدّم طلباً من{" "}
-              <Link href="/submit" className="font-semibold text-primary underline">
-                /submit
-              </Link>
-            </li>
-            <li>
-              يوافق المدير عبر{" "}
-              <code dir="ltr" className="text-xs">/approve?token=...</code>
-            </li>
-            <li>
-              بعد الموافقة يظهر الطلب في{" "}
-              <Link href="/dashboard" className="font-semibold text-primary underline">
-                /dashboard
-              </Link>
-            </li>
-          </ol>
+        <div className="card-section space-y-2 text-sm text-brand-gray">
+          <p>
+            حساب تجريبي للمدير: <code dir="ltr">0500000001</code> /{" "}
+            <code>password123</code>
+          </p>
+          <p>
+            حساب موظف: <code dir="ltr">0500000002</code> / <code>password123</code>
+          </p>
         </div>
       </main>
     </div>

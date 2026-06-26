@@ -1,18 +1,10 @@
 import { NextRequest } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { assertTransition } from "@/lib/workflow";
 import { notifySubmitter } from "@/lib/notifications";
 import { handleApiError, jsonError, jsonOk } from "@/lib/api-utils";
-import { getRequestById, recordStatusChange } from "@/lib/request-service";
+import { updateRequestStatus } from "@/lib/request-service";
 import { RequestStatus } from "@/generated/prisma/client";
 
-interface StatusBody {
-  status?: RequestStatus;
-  changedBy?: string;
-  note?: string;
-}
-
-const ALLOWED_MANUAL_STATUSES: RequestStatus[] = [
+const ALLOWED: RequestStatus[] = [
   RequestStatus.Completed,
   RequestStatus.Archived,
 ];
@@ -23,9 +15,13 @@ export async function PATCH(
 ) {
   try {
     const { id } = await params;
-    const body = (await request.json()) as StatusBody;
+    const body = (await request.json()) as {
+      status?: RequestStatus;
+      changedBy?: string;
+      note?: string;
+    };
 
-    if (!body.status || !ALLOWED_MANUAL_STATUSES.includes(body.status)) {
+    if (!body.status || !ALLOWED.includes(body.status)) {
       return jsonError(
         "الحالة المطلوبة غير مدعومة — استخدم Completed أو Archived",
         "VALIDATION",
@@ -33,32 +29,10 @@ export async function PATCH(
       );
     }
 
-    const existing = await getRequestById(id);
-    assertTransition(existing.status, body.status);
-
-    const now = new Date();
-    const updateData: {
-      status: RequestStatus;
-      completedAt?: Date;
-    } = { status: body.status };
-
-    if (body.status === RequestStatus.Completed) {
-      updateData.completedAt = now;
-    }
-
-    const updated = await prisma.communicationRequest.update({
-      where: { id },
-      data: updateData,
-      include: {
-        assignedEmployee: { select: { id: true, name: true, email: true } },
-      },
-    });
-
-    await recordStatusChange({
+    const updated = await updateRequestStatus({
       requestId: id,
-      fromStatus: existing.status,
-      toStatus: body.status,
-      changedBy: body.changedBy,
+      status: body.status,
+      changedBy: body.changedBy ?? "dashboard",
       note: body.note,
     });
 

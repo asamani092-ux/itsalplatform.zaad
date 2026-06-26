@@ -1,10 +1,7 @@
 import { NextRequest } from "next/server";
+import { handleApiError, jsonError, jsonOk } from "@/lib/api-utils";
+import { submitRequest } from "@/lib/request-service";
 import { prisma } from "@/lib/prisma";
-import { generateApprovalToken } from "@/lib/tokens";
-import { notifyManager } from "@/lib/notifications";
-import { getAppUrl, handleApiError, jsonError, jsonOk } from "@/lib/api-utils";
-import { recordStatusChange } from "@/lib/request-service";
-import { RequestStatus } from "@/generated/prisma/client";
 
 interface SubmitRequestBody {
   title?: string;
@@ -13,66 +10,61 @@ interface SubmitRequestBody {
   contactEmail?: string;
   contactPhone?: string;
   managerEmail?: string;
-}
-
-function validateSubmitBody(body: SubmitRequestBody) {
-  const { title, description, requiredDate, contactEmail, contactPhone, managerEmail } = body;
-  if (!title?.trim()) throw new Error("VALIDATION: العنوان مطلوب");
-  if (!description?.trim()) throw new Error("VALIDATION: الوصف مطلوب");
-  if (!requiredDate) throw new Error("VALIDATION: التاريخ المطلوب مطلوب");
-  if (!contactEmail?.trim()) throw new Error("VALIDATION: البريد الإلكتروني مطلوب");
-  if (!contactPhone?.trim()) throw new Error("VALIDATION: رقم التواصل مطلوب");
-  if (!managerEmail?.trim()) throw new Error("VALIDATION: بريد المدير المباشر مطلوب");
-
-  const parsedDate = new Date(requiredDate);
-  if (Number.isNaN(parsedDate.getTime())) {
-    throw new Error("VALIDATION: التاريخ المطلوب غير صالح");
-  }
-
-  return {
-    title: title.trim(),
-    description: description.trim(),
-    requiredDate: parsedDate,
-    contactEmail: contactEmail.trim(),
-    contactPhone: contactPhone.trim(),
-    managerEmail: managerEmail.trim(),
-  };
+  departmentId?: string;
+  requestTypeId?: string;
 }
 
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as SubmitRequestBody;
-    const data = validateSubmitBody(body);
-    const approvalToken = generateApprovalToken();
 
-    const created = await prisma.communicationRequest.create({
-      data: {
-        ...data,
-        approvalToken,
-        status: RequestStatus.Pending_Manager,
-      },
-    });
+    if (!body.title?.trim()) throw new Error("VALIDATION: العنوان مطلوب");
+    if (!body.description?.trim()) throw new Error("VALIDATION: الوصف مطلوب");
+    if (!body.requiredDate) throw new Error("VALIDATION: التاريخ المطلوب مطلوب");
+    if (!body.contactEmail?.trim()) throw new Error("VALIDATION: البريد الإلكتروني مطلوب");
+    if (!body.contactPhone?.trim()) throw new Error("VALIDATION: رقم التواصل مطلوب");
 
-    await recordStatusChange({
-      requestId: created.id,
-      fromStatus: null,
-      toStatus: RequestStatus.Pending_Manager,
-      note: "تم تقديم الطلب",
-    });
+    let departmentId = body.departmentId;
+    let requestTypeId = body.requestTypeId;
 
-    const approvalUrl = `${getAppUrl()}/api/approve?token=${approvalToken}`;
-    await notifyManager({
-      managerEmail: data.managerEmail,
-      requestTitle: data.title,
-      approvalUrl,
+    if (!departmentId) {
+      const dept = await prisma.department.findFirst({
+        where: body.managerEmail
+          ? { managerEmail: body.managerEmail.trim() }
+          : { slug: "general" },
+      });
+      if (!dept) throw new Error("VALIDATION: القسم غير محدد");
+      departmentId = dept.id;
+    }
+
+    if (!requestTypeId) {
+      const rt = await prisma.requestType.findFirst({
+        where: { slug: "general-request" },
+      });
+      if (!rt) throw new Error("VALIDATION: نوع الطلب غير محدد");
+      requestTypeId = rt.id;
+    }
+
+    const requiredDate = new Date(body.requiredDate);
+    if (Number.isNaN(requiredDate.getTime())) {
+      throw new Error("VALIDATION: التاريخ المطلوب غير صالح");
+    }
+
+    const result = await submitRequest({
+      title: body.title.trim(),
+      description: body.description.trim(),
+      requiredDate,
+      contactEmail: body.contactEmail.trim(),
+      contactPhone: body.contactPhone.trim(),
+      departmentId,
+      requestTypeId,
     });
 
     return jsonOk(
       {
-        id: created.id,
-        status: created.status,
-        approvalToken: created.approvalToken,
-        approvalUrl,
+        id: result.request.id,
+        status: result.request.status,
+        approvalUrl: result.approvalUrl,
       },
       201,
     );

@@ -9,7 +9,10 @@ interface TokenSummary {
   id: string;
   title: string;
   status: string;
-  managerApprovedAt: string | null;
+  approvedAt: string | null;
+  department?: { name: string };
+  requestType?: { name: string; requiresVisitDate: boolean };
+  visitDate: string | null;
 }
 
 interface RequestDetails {
@@ -21,7 +24,10 @@ interface RequestDetails {
   contactPhone: string;
   managerEmail: string;
   status: string;
-  managerApprovedAt: string | null;
+  approvedAt: string | null;
+  department?: { name: string };
+  requestType?: { name: string };
+  visitDate: string | null;
 }
 
 type ViewState =
@@ -237,6 +243,26 @@ export default function ManagerApprovalView() {
 
                 <dl className="grid gap-3 border-t border-surface-border pt-4 text-sm">
                   <div className="flex justify-between gap-4">
+                    <dt className="text-brand-gray">القسم</dt>
+                    <dd className="font-semibold text-primary">
+                      {details.department?.name ?? "—"}
+                    </dd>
+                  </div>
+                  <div className="flex justify-between gap-4">
+                    <dt className="text-brand-gray">نوع الطلب</dt>
+                    <dd className="font-semibold text-primary">
+                      {details.requestType?.name ?? "—"}
+                    </dd>
+                  </div>
+                  {details.visitDate && (
+                    <div className="flex justify-between gap-4">
+                      <dt className="text-brand-gray">تاريخ الزيارة</dt>
+                      <dd className="font-semibold" dir="ltr">
+                        {formatDate(details.visitDate)}
+                      </dd>
+                    </div>
+                  )}
+                  <div className="flex justify-between gap-4">
                     <dt className="text-brand-gray">التاريخ المطلوب</dt>
                     <dd className="font-semibold text-primary" dir="ltr">
                       {formatDate(details.requiredDate)}
@@ -284,9 +310,9 @@ export default function ManagerApprovalView() {
               {viewState === "already_processed" && (
                 <div className="card-section text-center text-sm text-brand-gray">
                   <p>تمت معالجة هذا الطلب مسبقاً ولا يمكن الموافقة عليه مجدداً.</p>
-                  {details.managerApprovedAt && (
+                  {details.approvedAt && (
                     <p className="mt-2" dir="ltr">
-                      {formatDate(details.managerApprovedAt)}
+                      {formatDate(details.approvedAt)}
                     </p>
                   )}
                 </div>

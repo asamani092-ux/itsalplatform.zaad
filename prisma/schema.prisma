@@ -15,17 +15,75 @@ enum RequestStatus {
   Archived
 }
 
+enum EmployeeRole {
+  EMPLOYEE
+  MANAGER
+}
+
+model Department {
+  id            String                 @id @default(cuid())
+  name          String
+  slug          String                 @unique
+  managerEmail  String
+  receptionToken String?               @unique
+  isActive      Boolean                @default(true)
+  requestTypes  RequestType[]
+  requests      CommunicationRequest[]
+  createdAt     DateTime               @default(now())
+  updatedAt     DateTime               @updatedAt
+
+  @@index([isActive])
+}
+
+model RequestType {
+  id                String                 @id @default(cuid())
+  name              String
+  slug              String                 @unique
+  description       String               @default("")
+  requiresVisitDate Boolean                @default(false)
+  isActive          Boolean                @default(true)
+  departmentId      String?
+  department        Department?            @relation(fields: [departmentId], references: [id])
+  routingRules      RoutingRule[]
+  requests          CommunicationRequest[]
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+
+  @@index([isActive])
+  @@index([departmentId])
+}
+
+model RoutingRule {
+  id            String      @id @default(cuid())
+  requestTypeId String
+  requestType   RequestType @relation(fields: [requestTypeId], references: [id], onDelete: Cascade)
+  employeeId    String
+  employee      CommEmployee @relation(fields: [employeeId], references: [id])
+  isActive      Boolean     @default(true)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@unique([requestTypeId, employeeId])
+  @@index([requestTypeId])
+  @@index([employeeId])
+}
+
 model CommEmployee {
   id                String                @id @default(cuid())
   name              String
   email             String                @unique
+  phoneNumber       String                @unique
+  passwordHash      String
+  role              EmployeeRole          @default(EMPLOYEE)
   isActive          Boolean               @default(true)
   assignedRequests  CommunicationRequest[] @relation("AssignedEmployee")
   assignmentHistory AssignmentHistory[]
+  routingRules      RoutingRule[]
   createdAt         DateTime              @default(now())
   updatedAt         DateTime              @updatedAt
 
   @@index([isActive])
+  @@index([role])
 }
 
 model CommunicationRequest {
@@ -36,13 +94,21 @@ model CommunicationRequest {
   contactEmail       String
   contactPhone       String
   managerEmail       String
+  departmentId       String
+  department         Department          @relation(fields: [departmentId], references: [id])
+  requestTypeId      String
+  requestType        RequestType         @relation(fields: [requestTypeId], references: [id])
   approvalToken      String              @unique
   status             RequestStatus       @default(Pending_Manager)
   assignedEmployeeId String?
   assignedEmployee   CommEmployee?       @relation("AssignedEmployee", fields: [assignedEmployeeId], references: [id])
-  managerApprovedAt  DateTime?
+  approvedAt         DateTime?
   assignedAt         DateTime?
   completedAt        DateTime?
+  proofFileUrl       String?
+  visitDate          DateTime?
+  visitAttended      Boolean?
+  visitMarkedAt      DateTime?
   assignmentHistory  AssignmentHistory[]
   statusHistory      StatusHistory[]
   createdAt          DateTime            @default(now())
@@ -51,7 +117,10 @@ model CommunicationRequest {
   @@index([status])
   @@index([approvalToken])
   @@index([assignedEmployeeId])
+  @@index([departmentId])
+  @@index([requestTypeId])
   @@index([createdAt])
+  @@index([visitDate])
 }
 
 model AssignmentHistory {

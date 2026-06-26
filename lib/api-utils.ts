@@ -17,6 +17,18 @@ export function getAppUrl() {
 
 export function handleApiError(error: unknown) {
   if (error instanceof Error) {
+    if (error.message.startsWith("FORBIDDEN:")) {
+      return jsonError(error.message.replace("FORBIDDEN: ", ""), "FORBIDDEN", 403);
+    }
+    if (error.message.startsWith("UNAUTHORIZED:")) {
+      return jsonError(error.message.replace("UNAUTHORIZED: ", ""), "UNAUTHORIZED", 401);
+    }
+    if (error.message.startsWith("ALREADY_PROCESSED:")) {
+      return jsonError(error.message.replace("ALREADY_PROCESSED: ", ""), "ALREADY_PROCESSED", 409);
+    }
+    if (error.message.startsWith("INVALID_STATE:")) {
+      return jsonError(error.message.replace("INVALID_STATE: ", ""), "INVALID_STATE", 409);
+    }
     if (error.message.startsWith("INVALID_TRANSITION:")) {
       return jsonError(error.message.replace("INVALID_TRANSITION: ", ""), "INVALID_TRANSITION", 409);
     }

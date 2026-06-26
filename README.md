@@ -1,76 +1,96 @@
 # منصة قسم الاتصال المؤسسي — جمعية الزاد
 
-MVP Backend لإدارة طلبات التواصل المؤسسي، الحجوزات، ومركز الوثائق الإعلامية.
-
-> الواجهة لم تُبنَ بعد — المشروع حالياً API + نظام تصميم الزاد.
+منصة ديناميكية لإدارة طلبات التواصل المؤسسي مع مصادقة الموظفين، إعدادات قابلة للتكوين، ومساحات عمل منفصلة.
 
 ## المتطلبات
 
 - Node.js 20+
-- PostgreSQL 16 (عبر Docker **أو** تثبيت محلي)
+- PostgreSQL 16
 
-## الإعداد
-
-### الخيار أ — Docker
+## الإعداد السريع
 
 ```bash
-cp .env.example .env
-# استخدم منفذ 5433 مع Docker (افتراضي في التعليقات داخل .env.example)
-bash scripts/docker-up.sh
-npm install
-npx prisma migrate deploy
-npm run db:seed
-npm run dev
-```
-
-**إذا ظهر `permission denied` على `docker.sock`:**
-
-```bash
-sudo service docker start
-sudo chmod 666 /var/run/docker.sock
-docker compose up -d
-```
-
-أو أعد فتح الطرفية بعد إضافتك لمجموعة `docker`، أو نفّذ: `newgrp docker`
-
-### الخيار ب — PostgreSQL محلي (بدون Docker)
-
-```bash
-# Ubuntu/Debian
-sudo apt-get install -y postgresql postgresql-contrib
-sudo pg_ctlcluster 16 main start
-sudo -u postgres psql -c "CREATE USER itsal WITH PASSWORD 'itsal_dev';" \
-  -c "CREATE DATABASE itsalplatform OWNER itsal;"
-
 cp .env.example .env
 npm install
 npx prisma migrate deploy
 npm run db:seed
 npm run dev
 ```
-
-> `.env.example` الافتراضي يستخدم المنفذ **5432** (PostgreSQL محلي).
 
 المنفذ: `http://localhost:3001`
 
-## نظام التصميم
+### حسابات تجريبية (بعد seed)
 
-مدمج من `design-system/` — راجع `design-system/README.md`.
+| الدور | الهاتف | كلمة المرور |
+|-------|--------|-------------|
+| مدير | `0500000001` | `password123` |
+| موظف | `0500000002` | `password123` |
 
-## واجهات API
+رمز الاستقبال: `reception-demo-token` → `/reception/reception-demo-token`
 
-| Method | Endpoint | الوصف |
-|--------|----------|-------|
-| POST | `/api/requests` | تقديم طلب + token موافقة + إشعار mock للمدير |
-| GET/POST | `/api/approve?token=` | موافقة المدير بدون تسجيل دخول |
-| GET | `/api/dashboard/requests` | قائمة (`view=active\|archive\|all`) |
-| GET | `/api/dashboard/requests/:id` | تفاصيل + SLA |
-| POST | `/api/dashboard/requests/:id/assign` | إسناد → `In_Progress` |
-| POST | `/api/dashboard/requests/:id/reassign` | إعادة إسناد |
-| PATCH | `/api/dashboard/requests/:id/status` | `Completed` / `Archived` |
-| GET/POST | `/api/employees` | موظفو القسم |
-| GET/POST | `/api/hospitality/bookings` | حجوزات القاعات |
-| GET/POST | `/api/media/documents` | مركز الوثائق |
+## الواجهات
+
+| المسار | الوصف |
+|--------|-------|
+| `/submit/[slug]` | نموذج تقديم ديناميكي |
+| `/approve?token=` | موافقة المدير (magic link) |
+| `/login` | تسجيل دخول الموظف/المدير |
+| `/employee` | مساحة الموظف — التذاكر المسندة |
+| `/manager` | لوحة KPI للمدير |
+| `/manager/kanban` | Kanban |
+| `/manager/team` | إدارة الفريق |
+| `/manager/settings` | الأقسام وأنواع الطلبات والتوجيه |
+| `/reception/[token]` | شاشة الاستقبال |
+
+## API
+
+### عام (بدون مصادقة)
+
+| Method | Endpoint |
+|--------|----------|
+| GET | `/api/public/departments` |
+| GET | `/api/public/request-types?departmentId=` |
+| POST | `/api/public/requests` |
+
+### مصادقة
+
+| Method | Endpoint |
+|--------|----------|
+| POST | `/api/auth/login` |
+| POST | `/api/auth/logout` |
+| GET | `/api/auth/me` |
+
+### موظف (جلسة)
+
+| Method | Endpoint |
+|--------|----------|
+| GET | `/api/employee/tickets` |
+| GET | `/api/employee/tickets/:id` |
+| POST | `/api/employee/tickets/:id/complete` (multipart: proof) |
+
+### مدير (جلسة MANAGER)
+
+| Method | Endpoint |
+|--------|----------|
+| GET | `/api/manager/kpis` |
+| GET/POST/PATCH | `/api/manager/team` |
+| GET/POST/PATCH | `/api/manager/settings/departments` |
+| GET/POST/PATCH | `/api/manager/settings/request-types` |
+| GET/POST/PATCH | `/api/manager/settings/routing-rules` |
+| GET | `/api/manager/tickets` |
+| POST | `/api/manager/tickets/:id/assign` |
+| POST | `/api/manager/tickets/:id/reassign` |
+| PATCH | `/api/manager/tickets/:id/status` |
+
+### أخرى
+
+| Method | Endpoint |
+|--------|----------|
+| GET/PATCH | `/api/reception/[token]` |
+| POST | `/api/uploads` |
+| GET/POST | `/api/approve?token=` |
+
+المسارات القديمة (`/api/requests`, `/api/dashboard/*`) ما زالت تعمل كـ thin wrappers.
 
 ## سير العمل
 
@@ -78,28 +98,12 @@ npm run dev
 Pending_Manager → Approved_Pending_Assignment → In_Progress → Completed → Archived
 ```
 
-## SLA Timestamps
+عند الموافقة: إذا وُجدت قاعدة توجيه → إسناد تلقائي إلى `In_Progress`.
 
-- `createdAt` — وقت الإنشاء
-- `managerApprovedAt` — موافقة المدير
-- `assignedAt` — الإسناد
-- `completedAt` — الإكمال
+## SLA
 
-## مثال: تقديم طلب
-
-```bash
-curl -X POST http://localhost:3001/api/requests \
-  -H "Content-Type: application/json" \
-  -d '{
-    "title": "تصميم بوستر فعالية",
-    "description": "بوستر لفعالية التمكين السنوية",
-    "requiredDate": "2026-07-15",
-    "contactEmail": "user@example.com",
-    "contactPhone": "+966500000000",
-    "managerEmail": "manager@example.com"
-  }'
-```
+- `createdAt` → `approvedAt` → `assignedAt` → `completedAt`
 
 ## الترخيص
 
-للاستخدام الداخلي لجمعية الزاد والمشاريع التابعة.
+للاستخدام الداخلي لجمعية الزاد.
