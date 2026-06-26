@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "منصة قسم الاتصال المؤسسي — نموذج أولي",
-  description: "نموذج أولي لنظام تصميم جمعية الزاد — قسم الاتصال المؤسسي",
+  title: "منصة قسم الاتصال المؤسسي — جمعية الزاد",
+  description: "بوابة قسم الاتصال المؤسسي — Backend API",
 };
 
 export default function RootLayout({
