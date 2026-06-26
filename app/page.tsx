@@ -1,6 +1,7 @@
 const API_ENDPOINTS = [
   { method: "GET", path: "/submit", desc: "تقديم طلب (واجهة)" },
   { method: "GET", path: "/approve?token=...", desc: "موافقة المدير (واجهة)" },
+  { method: "GET", path: "/dashboard", desc: "لوحة قسم الاتصال (Kanban)" },
   { method: "POST", path: "/api/requests", desc: "تقديم طلب جديد + إرسال رابط موافقة للمدير" },
   { method: "GET/POST", path: "/api/approve?token=...", desc: "موافقة المدير المباشر (بدون تسجيل دخول)" },
   { method: "GET", path: "/api/dashboard/requests?view=active", desc: "لوحة الطلبات — نشطة" },
