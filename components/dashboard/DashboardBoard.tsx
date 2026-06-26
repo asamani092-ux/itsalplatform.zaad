@@ -36,6 +36,7 @@ export default function DashboardBoard() {
   const [tab, setTab] = useState<BoardTab>("board");
   const [requests, setRequests] = useState<DashboardRequest[]>([]);
   const [archiveRequests, setArchiveRequests] = useState<DashboardRequest[]>([]);
+  const [pendingRequests, setPendingRequests] = useState<DashboardRequest[]>([]);
   const [employees, setEmployees] = useState<CommEmployee[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -48,9 +49,10 @@ export default function DashboardBoard() {
     setError(null);
 
     try {
-      const [allRes, archiveRes, empRes] = await Promise.all([
+      const [allRes, archiveRes, pendingRes, empRes] = await Promise.all([
         fetch("/api/dashboard/requests?view=all"),
         fetch("/api/dashboard/requests?view=archive"),
+        fetch("/api/dashboard/requests?status=Pending_Manager"),
         fetch("/api/employees"),
       ]);
 
@@ -60,6 +62,9 @@ export default function DashboardBoard() {
       const archivePayload = await parseApiResponse<{
         requests: DashboardRequest[];
       }>(archiveRes);
+      const pendingPayload = await parseApiResponse<{
+        requests: DashboardRequest[];
+      }>(pendingRes);
       const empPayload = await parseApiResponse<{ employees: CommEmployee[] }>(
         empRes,
       );
@@ -78,6 +83,9 @@ export default function DashboardBoard() {
       setRequests(allPayload.data.requests);
       setArchiveRequests(
         archivePayload.success ? archivePayload.data.requests : [],
+      );
+      setPendingRequests(
+        pendingPayload.success ? pendingPayload.data.requests : [],
       );
       setEmployees(empPayload.data.employees);
     } catch (loadError) {
@@ -242,6 +250,29 @@ export default function DashboardBoard() {
           </button>
         </div>
 
+        {pendingRequests.length > 0 && tab === "board" && (
+          <div className="card-section space-y-3">
+            <h2 className="text-sm font-bold text-primary">
+              بانتظار موافقة المدير ({pendingRequests.length})
+            </h2>
+            <p className="text-xs text-brand-gray">
+              هذه الطلبات لن تظهر في الأعمدة حتى يوافق المدير عبر رابط{" "}
+              <code dir="ltr" className="text-[11px]">/approve?token=...</code>
+            </p>
+            <ul className="space-y-2">
+              {pendingRequests.map((r) => (
+                <li
+                  key={r.id}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-surface-border bg-surface px-3 py-2 text-sm"
+                >
+                  <span className="font-semibold text-primary">{r.title}</span>
+                  <span className="badge-warning">بانتظار المدير</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         {error && (
           <div
             className="rounded-lg border border-[var(--zaad-danger)] bg-[var(--zaad-danger-bg)] px-4 py-3 text-sm font-semibold text-[var(--zaad-danger)]"
@@ -256,6 +287,18 @@ export default function DashboardBoard() {
             جاري تحميل اللوحة...
           </div>
         ) : tab === "board" ? (
+          boardRequests.length === 0 && pendingRequests.length === 0 ? (
+            <div className="card space-y-4 py-12 text-center">
+              <p className="text-lg font-bold text-primary">اللوحة فارغة</p>
+              <p className="text-sm text-brand-gray">
+                لا توجد طلبات بعد. ابدأ من{" "}
+                <Link href="/submit" className="font-semibold text-primary underline">
+                  تقديم طلب
+                </Link>
+                .
+              </p>
+            </div>
+          ) : (
           <div className="grid gap-4 lg:grid-cols-3">
             {COLUMNS.map((column) => {
               const columnRequests = boardRequests.filter(
@@ -319,6 +362,7 @@ export default function DashboardBoard() {
               );
             })}
           </div>
+          )
         ) : (
           <div className="card overflow-x-auto p-0">
             <table className="zaad-table">

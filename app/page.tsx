@@ -1,48 +1,73 @@
-const API_ENDPOINTS = [
-  { method: "GET", path: "/submit", desc: "تقديم طلب (واجهة)" },
-  { method: "GET", path: "/approve?token=...", desc: "موافقة المدير (واجهة)" },
-  { method: "GET", path: "/dashboard", desc: "لوحة قسم الاتصال (Kanban)" },
-  { method: "POST", path: "/api/requests", desc: "تقديم طلب جديد + إرسال رابط موافقة للمدير" },
-  { method: "GET/POST", path: "/api/approve?token=...", desc: "موافقة المدير المباشر (بدون تسجيل دخول)" },
-  { method: "GET", path: "/api/dashboard/requests?view=active", desc: "لوحة الطلبات — نشطة" },
-  { method: "GET", path: "/api/dashboard/requests?view=archive", desc: "لوحة الطلبات — أرشيف" },
-  { method: "GET", path: "/api/dashboard/requests/:id", desc: "تفاصيل طلب + SLA" },
-  { method: "POST", path: "/api/dashboard/requests/:id/assign", desc: "إسناد لموظف" },
-  { method: "POST", path: "/api/dashboard/requests/:id/reassign", desc: "إعادة إسناد" },
-  { method: "PATCH", path: "/api/dashboard/requests/:id/status", desc: "إكمال / أرشفة" },
-  { method: "GET/POST", path: "/api/employees", desc: "موظفو قسم الاتصال" },
-  { method: "GET/POST", path: "/api/hospitality/bookings", desc: "حجوزات القاعات" },
-  { method: "GET/POST", path: "/api/media/documents", desc: "مركز الوثائق الإعلامية" },
-];
+import Link from "next/link";
+
+const PORTAL_LINKS = [
+  {
+    href: "/submit",
+    title: "تقديم طلب",
+    desc: "نموذج للموظفين — يُرسل رابط موافقة للمدير",
+    accent: "border-primary",
+  },
+  {
+    href: "/dashboard",
+    title: "لوحة التحكم",
+    desc: "Kanban — إسناد الطلبات ومتابعة SLA",
+    accent: "border-secondary",
+  },
+] as const;
 
 export default function HomePage() {
   return (
-    <main className="page-container mx-auto px-4 py-12">
-      <div className="card space-y-6">
-        <h1 className="text-2xl font-bold text-primary">
-          منصة قسم الاتصال المؤسسي — جمعية الزاد
-        </h1>
-        <p className="text-sm text-brand-gray">
-          Backend API جاهز — الواجهة ستُبنى لاحقاً وفق نظام تصميم الزاد.
-        </p>
-        <div className="card-section">
-          <h2 className="mb-3 text-lg font-bold text-primary">سير العمل</h2>
-          <code className="block text-xs text-brand-gray" dir="ltr">
-            Pending_Manager → Approved_Pending_Assignment → In_Progress → Completed → Archived
-          </code>
+    <div className="page-shell min-h-screen">
+      <main className="page-container py-12">
+        <div className="mb-10 space-y-3 text-center">
+          <h1 className="text-3xl font-extrabold text-primary">
+            منصة قسم الاتصال المؤسسي
+          </h1>
+          <p className="text-sm text-brand-gray">جمعية الزاد — الواجهات جاهزة</p>
         </div>
-        <ul className="space-y-2 text-sm">
-          {API_ENDPOINTS.map((ep) => (
-            <li key={ep.path} className="flex flex-wrap gap-2">
-              <span className="badge-primary font-mono text-xs">{ep.method}</span>
-              <code dir="ltr" className="text-primary">
-                {ep.path}
-              </code>
-              <span className="text-brand-gray">— {ep.desc}</span>
-            </li>
+
+        <div className="mb-10 grid gap-4 sm:grid-cols-2">
+          {PORTAL_LINKS.map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              className={`card block border-t-4 ${link.accent} transition-shadow hover:shadow-md`}
+            >
+              <h2 className="text-lg font-bold text-primary">{link.title}</h2>
+              <p className="mt-2 text-xs text-brand-gray">{link.desc}</p>
+            </Link>
           ))}
-        </ul>
-      </div>
-    </main>
+          <div className="card border-t-4 border-surface-border">
+            <h2 className="text-lg font-bold text-primary">موافقة المدير</h2>
+            <p className="mt-2 text-xs text-brand-gray">
+              يفتح عبر الرابط من البريد — مثال:{" "}
+              <code dir="ltr" className="text-[11px]">/approve?token=xyz</code>
+            </p>
+          </div>
+        </div>
+
+        <div className="card-section space-y-3 text-sm text-brand-gray">
+          <h2 className="text-lg font-bold text-primary">كيف تظهر البطاقات في اللوحة؟</h2>
+          <ol className="list-decimal space-y-2 ps-5">
+            <li>
+              قدّم طلباً من{" "}
+              <Link href="/submit" className="font-semibold text-primary underline">
+                /submit
+              </Link>
+            </li>
+            <li>
+              يوافق المدير عبر{" "}
+              <code dir="ltr" className="text-xs">/approve?token=...</code>
+            </li>
+            <li>
+              بعد الموافقة يظهر الطلب في{" "}
+              <Link href="/dashboard" className="font-semibold text-primary underline">
+                /dashboard
+              </Link>
+            </li>
+          </ol>
+        </div>
+      </main>
+    </div>
   );
 }
