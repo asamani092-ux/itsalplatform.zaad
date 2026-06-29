@@ -2,7 +2,6 @@
  * Zaad Design System — Design Tokens
  * استورد هذا الملف في أي منصة (React, Vue, WordPress, HTML)
  */
-@import url("https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap");
 
 :root {
   /* Brand */
@@ -33,7 +32,7 @@
   --zaad-overlay: rgba(0, 0, 0, 0.5);
 
   /* Typography */
-  --zaad-font-sans: "Tajawal", Tahoma, Arial, sans-serif;
+  --zaad-font-sans: Tahoma, Arial, sans-serif;
 
   /* Spacing */
   --zaad-page-max-width: 72rem;

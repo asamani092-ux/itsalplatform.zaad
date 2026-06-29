@@ -31,7 +31,7 @@ const zaadPreset: Partial<Config> = {
         },
       },
       fontFamily: {
-        sans: ["Tajawal", "Tahoma", "Arial", "sans-serif"],
+        sans: ["Tahoma", "Arial", "sans-serif"],
       },
       maxWidth: {
         page: "72rem",
