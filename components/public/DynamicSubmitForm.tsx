@@ -19,7 +19,13 @@ interface RequestType {
   departmentId: string | null;
 }
 
-export default function DynamicSubmitForm({ slug }: { slug: string }) {
+export default function DynamicSubmitForm({
+  slug,
+  preview = false,
+}: {
+  slug: string;
+  preview?: boolean;
+}) {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [requestTypes, setRequestTypes] = useState<RequestType[]>([]);
   const [departmentId, setDepartmentId] = useState("");
@@ -132,6 +138,11 @@ export default function DynamicSubmitForm({ slug }: { slug: string }) {
 
   return (
     <form onSubmit={(e) => void handleSubmit(e)} className="card space-y-4">
+      {preview && (
+        <div className="rounded-lg border border-primary bg-[color-mix(in_srgb,var(--zaad-primary)_8%,transparent)] px-3 py-2 text-xs text-brand-gray">
+          وضع المعاينة — هذا ما يراه مقدّم الطلب. الإرسال يعمل للاختبار.
+        </div>
+      )}
       {loading ? (
         <p className="text-sm text-brand-gray">جاري تحميل النموذج...</p>
       ) : (

@@ -9,6 +9,7 @@ const NAV = [
   { href: "/manager/kanban", label: "Kanban" },
   { href: "/manager/team", label: "الفريق" },
   { href: "/manager/settings", label: "الإعدادات" },
+  { href: "/manager/settings/preview", label: "معاينة النموذج" },
 ] as const;
 
 export default function ManagerSidebar() {

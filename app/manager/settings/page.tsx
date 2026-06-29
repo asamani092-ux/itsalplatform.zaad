@@ -162,8 +162,8 @@ export default function ManagerSettingsPage() {
       <div className="card-section text-sm text-brand-gray">
         <p>
           معاينة النموذج العام:{" "}
-          <Link href="/submit/communications" className="font-semibold text-primary underline">
-            /submit/communications
+        <Link href="/manager/settings/preview" className="font-semibold text-primary underline">
+            معاينة النموذج
           </Link>
         </p>
       </div>

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import EmptyState from "@/components/shared/empty-state";
 import { getApiErrorMessage, parseApiResponse } from "@/components/lib/api-types";
 import SlaDisplay from "@/components/shared/sla-display";
 import type { SlaMetrics } from "@/lib/sla";
@@ -63,9 +64,10 @@ export default function EmployeeTicketsPage() {
             جاري التحميل...
           </div>
         ) : tickets.length === 0 ? (
-          <div className="card py-12 text-center text-sm text-brand-gray">
-            لا توجد تذاكر مسندة حالياً
-          </div>
+          <EmptyState
+            title="لا توجد تذاكر مسندة"
+            description="ستظهر هنا الطلبات المسندة إليك من المدير"
+          />
         ) : (
           tickets.map((ticket) => (
             <Link
