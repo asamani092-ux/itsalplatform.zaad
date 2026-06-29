@@ -1,57 +1,96 @@
 # منصة قسم الاتصال المؤسسي — جمعية الزاد
 
-بوابة MVP لإدارة طلبات التواصل المؤسسي، الحجوزات، ومركز الوثائق الإعلامية.
+منصة ديناميكية لإدارة طلبات التواصل المؤسسي مع مصادقة الموظفين، إعدادات قابلة للتكوين، ومساحات عمل منفصلة.
 
 ## المتطلبات
 
 - Node.js 20+
-- Docker (لـ PostgreSQL محلياً)
+- PostgreSQL 16
 
 ## الإعداد السريع
 
 ```bash
-# 1) نسخ متغيرات البيئة
 cp .env.example .env
-
-# 2) تشغيل قاعدة البيانات
-docker compose up -d
-
-# 3) تثبيت الاعتماديات
 npm install
-
-# 4) تطبيق الهجرات والبذور
-npx prisma migrate dev --name init
+npx prisma migrate deploy
 npm run db:seed
-
-# 5) تشغيل الخادم
 npm run dev
 ```
 
-المنفذ الافتراضي: `http://localhost:3001`
+المنفذ: `http://localhost:3001`
 
-## نظام التصميم
+### حسابات تجريبية (بعد seed)
 
-مدمج من `design-system/` (Tajawal، RTL، ألوان جمعية الزاد).
+| الدور | الهاتف | كلمة المرور |
+|-------|--------|-------------|
+| مدير | `0500000001` | `password123` |
+| موظف | `0500000002` | `password123` |
 
-```ts
-// tailwind.config.ts
-import tmkeenPreset from "./design-system/tailwind.preset";
-```
+رمز الاستقبال: `reception-demo-token` → `/reception/reception-demo-token`
 
-## واجهات API
+## الواجهات
 
-| Method | Endpoint | الوصف |
-|--------|----------|-------|
-| POST | `/api/requests` | تقديم طلب جديد + إرسال رابط موافقة للمدير |
-| GET/POST | `/api/approve` | موافقة المدير عبر `token` |
-| GET | `/api/dashboard/requests` | قائمة الطلبات (`view=active\|archive\|all`) |
-| GET | `/api/dashboard/requests/:id` | تفاصيل طلب |
-| POST | `/api/dashboard/requests/:id/assign` | إسناد لموظف |
-| POST | `/api/dashboard/requests/:id/reassign` | إعادة إسناد |
-| PATCH | `/api/dashboard/requests/:id/status` | تحديث الحالة |
-| GET/POST | `/api/employees` | موظفو قسم الاتصال |
-| GET/POST | `/api/hospitality/bookings` | حجوزات القاعات |
-| GET/POST | `/api/media/documents` | مركز الوثائق |
+| المسار | الوصف |
+|--------|-------|
+| `/submit/[slug]` | نموذج تقديم ديناميكي |
+| `/approve?token=` | موافقة المدير (magic link) |
+| `/login` | تسجيل دخول الموظف/المدير |
+| `/employee` | مساحة الموظف — التذاكر المسندة |
+| `/manager` | لوحة KPI للمدير |
+| `/manager/kanban` | Kanban |
+| `/manager/team` | إدارة الفريق |
+| `/manager/settings` | الأقسام وأنواع الطلبات والتوجيه |
+| `/reception/[token]` | شاشة الاستقبال |
+
+## API
+
+### عام (بدون مصادقة)
+
+| Method | Endpoint |
+|--------|----------|
+| GET | `/api/public/departments` |
+| GET | `/api/public/request-types?departmentId=` |
+| POST | `/api/public/requests` |
+
+### مصادقة
+
+| Method | Endpoint |
+|--------|----------|
+| POST | `/api/auth/login` |
+| POST | `/api/auth/logout` |
+| GET | `/api/auth/me` |
+
+### موظف (جلسة)
+
+| Method | Endpoint |
+|--------|----------|
+| GET | `/api/employee/tickets` |
+| GET | `/api/employee/tickets/:id` |
+| POST | `/api/employee/tickets/:id/complete` (multipart: proof) |
+
+### مدير (جلسة MANAGER)
+
+| Method | Endpoint |
+|--------|----------|
+| GET | `/api/manager/kpis` |
+| GET/POST/PATCH | `/api/manager/team` |
+| GET/POST/PATCH | `/api/manager/settings/departments` |
+| GET/POST/PATCH | `/api/manager/settings/request-types` |
+| GET/POST/PATCH | `/api/manager/settings/routing-rules` |
+| GET | `/api/manager/tickets` |
+| POST | `/api/manager/tickets/:id/assign` |
+| POST | `/api/manager/tickets/:id/reassign` |
+| PATCH | `/api/manager/tickets/:id/status` |
+
+### أخرى
+
+| Method | Endpoint |
+|--------|----------|
+| GET/PATCH | `/api/reception/[token]` |
+| POST | `/api/uploads` |
+| GET/POST | `/api/approve?token=` |
+
+المسارات القديمة (`/api/requests`, `/api/dashboard/*`) ما زالت تعمل كـ thin wrappers.
 
 ## سير العمل
 
@@ -59,28 +98,12 @@ import tmkeenPreset from "./design-system/tailwind.preset";
 Pending_Manager → Approved_Pending_Assignment → In_Progress → Completed → Archived
 ```
 
-## SLA Timestamps
+عند الموافقة: إذا وُجدت قاعدة توجيه → إسناد تلقائي إلى `In_Progress`.
 
-- `createdAt` — وقت الإنشاء
-- `managerApprovedAt` — موافقة المدير
-- `assignedAt` — الإسناد
-- `completedAt` — الإكمال
+## SLA
 
-## مثال: تقديم طلب
-
-```bash
-curl -X POST http://localhost:3001/api/requests \
-  -H "Content-Type: application/json" \
-  -d '{
-    "title": "تصميم بوستر فعالية",
-    "description": "بوستر لفعالية التمكين السنوية",
-    "requiredDate": "2026-07-15",
-    "contactEmail": "user@example.com",
-    "contactPhone": "+966500000000",
-    "managerEmail": "manager@example.com"
-  }'
-```
+- `createdAt` → `approvedAt` → `assignedAt` → `completedAt`
 
 ## الترخيص
 
-للاستخدام الداخلي لجمعية الزاد والمشاريع التابعة.
+للاستخدام الداخلي لجمعية الزاد.

@@ -1,6 +1,14 @@
 import { NextRequest } from "next/server";
-import { handleApiError, jsonError, jsonOk } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
+import { handleApiError, jsonError, jsonOk } from "@/lib/api-utils";
+
+interface DocumentBody {
+  title?: string;
+  description?: string;
+  category?: string;
+  fileUrl?: string;
+  sortOrder?: number;
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -11,7 +19,7 @@ export async function GET(request: NextRequest) {
         isActive: true,
         ...(category ? { category } : {}),
       },
-      orderBy: [{ category: "asc" }, { sortOrder: "asc" }],
+      orderBy: [{ sortOrder: "asc" }, { title: "asc" }],
     });
 
     return jsonOk({ documents, count: documents.length });
@@ -20,24 +28,12 @@ export async function GET(request: NextRequest) {
   }
 }
 
-type CreateDocumentBody = {
-  title: string;
-  description?: string;
-  category: string;
-  fileUrl: string;
-  sortOrder?: number;
-};
-
 export async function POST(request: NextRequest) {
   try {
-    const body = (await request.json()) as CreateDocumentBody;
+    const body = (await request.json()) as DocumentBody;
 
     if (!body.title?.trim() || !body.category?.trim() || !body.fileUrl?.trim()) {
-      return jsonError(
-        "العنوان والتصنيف ورابط الملف مطلوبة",
-        400,
-        "VALIDATION_ERROR"
-      );
+      return jsonError("العنوان والتصنيف ورابط الملف مطلوبة", "VALIDATION", 400);
     }
 
     const document = await prisma.mediaDocument.create({
@@ -50,7 +46,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return jsonOk({ document }, 201);
+    return jsonOk(document, 201);
   } catch (error) {
     return handleApiError(error);
   }
