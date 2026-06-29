@@ -1,16 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { getApiErrorMessage, parseApiResponse } from "@/components/lib/api-types";
+import { fetchWithTimeout } from "@/lib/client/fetch-with-timeout";
 
-export default function LoginForm() {
+export default function LoginForm({ nextUrl }: { nextUrl?: string | null }) {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const next = searchParams.get("next");
 
   const [phoneNumber, setPhoneNumber] = useState("");
   const [password, setPassword] = useState("");
@@ -23,7 +22,7 @@ export default function LoginForm() {
     setError("");
 
     try {
-      const res = await fetch("/api/auth/login", {
+      const res = await fetchWithTimeout("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ phoneNumber, password }),
@@ -39,12 +38,12 @@ export default function LoginForm() {
 
       const role = payload.data.user.role;
       const dest =
-        next ??
+        nextUrl ??
         (role === "MANAGER" ? "/manager" : "/employee");
       router.push(dest);
       router.refresh();
-    } catch {
-      setError("حدث خطأ في الاتصال");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "حدث خطأ في الاتصال");
     } finally {
       setLoading(false);
     }
@@ -82,11 +81,7 @@ export default function LoginForm() {
           </p>
         )}
 
-        <Button
-          type="submit"
-          className="w-full py-3"
-          disabled={loading}
-        >
+        <Button type="submit" className="w-full py-3" disabled={loading}>
           {loading ? "جاري الدخول..." : "دخول"}
         </Button>
 

@@ -17,6 +17,9 @@ export function getAppUrl() {
 
 export function handleApiError(error: unknown) {
   if (error instanceof Error) {
+    if (error.message.startsWith("TIMEOUT:")) {
+      return jsonError(error.message.replace("TIMEOUT: ", ""), "TIMEOUT", 504);
+    }
     if (error.message.startsWith("FORBIDDEN:")) {
       return jsonError(error.message.replace("FORBIDDEN: ", ""), "FORBIDDEN", 403);
     }

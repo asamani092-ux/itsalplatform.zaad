@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { getApiErrorMessage, parseApiResponse } from "@/components/lib/api-types";
+import { fetchWithTimeout } from "@/lib/client/fetch-with-timeout";
 
 interface Department {
   id: string;
@@ -19,24 +20,54 @@ interface RequestType {
   departmentId: string | null;
 }
 
+function resolveSlugDefaults(
+  slug: string,
+  departments: Department[],
+  requestTypes: RequestType[],
+) {
+  let departmentId = "";
+  let requestTypeId = "";
+  const deptBySlug = departments.find((d) => d.slug === slug);
+  const typeBySlug = requestTypes.find((rt) => rt.slug === slug);
+  if (deptBySlug) departmentId = deptBySlug.id;
+  if (typeBySlug) {
+    requestTypeId = typeBySlug.id;
+    if (typeBySlug.departmentId) departmentId = typeBySlug.departmentId;
+  }
+  return { departmentId, requestTypeId };
+}
+
 export default function DynamicSubmitForm({
   slug,
   preview = false,
+  initialDepartments,
+  initialRequestTypes,
 }: {
   slug: string;
   preview?: boolean;
+  initialDepartments?: Department[];
+  initialRequestTypes?: RequestType[];
 }) {
-  const [departments, setDepartments] = useState<Department[]>([]);
-  const [requestTypes, setRequestTypes] = useState<RequestType[]>([]);
-  const [departmentId, setDepartmentId] = useState("");
-  const [requestTypeId, setRequestTypeId] = useState("");
+  const hasInitial = Boolean(initialDepartments?.length);
+  const defaults = hasInitial
+    ? resolveSlugDefaults(slug, initialDepartments!, initialRequestTypes ?? [])
+    : { departmentId: "", requestTypeId: "" };
+
+  const [departments, setDepartments] = useState<Department[]>(
+    initialDepartments ?? [],
+  );
+  const [requestTypes, setRequestTypes] = useState<RequestType[]>(
+    initialRequestTypes ?? [],
+  );
+  const [departmentId, setDepartmentId] = useState(defaults.departmentId);
+  const [requestTypeId, setRequestTypeId] = useState(defaults.requestTypeId);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [requiredDate, setRequiredDate] = useState("");
   const [visitDate, setVisitDate] = useState("");
   const [contactEmail, setContactEmail] = useState("");
   const [contactPhone, setContactPhone] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!hasInitial);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [successUrl, setSuccessUrl] = useState("");
@@ -45,10 +76,11 @@ export default function DynamicSubmitForm({
 
   const loadMeta = useCallback(async () => {
     setLoading(true);
+    setError("");
     try {
       const [deptRes, rtRes] = await Promise.all([
-        fetch("/api/public/departments"),
-        fetch("/api/public/request-types"),
+        fetchWithTimeout("/api/public/departments"),
+        fetchWithTimeout("/api/public/request-types"),
       ]);
       const deptPayload = await parseApiResponse<{ departments: Department[] }>(deptRes);
       const rtPayload = await parseApiResponse<{ requestTypes: RequestType[] }>(rtRes);
@@ -60,14 +92,13 @@ export default function DynamicSubmitForm({
       setDepartments(deptPayload.data.departments);
       setRequestTypes(rtPayload.data.requestTypes);
 
-      const deptBySlug = deptPayload.data.departments.find((d) => d.slug === slug);
-      const typeBySlug = rtPayload.data.requestTypes.find((rt) => rt.slug === slug);
-
-      if (deptBySlug) setDepartmentId(deptBySlug.id);
-      if (typeBySlug) {
-        setRequestTypeId(typeBySlug.id);
-        if (typeBySlug.departmentId) setDepartmentId(typeBySlug.departmentId);
-      }
+      const resolved = resolveSlugDefaults(
+        slug,
+        deptPayload.data.departments,
+        rtPayload.data.requestTypes,
+      );
+      setDepartmentId(resolved.departmentId);
+      setRequestTypeId(resolved.requestTypeId);
     } catch (e) {
       setError(e instanceof Error ? e.message : "خطأ");
     } finally {
@@ -76,19 +107,23 @@ export default function DynamicSubmitForm({
   }, [slug]);
 
   useEffect(() => {
-    void loadMeta();
-  }, [loadMeta]);
+    if (!hasInitial) void loadMeta();
+  }, [hasInitial, loadMeta]);
 
   useEffect(() => {
-    if (!departmentId) return;
+    if (!departmentId || hasInitial) return;
     void (async () => {
-      const res = await fetch(
-        `/api/public/request-types?departmentId=${departmentId}`,
-      );
-      const payload = await parseApiResponse<{ requestTypes: RequestType[] }>(res);
-      if (payload.success) setRequestTypes(payload.data.requestTypes);
+      try {
+        const res = await fetchWithTimeout(
+          `/api/public/request-types?departmentId=${departmentId}`,
+        );
+        const payload = await parseApiResponse<{ requestTypes: RequestType[] }>(res);
+        if (payload.success) setRequestTypes(payload.data.requestTypes);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "خطأ");
+      }
     })();
-  }, [departmentId]);
+  }, [departmentId, hasInitial]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -96,7 +131,7 @@ export default function DynamicSubmitForm({
     setError("");
 
     try {
-      const res = await fetch("/api/public/requests", {
+      const res = await fetchWithTimeout("/api/public/requests", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -145,6 +180,13 @@ export default function DynamicSubmitForm({
       )}
       {loading ? (
         <p className="text-sm text-brand-gray">جاري تحميل النموذج...</p>
+      ) : error && !departments.length ? (
+        <div className="space-y-3">
+          <p className="text-sm text-[var(--zaad-danger)]" role="alert">{error}</p>
+          <button type="button" className="btn-secondary" onClick={() => void loadMeta()}>
+            إعادة المحاولة
+          </button>
+        </div>
       ) : (
         <>
           <div className="space-y-1">

@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { getApiErrorMessage, parseApiResponse } from "@/components/lib/api-types";
+import { fetchWithTimeout } from "@/lib/client/fetch-with-timeout";
 
 interface TokenSummary {
   id: string;
@@ -53,11 +53,16 @@ function formatDate(iso: string) {
   }).format(new Date(iso));
 }
 
-export default function ManagerApprovalView() {
-  const searchParams = useSearchParams();
-  const token = searchParams.get("token");
+export default function ManagerApprovalView({
+  token: tokenProp,
+}: {
+  token?: string | null;
+}) {
+  const token = tokenProp ?? null;
 
-  const [viewState, setViewState] = useState<ViewState>("loading");
+  const [viewState, setViewState] = useState<ViewState>(
+    token ? "loading" : "missing_token",
+  );
   const [details, setDetails] = useState<RequestDetails | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
   const [actionLoading, setActionLoading] = useState<"approve" | "reject" | null>(
@@ -70,7 +75,7 @@ export default function ManagerApprovalView() {
     setErrorMessage("");
 
     try {
-      const tokenRes = await fetch(
+      const tokenRes = await fetchWithTimeout(
         `/api/approve?token=${encodeURIComponent(approvalToken)}`,
       );
       const tokenPayload = await parseApiResponse<TokenSummary>(tokenRes);
@@ -89,7 +94,9 @@ export default function ManagerApprovalView() {
         setViewState("already_processed");
       }
 
-      const detailRes = await fetch(`/api/dashboard/requests/${summary.id}`);
+      const detailRes = await fetchWithTimeout(
+        `/api/dashboard/requests/${summary.id}`,
+      );
       const detailPayload = await parseApiResponse<RequestDetails>(detailRes);
 
       if (!detailRes.ok || !detailPayload.success) {
@@ -112,10 +119,7 @@ export default function ManagerApprovalView() {
   }, []);
 
   useEffect(() => {
-    if (!token) {
-      setViewState("missing_token");
-      return;
-    }
+    if (!token) return;
     void loadRequest(token);
   }, [token, loadRequest]);
 
