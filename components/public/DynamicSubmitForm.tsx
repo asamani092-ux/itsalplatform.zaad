@@ -159,12 +159,12 @@ export default function DynamicSubmitForm({
 
   if (successUrl) {
     return (
-      <div className="card space-y-4 text-center">
+      <div className="space-y-4 text-center">
         <span className="badge-success">تم تقديم الطلب</span>
         <p className="text-sm text-brand-gray">
           سيُرسل رابط الموافقة للمدير المباشر تلقائياً.
         </p>
-        <Link href="/" className="btn-secondary inline-flex">
+        <Link href="/" className="btn-secondary inline-flex rounded-lg">
           العودة للرئيسية
         </Link>
       </div>
@@ -172,7 +172,7 @@ export default function DynamicSubmitForm({
   }
 
   return (
-    <form onSubmit={(e) => void handleSubmit(e)} className="card space-y-4">
+    <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
       {preview && (
         <div className="rounded-lg border border-primary bg-[color-mix(in_srgb,var(--zaad-primary)_8%,transparent)] px-3 py-2 text-xs text-brand-gray">
           وضع المعاينة — هذا ما يراه مقدّم الطلب. الإرسال يعمل للاختبار.
@@ -195,7 +195,7 @@ export default function DynamicSubmitForm({
             </label>
             <select
               id="department"
-              className="input-field"
+              className="input-field w-full rounded-lg"
               value={departmentId}
               onChange={(e) => setDepartmentId(e.target.value)}
               required
@@ -215,7 +215,7 @@ export default function DynamicSubmitForm({
             </label>
             <select
               id="requestType"
-              className="input-field"
+              className="input-field w-full rounded-lg"
               value={requestTypeId}
               onChange={(e) => setRequestTypeId(e.target.value)}
               required
@@ -230,21 +230,21 @@ export default function DynamicSubmitForm({
           </div>
 
           <input
-            className="input-field"
+            className="input-field w-full rounded-lg"
             placeholder="عنوان الطلب"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             required
           />
           <textarea
-            className="input-field min-h-24"
+            className="input-field min-h-24 w-full rounded-lg"
             placeholder="الوصف"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             required
           />
           <input
-            className="input-field"
+            className="input-field w-full rounded-lg"
             type="date"
             value={requiredDate}
             onChange={(e) => setRequiredDate(e.target.value)}
@@ -253,7 +253,7 @@ export default function DynamicSubmitForm({
 
           {selectedType?.requiresVisitDate && (
             <input
-              className="input-field"
+              className="input-field w-full rounded-lg"
               type="datetime-local"
               value={visitDate}
               onChange={(e) => setVisitDate(e.target.value)}
@@ -262,7 +262,7 @@ export default function DynamicSubmitForm({
           )}
 
           <input
-            className="input-field"
+            className="input-field w-full rounded-lg"
             type="email"
             placeholder="البريد الإلكتروني"
             dir="ltr"
@@ -271,7 +271,7 @@ export default function DynamicSubmitForm({
             required
           />
           <input
-            className="input-field"
+            className="input-field w-full rounded-lg"
             placeholder="رقم الجوال"
             dir="ltr"
             value={contactPhone}
@@ -285,7 +285,11 @@ export default function DynamicSubmitForm({
             </p>
           )}
 
-          <button type="submit" className="btn-primary w-full py-3" disabled={submitting}>
+          <button
+            type="submit"
+            className="btn-primary w-full rounded-lg py-2.5"
+            disabled={submitting}
+          >
             {submitting ? "جاري الإرسال..." : "تقديم الطلب"}
           </button>
         </>

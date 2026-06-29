@@ -12,7 +12,11 @@ export function Input({ label, className = "", id, ...props }: InputProps) {
           {label}
         </label>
       )}
-      <input id={id} className={`input-field ${className}`} {...props} />
+      <input
+        id={id}
+        className={`input-field rounded-lg focus:ring-2 focus:ring-primary/20 ${className}`}
+        {...props}
+      />
     </div>
   );
 }

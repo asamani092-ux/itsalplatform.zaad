@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { getApiErrorMessage, parseApiResponse } from "@/components/lib/api-types";
@@ -39,7 +38,7 @@ export default function LoginForm({ nextUrl }: { nextUrl?: string | null }) {
       const role = payload.data.user.role;
       const dest =
         nextUrl ??
-        (role === "MANAGER" ? "/manager" : "/employee");
+        (role === "MANAGER" ? "/dashboard" : "/employee");
       router.push(dest);
       router.refresh();
     } catch (err) {
@@ -50,8 +49,11 @@ export default function LoginForm({ nextUrl }: { nextUrl?: string | null }) {
   }
 
   return (
-    <div className="page-shell flex min-h-screen items-center justify-center">
-      <form onSubmit={(e) => void handleSubmit(e)} className="card w-full max-w-md space-y-4">
+    <div className="flex min-h-screen items-center justify-center bg-surface-muted p-6">
+      <form
+        onSubmit={(e) => void handleSubmit(e)}
+        className="w-full max-w-md space-y-4 rounded-lg border border-surface-border bg-surface p-6 shadow-sm"
+      >
         <div className="text-center">
           <h1 className="text-xl font-bold text-primary">تسجيل الدخول</h1>
           <p className="text-xs text-brand-gray">قسم الاتصال المؤسسي — جمعية الزاد</p>
@@ -81,15 +83,13 @@ export default function LoginForm({ nextUrl }: { nextUrl?: string | null }) {
           </p>
         )}
 
-        <Button type="submit" className="w-full py-3" disabled={loading}>
+        <Button
+          type="submit"
+          className="w-full bg-primary py-2.5 text-white"
+          disabled={loading}
+        >
           {loading ? "جاري الدخول..." : "دخول"}
         </Button>
-
-        <p className="text-center text-xs text-brand-gray">
-          <Link href="/" className="underline">
-            العودة للرئيسية
-          </Link>
-        </p>
       </form>
     </div>
   );

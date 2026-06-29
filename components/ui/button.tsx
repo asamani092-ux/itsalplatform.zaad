@@ -13,10 +13,10 @@ export function Button({
 }: ButtonProps) {
   const base =
     variant === "primary"
-      ? "btn-primary"
+      ? "btn-primary rounded-lg focus:ring-2 focus:ring-primary/20"
       : variant === "danger"
-        ? "btn-secondary border-[var(--zaad-danger)] text-[var(--zaad-danger)]"
-        : "btn-secondary";
+        ? "btn-secondary rounded-lg border-[var(--zaad-danger)] text-[var(--zaad-danger)] focus:ring-2 focus:ring-primary/20"
+        : "btn-secondary rounded-lg focus:ring-2 focus:ring-primary/20";
 
   return (
     <button type="button" className={`${base} ${className}`} {...props}>

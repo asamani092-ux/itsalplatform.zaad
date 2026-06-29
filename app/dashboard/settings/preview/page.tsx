@@ -1,8 +1,8 @@
 import DynamicSubmitForm from "@/components/public/DynamicSubmitForm";
-import PublicSubmitShell from "@/components/public/PublicSubmitShell";
 import { prisma } from "@/lib/prisma";
+import Link from "next/link";
 
-export default async function HomePage() {
+export default async function DashboardSettingsPreviewPage() {
   const [departments, requestTypes] = await Promise.all([
     prisma.department.findMany({
       where: { isActive: true },
@@ -24,12 +24,24 @@ export default async function HomePage() {
   ]);
 
   return (
-    <PublicSubmitShell>
+    <div className="space-y-6">
+      <div>
+        <Link
+          href="/dashboard/settings"
+          className="text-xs text-brand-gray underline"
+        >
+          ← الإعدادات
+        </Link>
+        <p className="mt-2 text-sm text-brand-gray">
+          عرض حي لنموذج التقديم كما يراه الموظفون — بناءً على الإعدادات الحالية
+        </p>
+      </div>
       <DynamicSubmitForm
         slug="communications"
+        preview
         initialDepartments={departments}
         initialRequestTypes={requestTypes}
       />
-    </PublicSubmitShell>
+    </div>
   );
 }

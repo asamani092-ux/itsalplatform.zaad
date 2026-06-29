@@ -21,10 +21,20 @@ function getSessionFromRequest(request: NextRequest) {
   return parseSessionCookie(token);
 }
 
+function managerToDashboard(pathname: string): string {
+  if (pathname === "/manager") return "/dashboard";
+  return pathname.replace(/^\/manager/, "/dashboard");
+}
+
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  if (pathname.startsWith("/employee") || pathname.startsWith("/manager")) {
+  if (pathname.startsWith("/manager")) {
+    const dest = managerToDashboard(pathname);
+    return NextResponse.redirect(new URL(dest, request.url));
+  }
+
+  if (pathname.startsWith("/employee") || pathname.startsWith("/dashboard")) {
     const session = getSessionFromRequest(request);
     if (!session) {
       const login = new URL("/login", request.url);
@@ -32,12 +42,12 @@ export function middleware(request: NextRequest) {
       return NextResponse.redirect(login);
     }
 
-    if (pathname.startsWith("/manager") && session.role !== "MANAGER") {
+    if (pathname.startsWith("/dashboard") && session.role !== "MANAGER") {
       return NextResponse.redirect(new URL("/employee", request.url));
     }
 
     if (pathname.startsWith("/employee") && session.role === "MANAGER") {
-      return NextResponse.redirect(new URL("/manager", request.url));
+      return NextResponse.redirect(new URL("/dashboard", request.url));
     }
   }
 
@@ -45,5 +55,11 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/employee/:path*", "/manager/:path*"],
+  matcher: [
+    "/employee/:path*",
+    "/dashboard",
+    "/dashboard/:path*",
+    "/manager",
+    "/manager/:path*",
+  ],
 };
