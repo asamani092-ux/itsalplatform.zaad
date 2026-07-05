@@ -1,42 +1,39 @@
 import { NextRequest } from "next/server";
-import { RequestStatus } from "@/generated/prisma/client";
-import { handleApiError, jsonError, jsonOk } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
 import { assertTransition } from "@/lib/workflow";
+import { handleApiError, jsonError, jsonOk } from "@/lib/api-utils";
+import {
+  getRequestById,
+  recordAssignment,
+  recordStatusChange,
+} from "@/lib/request-service";
+import { RequestStatus } from "@/generated/prisma/client";
 
-type RouteContext = { params: Promise<{ id: string }> };
-
-type AssignBody = {
-  employeeId: string;
+interface AssignBody {
+  employeeId?: string;
   assignedBy?: string;
   note?: string;
-};
+}
 
 export async function POST(
   request: NextRequest,
-  context: RouteContext
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const { id } = await context.params;
+    const { id } = await params;
     const body = (await request.json()) as AssignBody;
 
     if (!body.employeeId) {
-      return jsonError("معرّف الموظف مطلوب", 400, "VALIDATION_ERROR");
+      return jsonError("معرّف الموظف مطلوب", "VALIDATION", 400);
     }
 
-    const existing = await prisma.communicationRequest.findUnique({
-      where: { id },
-    });
-
-    if (!existing) {
-      return jsonError("الطلب غير موجود", 404, "NOT_FOUND");
-    }
+    const existing = await getRequestById(id);
 
     if (existing.status !== RequestStatus.Approved_Pending_Assignment) {
       return jsonError(
-        "يمكن الإسناد فقط للطلبات المعتمدة بانتظار التعيين",
-        400,
-        "INVALID_STATE"
+        "يمكن الإسناد فقط للطلبات المعتمدة وبانتظار التعيين",
+        "INVALID_STATE",
+        409,
       );
     }
 
@@ -45,14 +42,10 @@ export async function POST(
     });
 
     if (!employee) {
-      return jsonError("الموظف غير موجود أو غير نشط", 404, "NOT_FOUND");
+      return jsonError("الموظف غير موجود أو غير نشط", "NOT_FOUND", 404);
     }
 
-    assertTransition(
-      RequestStatus.Approved_Pending_Assignment,
-      RequestStatus.In_Progress
-    );
-
+    assertTransition(existing.status, RequestStatus.In_Progress);
     const now = new Date();
 
     const updated = await prisma.communicationRequest.update({
@@ -61,31 +54,28 @@ export async function POST(
         status: RequestStatus.In_Progress,
         assignedEmployeeId: body.employeeId,
         assignedAt: now,
-        statusHistory: {
-          create: {
-            fromStatus: RequestStatus.Approved_Pending_Assignment,
-            toStatus: RequestStatus.In_Progress,
-            changedBy: body.assignedBy ?? "dashboard",
-            note: body.note ?? "إسناد أولي",
-          },
-        },
-        assignmentHistory: {
-          create: {
-            employeeId: body.employeeId,
-            assignedBy: body.assignedBy ?? "dashboard",
-            note: body.note ?? "إسناد أولي",
-            assignedAt: now,
-          },
-        },
       },
       include: {
-        assignedEmployee: {
-          select: { id: true, name: true, email: true },
-        },
+        assignedEmployee: { select: { id: true, name: true, email: true } },
       },
     });
 
-    return jsonOk({ request: updated });
+    await recordStatusChange({
+      requestId: id,
+      fromStatus: RequestStatus.Approved_Pending_Assignment,
+      toStatus: RequestStatus.In_Progress,
+      changedBy: body.assignedBy,
+      note: body.note ?? "إسناد أولي",
+    });
+
+    await recordAssignment({
+      requestId: id,
+      employeeId: body.employeeId,
+      assignedBy: body.assignedBy,
+      note: body.note,
+    });
+
+    return jsonOk(updated);
   } catch (error) {
     return handleApiError(error);
   }

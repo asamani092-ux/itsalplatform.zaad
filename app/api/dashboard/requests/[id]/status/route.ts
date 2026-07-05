@@ -1,69 +1,46 @@
 import { NextRequest } from "next/server";
-import { RequestStatus } from "@/generated/prisma/client";
-import { handleApiError, jsonError, jsonOk } from "@/lib/api-utils";
-import { NotifySubmitter } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
 import { assertTransition } from "@/lib/workflow";
+import { notifySubmitter } from "@/lib/notifications";
+import { handleApiError, jsonError, jsonOk } from "@/lib/api-utils";
+import { getRequestById, recordStatusChange } from "@/lib/request-service";
+import { RequestStatus } from "@/generated/prisma/client";
 
-type RouteContext = { params: Promise<{ id: string }> };
-
-type StatusBody = {
-  status: RequestStatus;
+interface StatusBody {
+  status?: RequestStatus;
   changedBy?: string;
   note?: string;
-};
+}
 
 const ALLOWED_MANUAL_STATUSES: RequestStatus[] = [
-  RequestStatus.In_Progress,
   RequestStatus.Completed,
   RequestStatus.Archived,
 ];
 
 export async function PATCH(
   request: NextRequest,
-  context: RouteContext
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const { id } = await context.params;
+    const { id } = await params;
     const body = (await request.json()) as StatusBody;
 
     if (!body.status || !ALLOWED_MANUAL_STATUSES.includes(body.status)) {
-      return jsonError("حالة غير مسموحة", 400, "VALIDATION_ERROR");
+      return jsonError(
+        "الحالة المطلوبة غير مدعومة — استخدم Completed أو Archived",
+        "VALIDATION",
+        400,
+      );
     }
 
-    const existing = await prisma.communicationRequest.findUnique({
-      where: { id },
-    });
-
-    if (!existing) {
-      return jsonError("الطلب غير موجود", 404, "NOT_FOUND");
-    }
-
+    const existing = await getRequestById(id);
     assertTransition(existing.status, body.status);
 
     const now = new Date();
     const updateData: {
       status: RequestStatus;
       completedAt?: Date;
-      statusHistory: {
-        create: {
-          fromStatus: RequestStatus;
-          toStatus: RequestStatus;
-          changedBy?: string;
-          note?: string;
-        };
-      };
-    } = {
-      status: body.status,
-      statusHistory: {
-        create: {
-          fromStatus: existing.status,
-          toStatus: body.status,
-          changedBy: body.changedBy ?? "dashboard",
-          note: body.note,
-        },
-      },
-    };
+    } = { status: body.status };
 
     if (body.status === RequestStatus.Completed) {
       updateData.completedAt = now;
@@ -73,22 +50,28 @@ export async function PATCH(
       where: { id },
       data: updateData,
       include: {
-        assignedEmployee: {
-          select: { id: true, name: true, email: true },
-        },
+        assignedEmployee: { select: { id: true, name: true, email: true } },
       },
     });
 
+    await recordStatusChange({
+      requestId: id,
+      fromStatus: existing.status,
+      toStatus: body.status,
+      changedBy: body.changedBy,
+      note: body.note,
+    });
+
     if (body.status === RequestStatus.Completed) {
-      await NotifySubmitter({
+      await notifySubmitter({
         contactEmail: updated.contactEmail,
         contactPhone: updated.contactPhone,
         requestTitle: updated.title,
-        status: updated.status,
+        message: `تم إكمال طلبك "${updated.title}". شكراً لتواصلك مع قسم الاتصال المؤسسي.`,
       });
     }
 
-    return jsonOk({ request: updated });
+    return jsonOk(updated);
   } catch (error) {
     return handleApiError(error);
   }

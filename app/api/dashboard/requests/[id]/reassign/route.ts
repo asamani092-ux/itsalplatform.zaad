@@ -1,41 +1,34 @@
 import { NextRequest } from "next/server";
-import { RequestStatus } from "@/generated/prisma/client";
-import { handleApiError, jsonError, jsonOk } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
+import { handleApiError, jsonError, jsonOk } from "@/lib/api-utils";
+import { getRequestById, recordAssignment } from "@/lib/request-service";
+import { RequestStatus } from "@/generated/prisma/client";
 
-type RouteContext = { params: Promise<{ id: string }> };
-
-type ReassignBody = {
-  employeeId: string;
+interface ReassignBody {
+  employeeId?: string;
   assignedBy?: string;
   note?: string;
-};
+}
 
 export async function POST(
   request: NextRequest,
-  context: RouteContext
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const { id } = await context.params;
+    const { id } = await params;
     const body = (await request.json()) as ReassignBody;
 
     if (!body.employeeId) {
-      return jsonError("معرّف الموظف مطلوب", 400, "VALIDATION_ERROR");
+      return jsonError("معرّف الموظف مطلوب", "VALIDATION", 400);
     }
 
-    const existing = await prisma.communicationRequest.findUnique({
-      where: { id },
-    });
-
-    if (!existing) {
-      return jsonError("الطلب غير موجود", 404, "NOT_FOUND");
-    }
+    const existing = await getRequestById(id);
 
     if (existing.status !== RequestStatus.In_Progress) {
       return jsonError(
         "يمكن إعادة الإسناد فقط للطلبات قيد التنفيذ",
-        400,
-        "INVALID_STATE"
+        "INVALID_STATE",
+        409,
       );
     }
 
@@ -44,38 +37,28 @@ export async function POST(
     });
 
     if (!employee) {
-      return jsonError("الموظف غير موجود أو غير نشط", 404, "NOT_FOUND");
+      return jsonError("الموظف غير موجود أو غير نشط", "NOT_FOUND", 404);
     }
-
-    const now = new Date();
 
     const updated = await prisma.communicationRequest.update({
       where: { id },
       data: {
         assignedEmployeeId: body.employeeId,
-        assignmentHistory: {
-          create: {
-            employeeId: body.employeeId,
-            assignedBy: body.assignedBy ?? "dashboard",
-            note: body.note ?? "إعادة إسناد",
-            assignedAt: now,
-          },
-        },
+        assignedAt: new Date(),
       },
       include: {
-        assignedEmployee: {
-          select: { id: true, name: true, email: true },
-        },
-        assignmentHistory: {
-          include: {
-            employee: { select: { id: true, name: true, email: true } },
-          },
-          orderBy: { assignedAt: "asc" },
-        },
+        assignedEmployee: { select: { id: true, name: true, email: true } },
       },
     });
 
-    return jsonOk({ request: updated });
+    await recordAssignment({
+      requestId: id,
+      employeeId: body.employeeId,
+      assignedBy: body.assignedBy,
+      note: body.note ?? "إعادة إسناد",
+    });
+
+    return jsonOk(updated);
   } catch (error) {
     return handleApiError(error);
   }

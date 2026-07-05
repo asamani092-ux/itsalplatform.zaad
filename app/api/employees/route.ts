@@ -1,6 +1,11 @@
 import { NextRequest } from "next/server";
-import { handleApiError, jsonError, jsonOk } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
+import { handleApiError, jsonError, jsonOk } from "@/lib/api-utils";
+
+interface CreateEmployeeBody {
+  name?: string;
+  email?: string;
+}
 
 export async function GET() {
   try {
@@ -8,24 +13,17 @@ export async function GET() {
       where: { isActive: true },
       orderBy: { name: "asc" },
     });
-
     return jsonOk({ employees, count: employees.length });
   } catch (error) {
     return handleApiError(error);
   }
 }
 
-type CreateEmployeeBody = {
-  name: string;
-  email: string;
-};
-
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as CreateEmployeeBody;
-
     if (!body.name?.trim() || !body.email?.trim()) {
-      return jsonError("الاسم والبريد مطلوبان", 400, "VALIDATION_ERROR");
+      return jsonError("الاسم والبريد مطلوبان", "VALIDATION", 400);
     }
 
     const employee = await prisma.commEmployee.create({
@@ -35,7 +33,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return jsonOk({ employee }, 201);
+    return jsonOk(employee, 201);
   } catch (error) {
     return handleApiError(error);
   }
