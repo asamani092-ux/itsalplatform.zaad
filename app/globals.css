@@ -1,14 +1,12 @@
-@import url("https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap");
+@import "../design-system/tokens.css";
+@import "../design-system/components.css";
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-@import "../design-system/tokens.css";
-@import "../design-system/components.css";
-
 body {
-  font-family: "Tajawal", Tahoma, Arial, sans-serif;
+  font-family: Tahoma, Arial, sans-serif;
   direction: rtl;
   text-align: start;
 }

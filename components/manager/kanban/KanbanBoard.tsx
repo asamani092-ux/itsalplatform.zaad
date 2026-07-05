@@ -6,7 +6,7 @@ import RequestCard, {
   type CommEmployee,
   type DashboardRequest,
 } from "./RequestCard";
-import { formatDurationMs } from "./format-sla";
+import { formatDurationMs } from "@/components/shared/format-sla";
 import { getApiErrorMessage, parseApiResponse } from "@/components/lib/api-types";
 
 type BoardTab = "board" | "archive";
@@ -32,7 +32,7 @@ const COLUMNS = [
   },
 ] as const;
 
-export default function DashboardBoard() {
+export default function KanbanBoard() {
   const [tab, setTab] = useState<BoardTab>("board");
   const [requests, setRequests] = useState<DashboardRequest[]>([]);
   const [archiveRequests, setArchiveRequests] = useState<DashboardRequest[]>([]);
@@ -50,10 +50,10 @@ export default function DashboardBoard() {
 
     try {
       const [allRes, archiveRes, pendingRes, empRes] = await Promise.all([
-        fetch("/api/dashboard/requests?view=all"),
-        fetch("/api/dashboard/requests?view=archive"),
-        fetch("/api/dashboard/requests?status=Pending_Manager"),
-        fetch("/api/employees"),
+        fetch("/api/manager/tickets?view=all"),
+        fetch("/api/manager/tickets?view=archive"),
+        fetch("/api/manager/tickets?status=Pending_Manager"),
+        fetch("/api/manager/team"),
       ]);
 
       const allPayload = await parseApiResponse<{ requests: DashboardRequest[] }>(
@@ -70,14 +70,10 @@ export default function DashboardBoard() {
       );
 
       if (!allRes.ok || !allPayload.success) {
-        throw new Error(
-          getApiErrorMessage(allPayload, "تعذّر تحميل الطلبات"),
-        );
+        throw new Error(getApiErrorMessage(allPayload, "تعذّر تحميل الطلبات"));
       }
       if (!empRes.ok || !empPayload.success) {
-        throw new Error(
-          getApiErrorMessage(empPayload, "تعذّر تحميل الموظفين"),
-        );
+        throw new Error(getApiErrorMessage(empPayload, "تعذّر تحميل الموظفين"));
       }
 
       setRequests(allPayload.data.requests);
@@ -87,7 +83,9 @@ export default function DashboardBoard() {
       setPendingRequests(
         pendingPayload.success ? pendingPayload.data.requests : [],
       );
-      setEmployees(empPayload.data.employees);
+      setEmployees(
+        empPayload.data.employees.filter((e) => e.role === "EMPLOYEE"),
+      );
     } catch (loadError) {
       setError(
         loadError instanceof Error ? loadError.message : "حدث خطأ غير متوقع",
@@ -122,40 +120,40 @@ export default function DashboardBoard() {
 
   function handleAssign(requestId: string, employeeId: string) {
     return runAction(() =>
-      fetch(`/api/dashboard/requests/${requestId}/assign`, {
+      fetch(`/api/manager/tickets/${requestId}/assign`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ employeeId, assignedBy: "dashboard" }),
+        body: JSON.stringify({ employeeId }),
       }),
     );
   }
 
   function handleReassign(requestId: string, employeeId: string) {
     return runAction(() =>
-      fetch(`/api/dashboard/requests/${requestId}/reassign`, {
+      fetch(`/api/manager/tickets/${requestId}/reassign`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ employeeId, assignedBy: "dashboard" }),
+        body: JSON.stringify({ employeeId }),
       }),
     );
   }
 
   function handleComplete(requestId: string) {
     return runAction(() =>
-      fetch(`/api/dashboard/requests/${requestId}/status`, {
+      fetch(`/api/manager/tickets/${requestId}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "Completed", changedBy: "dashboard" }),
+        body: JSON.stringify({ status: "Completed" }),
       }),
     );
   }
 
   function handleArchive(requestId: string) {
     return runAction(() =>
-      fetch(`/api/dashboard/requests/${requestId}/status`, {
+      fetch(`/api/manager/tickets/${requestId}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "Archived", changedBy: "dashboard" }),
+        body: JSON.stringify({ status: "Archived" }),
       }),
     );
   }
@@ -181,54 +179,26 @@ export default function DashboardBoard() {
       r.status === "Completed",
   );
 
-  const kpiNew = boardRequests.filter(
-    (r) => r.status === "Approved_Pending_Assignment",
-  ).length;
-  const kpiActive = boardRequests.filter(
-    (r) => r.status === "In_Progress",
-  ).length;
-  const kpiDone = boardRequests.filter((r) => r.status === "Completed").length;
-
   return (
-    <div className="page-shell min-h-screen">
-      <header className="border-b border-surface-border bg-surface shadow-sm">
-        <div className="mx-auto flex max-w-page flex-wrap items-center justify-between gap-3 px-4 py-3">
-          <div>
-            <Link href="/" className="text-lg font-bold text-primary">
-              جمعية الزاد — الاتصال المؤسسي
-            </Link>
-            <p className="text-xs text-brand-gray">لوحة إدارة الطلبات</p>
-          </div>
-          <div className="flex gap-2">
-            <Link href="/submit" className="btn-secondary text-sm">
-              تقديم طلب
-            </Link>
-            <button
-              type="button"
-              className="btn-primary text-sm"
-              disabled={loading}
-              onClick={() => void loadData()}
-            >
-              تحديث
-            </button>
-          </div>
-        </div>
+    <div className="min-h-screen">
+      <header className="border-b border-surface-border bg-surface px-4 py-3">
+        <h1 className="text-lg font-bold text-primary">لوحة Kanban</h1>
+        <p className="text-xs text-brand-gray">إسناد ومتابعة الطلبات</p>
       </header>
 
-      <main className="page-container space-y-6 py-8">
-        <div className="grid gap-4 sm:grid-cols-3">
-          <div className="card text-center">
-            <p className="text-2xl font-bold text-primary">{kpiNew}</p>
-            <p className="text-sm text-brand-gray">جديد (معتمد)</p>
-          </div>
-          <div className="card text-center">
-            <p className="text-2xl font-bold text-primary">{kpiActive}</p>
-            <p className="text-sm text-brand-gray">قيد التنفيذ</p>
-          </div>
-          <div className="card text-center">
-            <p className="text-2xl font-bold text-primary">{kpiDone}</p>
-            <p className="text-sm text-brand-gray">مكتمل</p>
-          </div>
+      <div className="page-container space-y-6 py-6">
+        <div className="flex flex-wrap gap-2">
+          <Link href="/submit/communications" className="btn-secondary text-sm">
+            نموذج عام
+          </Link>
+          <button
+            type="button"
+            className="btn-primary text-sm"
+            disabled={loading}
+            onClick={() => void loadData()}
+          >
+            تحديث
+          </button>
         </div>
 
         <div className="tab-bar max-w-md">
@@ -255,21 +225,6 @@ export default function DashboardBoard() {
             <h2 className="text-sm font-bold text-primary">
               بانتظار موافقة المدير ({pendingRequests.length})
             </h2>
-            <p className="text-xs text-brand-gray">
-              هذه الطلبات لن تظهر في الأعمدة حتى يوافق المدير عبر رابط{" "}
-              <code dir="ltr" className="text-[11px]">/approve?token=...</code>
-            </p>
-            <ul className="space-y-2">
-              {pendingRequests.map((r) => (
-                <li
-                  key={r.id}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-surface-border bg-surface px-3 py-2 text-sm"
-                >
-                  <span className="font-semibold text-primary">{r.title}</span>
-                  <span className="badge-warning">بانتظار المدير</span>
-                </li>
-              ))}
-            </ul>
           </div>
         )}
 
@@ -287,18 +242,6 @@ export default function DashboardBoard() {
             جاري تحميل اللوحة...
           </div>
         ) : tab === "board" ? (
-          boardRequests.length === 0 && pendingRequests.length === 0 ? (
-            <div className="card space-y-4 py-12 text-center">
-              <p className="text-lg font-bold text-primary">اللوحة فارغة</p>
-              <p className="text-sm text-brand-gray">
-                لا توجد طلبات بعد. ابدأ من{" "}
-                <Link href="/submit" className="font-semibold text-primary underline">
-                  تقديم طلب
-                </Link>
-                .
-              </p>
-            </div>
-          ) : (
           <div className="grid gap-4 lg:grid-cols-3">
             {COLUMNS.map((column) => {
               const columnRequests = boardRequests.filter(
@@ -352,17 +295,10 @@ export default function DashboardBoard() {
                       ))
                     )}
                   </div>
-
-                  {column.dropTarget && (
-                    <p className="mt-3 text-center text-[10px] text-brand-gray">
-                      أسقط بطاقة «قيد التنفيذ» هنا للإكمال
-                    </p>
-                  )}
                 </section>
               );
             })}
           </div>
-          )
         ) : (
           <div className="card overflow-x-auto p-0">
             <table className="zaad-table">
@@ -375,35 +311,25 @@ export default function DashboardBoard() {
                 </tr>
               </thead>
               <tbody>
-                {archiveRequests.length === 0 ? (
-                  <tr>
-                    <td colSpan={4} className="py-8 text-center text-brand-gray">
-                      الأرشيف فارغ
+                {archiveRequests.map((request) => (
+                  <tr key={request.id}>
+                    <td className="font-semibold text-primary">{request.title}</td>
+                    <td>
+                      <span className="badge-warning text-xs">
+                        {request.status === "Archived" ? "مؤرشف" : "مكتمل"}
+                      </span>
+                    </td>
+                    <td>{request.assignedEmployee?.name ?? "—"}</td>
+                    <td className="text-xs font-semibold text-primary">
+                      {formatDurationMs(request.sla.totalLifecycleMs)}
                     </td>
                   </tr>
-                ) : (
-                  archiveRequests.map((request) => (
-                    <tr key={request.id}>
-                      <td className="font-semibold text-primary">
-                        {request.title}
-                      </td>
-                      <td>
-                        <span className="badge-warning text-xs">
-                          {request.status === "Archived" ? "مؤرشف" : "مكتمل"}
-                        </span>
-                      </td>
-                      <td>{request.assignedEmployee?.name ?? "—"}</td>
-                      <td className="text-xs font-semibold text-primary">
-                        {formatDurationMs(request.sla.totalLifecycleMs)}
-                      </td>
-                    </tr>
-                  ))
-                )}
+                ))}
               </tbody>
             </table>
           </div>
         )}
-      </main>
+      </div>
     </div>
   );
 }

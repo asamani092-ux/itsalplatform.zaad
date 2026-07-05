@@ -1,8 +1,8 @@
-import { formatDurationMs, formatElapsedSince } from "./format-sla";
+import { formatDurationMs, formatElapsedSince } from "@/components/shared/format-sla";
 
 export interface SlaMetrics {
-  createdToManagerApprovalMs: number | null;
-  managerApprovalToAssignmentMs: number | null;
+  createdToApprovalMs: number | null;
+  approvalToAssignmentMs: number | null;
   assignmentToCompletionMs: number | null;
   totalLifecycleMs: number | null;
 }
@@ -22,10 +22,12 @@ export interface DashboardRequest {
   contactEmail: string;
   contactPhone: string;
   createdAt: string;
-  managerApprovedAt: string | null;
+  approvedAt: string | null;
   assignedAt: string | null;
   completedAt: string | null;
   assignedEmployee: AssignedEmployee | null;
+  department?: { name: string };
+  requestType?: { name: string };
   sla: SlaMetrics;
 }
 
@@ -33,6 +35,7 @@ export interface CommEmployee {
   id: string;
   name: string;
   email: string;
+  role?: string;
 }
 
 interface RequestCardProps {
@@ -75,17 +78,24 @@ export default function RequestCard({
 
       <p className="line-clamp-2 text-xs text-brand-gray">{request.description}</p>
 
+      {request.department && (
+        <p className="text-[10px] text-brand-gray">
+          {request.department.name}
+          {request.requestType ? ` — ${request.requestType.name}` : ""}
+        </p>
+      )}
+
       <div className="grid grid-cols-2 gap-2 rounded-lg bg-surface-muted p-2 text-[11px]">
         <div>
-          <p className="text-brand-gray">موافقة المدير</p>
+          <p className="text-brand-gray">حتى الموافقة</p>
           <p className="font-semibold text-primary">
-            {formatDurationMs(request.sla.createdToManagerApprovalMs)}
+            {formatDurationMs(request.sla.createdToApprovalMs)}
           </p>
         </div>
         <div>
           <p className="text-brand-gray">حتى الإسناد</p>
           <p className="font-semibold text-primary">
-            {formatDurationMs(request.sla.managerApprovalToAssignmentMs)}
+            {formatDurationMs(request.sla.approvalToAssignmentMs)}
           </p>
         </div>
         <div>
@@ -105,10 +115,6 @@ export default function RequestCard({
           </p>
         </div>
       </div>
-
-      <p className="text-[11px] text-brand-gray" dir="ltr">
-        {request.contactEmail}
-      </p>
 
       {isNew && (
         <div className="space-y-1">
@@ -146,32 +152,6 @@ export default function RequestCard({
               </span>
             </p>
           )}
-          <div className="space-y-1">
-            <label
-              className="label-field text-xs"
-              htmlFor={`reassign-${request.id}`}
-            >
-              إعادة إسناد
-            </label>
-            <select
-              id={`reassign-${request.id}`}
-              className="input-field text-sm"
-              defaultValue=""
-              disabled={busy}
-              onChange={(e) => {
-                const employeeId = e.target.value;
-                if (employeeId) void onReassign(request.id, employeeId);
-                e.target.value = "";
-              }}
-            >
-              <option value="">اختر موظفاً آخر...</option>
-              {employees.map((emp) => (
-                <option key={emp.id} value={emp.id}>
-                  {emp.name}
-                </option>
-              ))}
-            </select>
-          </div>
           <button
             type="button"
             className="btn-recommend w-full text-sm"
@@ -184,17 +164,14 @@ export default function RequestCard({
       )}
 
       {isDone && (
-        <div className="flex flex-col gap-2">
-          <span className="badge-success text-center">مكتمل</span>
-          <button
-            type="button"
-            className="btn-secondary w-full text-xs"
-            disabled={busy}
-            onClick={() => void onArchive(request.id)}
-          >
-            نقل للأرشيف
-          </button>
-        </div>
+        <button
+          type="button"
+          className="btn-secondary w-full text-xs"
+          disabled={busy}
+          onClick={() => void onArchive(request.id)}
+        >
+          نقل للأرشيف
+        </button>
       )}
     </article>
   );
