@@ -51,6 +51,10 @@ export async function POST(request: NextRequest) {
       requestTypeId = rt.id;
     }
 
+    if (!departmentId || !requestTypeId) {
+      return jsonError("القسم ونوع الطلب مطلوبان", "VALIDATION", 400);
+    }
+
     const requiredDate = new Date(body.requiredDate);
     if (Number.isNaN(requiredDate.getTime())) {
       throw new Error("VALIDATION: التاريخ المطلوب غير صالح");

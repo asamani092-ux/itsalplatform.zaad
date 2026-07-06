@@ -449,9 +449,44 @@ export async function completeEmployeeTicket(params: {
   });
 }
 
+interface KpiDepartmentNameRow {
+  id: string;
+  name: string;
+}
+
+interface KpiRequestTypeNameRow {
+  id: string;
+  name: string;
+}
+
+interface KpiStatusCountGroupRow {
+  status: RequestStatus;
+  _count: { _all: number };
+}
+
+interface KpiDepartmentCountGroupRow {
+  departmentId: string;
+  _count: { _all: number };
+}
+
+interface KpiRequestTypeCountGroupRow {
+  requestTypeId: string;
+  _count: { _all: number };
+}
+
+interface KpiCompletedLifecycleRow {
+  requestTypeId: string;
+  createdAt: Date;
+  completedAt: Date | null;
+}
+
 export async function getManagerKpis() {
-  const [statusCounts, byDepartment, byRequestType, allCompleted] =
-    await Promise.all([
+  const [statusCounts, byDepartment, byRequestType, allCompleted]: [
+    KpiStatusCountGroupRow[],
+    KpiDepartmentCountGroupRow[],
+    KpiRequestTypeCountGroupRow[],
+    KpiCompletedLifecycleRow[],
+  ] = await Promise.all([
       prisma.communicationRequest.groupBy({
         by: ["status"],
         _count: { _all: true },
@@ -474,15 +509,19 @@ export async function getManagerKpis() {
       }),
     ]);
 
-  const departments = await prisma.department.findMany({
+  const departments: KpiDepartmentNameRow[] = await prisma.department.findMany({
     select: { id: true, name: true },
   });
-  const requestTypes = await prisma.requestType.findMany({
+  const requestTypes: KpiRequestTypeNameRow[] = await prisma.requestType.findMany({
     select: { id: true, name: true },
   });
 
-  const deptMap = Object.fromEntries(departments.map((d) => [d.id, d.name]));
-  const typeMap = Object.fromEntries(requestTypes.map((t) => [t.id, t.name]));
+  const deptMap = Object.fromEntries(
+    departments.map((d: KpiDepartmentNameRow) => [d.id, d.name]),
+  );
+  const typeMap = Object.fromEntries(
+    requestTypes.map((t: KpiRequestTypeNameRow) => [t.id, t.name]),
+  );
 
   const slaByType: Record<string, { count: number; avgMs: number }> = {};
   for (const row of allCompleted) {
@@ -497,24 +536,27 @@ export async function getManagerKpis() {
     bucket.count += 1;
   }
 
-  const total = statusCounts.reduce((sum, s) => sum + s._count._all, 0);
+  const total = statusCounts.reduce(
+    (sum: number, s: KpiStatusCountGroupRow) => sum + s._count._all,
+    0,
+  );
   const completed =
-    statusCounts.find((s) => s.status === RequestStatus.Completed)?._count
+    statusCounts.find((s: KpiStatusCountGroupRow) => s.status === RequestStatus.Completed)?._count
       ._all ?? 0;
 
   return {
     totalRequests: total,
     completionRate: total > 0 ? completed / total : 0,
-    statusCounts: statusCounts.map((s) => ({
+    statusCounts: statusCounts.map((s: KpiStatusCountGroupRow) => ({
       status: s.status,
       count: s._count._all,
     })),
-    byDepartment: byDepartment.map((d) => ({
+    byDepartment: byDepartment.map((d: KpiDepartmentCountGroupRow) => ({
       departmentId: d.departmentId,
       departmentName: deptMap[d.departmentId] ?? d.departmentId,
       count: d._count._all,
     })),
-    byRequestType: byRequestType.map((r) => ({
+    byRequestType: byRequestType.map((r: KpiRequestTypeCountGroupRow) => ({
       requestTypeId: r.requestTypeId,
       requestTypeName: typeMap[r.requestTypeId] ?? r.requestTypeId,
       count: r._count._all,

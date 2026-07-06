@@ -1,25 +1,96 @@
 # منصة قسم الاتصال المؤسسي — جمعية الزاد
 
-منصة ديناميكية لإدارة طلبات التواصل المؤسسي مع مصادقة الموظفين، إعدادات قابلة للتكوين، ومساحات عمل منفصلة.
+منصة Next.js لإدارة طلبات التواصل المؤسسي: نموذج تقديم عام، موافقة المدير عبر رابط، لوحة Kanban، مساحة موظف، إعدادات ديناميكية، واستقبال الزيارات.
+
+## المعمارية
+
+| الطبقة | التقنية |
+|--------|---------|
+| Framework | Next.js 15 (App Router) + React 18 |
+| UI | Tailwind CSS + [نظام تصميم الزاد](./design-system/README.md) (RTL، Tajawal، `.btn-primary` / `.card` / …) |
+| ORM | Prisma 7 + PostgreSQL 16 |
+| Auth | JWT في cookie `zaad_session` (jose + bcrypt) |
+| Port | `3001` |
+
+```
+[عام]  /  → نموذج تقديم
+         /approve?token=  → موافقة المدير (magic link، 7 أيام)
+[جلسة] /login  → MANAGER → /dashboard/*  |  EMPLOYEE → /employee/*
+[API]  /api/public/*  /api/manager/*  /api/employee/*  (+ legacy wrappers محمية)
+```
+
+## الفروع
+
+| الفرع | الوصف |
+|-------|-------|
+| `main` | خط الأساس — design system |
+| `cursor/zaad-portal-architecture-f122` | **الفرع النشط** — معمارية كاملة + UI Phase 1 + Security Phase 1 |
 
 ## المتطلبات
 
-- Node.js 20+
-- PostgreSQL 16
+- Node.js ≥ 20
+- PostgreSQL 16 (Docker **أو** تثبيت محلي)
 
-## الإعداد السريع
+## متغيرات البيئة
+
+انسخ `.env.example` إلى `.env`:
+
+| المتغير | مطلوب | الوصف |
+|---------|-------|-------|
+| `DATABASE_URL` | نعم | اتصال PostgreSQL |
+| `NEXT_PUBLIC_APP_URL` | نعم | URL التطبيق (مثال: `http://localhost:3001`) |
+| `SESSION_SECRET` | **إلزامي في production** | توقيع JWT — أنشئه: `openssl rand -base64 48` |
+| `SMTP_*` | Phase 5 | placeholders في `.env.example` — حالياً الإشعارات mock في console |
+
+> في `NODE_ENV=production` يفشل التشغيل إذا كان `SESSION_SECRET` غير مضبوط أو يساوي القيمة الافتراضية للتطوير.
+
+## الإعداد
+
+### Docker (PostgreSQL على المنفذ 5433)
 
 ```bash
 cp .env.example .env
+bash scripts/docker-up.sh
 npm install
 npx prisma migrate deploy
 npm run db:seed
 npm run dev
 ```
 
-المنفذ: `http://localhost:3001`
+إذا ظهر `permission denied` على `docker.sock`:
 
-### حسابات تجريبية (بعد seed)
+```bash
+sudo service docker start
+sudo chmod 666 /var/run/docker.sock
+```
+
+### PostgreSQL محلي (منفذ 5432)
+
+```bash
+sudo apt-get install -y postgresql postgresql-contrib
+sudo pg_ctlcluster 16 main start
+sudo -u postgres psql -c "CREATE USER itsal WITH PASSWORD 'itsal_dev';" \
+  -c "CREATE DATABASE itsalplatform OWNER itsal;"
+
+cp .env.example .env
+# فعّل سطر DATABASE_URL للمنفذ 5432
+npm install
+npx prisma migrate deploy
+npm run db:seed
+npm run dev
+```
+
+## أوامر التشغيل
+
+```bash
+npm run dev          # تطوير — http://localhost:3001
+npm run build        # بناء production (يتطلب DATABASE_URL + DB يعمل لـ prerender)
+npm run start        # تشغيل بعد build
+npm run db:seed      # بيانات تجريبية
+npx tsc --noEmit     # فحص TypeScript
+```
+
+## حسابات تجريبية (بعد seed)
 
 | الدور | الهاتف | كلمة المرور |
 |-------|--------|-------------|
@@ -32,65 +103,52 @@ npm run dev
 
 | المسار | الوصف |
 |--------|-------|
-| `/submit/[slug]` | نموذج تقديم ديناميكي |
-| `/approve?token=` | موافقة المدير (magic link) |
-| `/login` | تسجيل دخول الموظف/المدير |
-| `/employee` | مساحة الموظف — التذاكر المسندة |
-| `/manager` | لوحة KPI للمدير |
-| `/manager/kanban` | Kanban |
-| `/manager/team` | إدارة الفريق |
-| `/manager/settings` | الأقسام وأنواع الطلبات والتوجيه |
+| `/` | نموذج تقديم (مركّز) |
+| `/submit/[slug]` | نموذج عميق حسب slug |
+| `/approve?token=` | موافقة المدير |
+| `/login` | تسجيل الدخول |
+| `/dashboard` | KPIs (مدير) |
+| `/dashboard/kanban` | Kanban |
+| `/dashboard/team` | الفريق |
+| `/dashboard/settings` | الإعدادات |
+| `/employee` | تذاكر الموظف |
 | `/reception/[token]` | شاشة الاستقبال |
+| `/manager/*` | redirects → `/dashboard/*` |
 
-## API
+## API (ملخص)
 
-### عام (بدون مصادقة)
+### عام (بدون جلسة)
 
 | Method | Endpoint |
 |--------|----------|
-| GET | `/api/public/departments` |
-| GET | `/api/public/request-types?departmentId=` |
-| POST | `/api/public/requests` |
+| GET | `/api/public/departments`, `/api/public/request-types` |
+| POST | `/api/public/requests`, `/api/requests` (legacy) |
+| GET/POST | `/api/approve?token=` |
+| GET/PATCH | `/api/reception/[token]` |
+| GET | `/api/health`, `/ping` |
 
 ### مصادقة
 
 | Method | Endpoint |
 |--------|----------|
-| POST | `/api/auth/login` |
+| POST | `/api/auth/login` (5 محاولات/دقيقة/IP) |
 | POST | `/api/auth/logout` |
 | GET | `/api/auth/me` |
 
-### موظف (جلسة)
+### موظف / مدير
 
 | Method | Endpoint |
 |--------|----------|
-| GET | `/api/employee/tickets` |
-| GET | `/api/employee/tickets/:id` |
-| POST | `/api/employee/tickets/:id/complete` (multipart: proof) |
-
-### مدير (جلسة MANAGER)
-
-| Method | Endpoint |
-|--------|----------|
-| GET | `/api/manager/kpis` |
-| GET/POST/PATCH | `/api/manager/team` |
-| GET/POST/PATCH | `/api/manager/settings/departments` |
-| GET/POST/PATCH | `/api/manager/settings/request-types` |
-| GET/POST/PATCH | `/api/manager/settings/routing-rules` |
-| GET | `/api/manager/tickets` |
-| POST | `/api/manager/tickets/:id/assign` |
-| POST | `/api/manager/tickets/:id/reassign` |
+| GET | `/api/employee/tickets`, `/api/employee/tickets/:id` |
+| POST | `/api/employee/tickets/:id/complete` |
+| GET | `/api/manager/kpis`, `/api/manager/tickets` |
+| POST | `/api/manager/tickets/:id/assign`, `reassign`, `resend-approval` |
 | PATCH | `/api/manager/tickets/:id/status` |
+| GET/POST/PATCH | `/api/manager/team`, `/api/manager/settings/*` |
 
-### أخرى
+### Legacy (محمية — MANAGER فقط)
 
-| Method | Endpoint |
-|--------|----------|
-| GET/PATCH | `/api/reception/[token]` |
-| POST | `/api/uploads` |
-| GET/POST | `/api/approve?token=` |
-
-المسارات القديمة (`/api/requests`, `/api/dashboard/*`) ما زالت تعمل كـ thin wrappers.
+`/api/dashboard/*`, `/api/employees`, `/api/hospitality/bookings`, `/api/media/documents`
 
 ## سير العمل
 
@@ -98,12 +156,17 @@ npm run dev
 Pending_Manager → Approved_Pending_Assignment → In_Progress → Completed → Archived
 ```
 
-عند الموافقة: إذا وُجدت قاعدة توجيه → إسناد تلقائي إلى `In_Progress`.
+- رابط الموافقة صالح **7 أيام** (`approvalTokenExpiresAt`)
+- عند الموافقة: إسناد تلقائي إذا وُجدت قاعدة توجيه
+- SLA: `createdAt` → `approvedAt` → `assignedAt` → `completedAt`
 
-## SLA
+## الأمان (Phase 1)
 
-- `createdAt` → `approvedAt` → `assignedAt` → `completedAt`
+- JWT موقّع في middleware (jose)
+- Rate limiting في الذاكرة (login 5/min، requests/uploads 10/min)
+- رفع ملفات: magic bytes + UUID filenames
+- `SESSION_SECRET` إلزامي في production
 
 ## الترخيص
 
-للاستخدام الداخلي لجمعية الزاد.
+للاستخدام الداخلي لجمعية الزاد والمشاريع التابعة.
