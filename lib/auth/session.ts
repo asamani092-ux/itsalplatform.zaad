@@ -1,8 +1,14 @@
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import { EmployeeRole } from "../../generated/prisma/client";
+import {
+  SESSION_COOKIE,
+  assertSessionSecret,
+  getSessionSecretKey,
+} from "./session-secret";
 
-export const SESSION_COOKIE = "zaad_session";
+export { SESSION_COOKIE } from "./session-secret";
+export { assertSessionSecret } from "./session-secret";
 
 export interface SessionPayload {
   sub: string;
@@ -12,10 +18,7 @@ export interface SessionPayload {
   role: EmployeeRole;
 }
 
-function getSecret() {
-  const secret = process.env.SESSION_SECRET ?? "dev-session-secret-change-me";
-  return new TextEncoder().encode(secret);
-}
+assertSessionSecret();
 
 export async function createSessionToken(payload: SessionPayload): Promise<string> {
   return new SignJWT({
@@ -28,14 +31,14 @@ export async function createSessionToken(payload: SessionPayload): Promise<strin
     .setSubject(payload.sub)
     .setIssuedAt()
     .setExpirationTime("7d")
-    .sign(getSecret());
+    .sign(getSessionSecretKey());
 }
 
 export async function verifySessionToken(
   token: string,
 ): Promise<SessionPayload | null> {
   try {
-    const { payload } = await jwtVerify(token, getSecret());
+    const { payload } = await jwtVerify(token, getSessionSecretKey());
     if (!payload.sub || typeof payload.sub !== "string") return null;
 
     return {

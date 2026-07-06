@@ -41,6 +41,12 @@ export function handleApiError(error: unknown) {
     if (error.message.startsWith("VALIDATION:")) {
       return jsonError(error.message.replace("VALIDATION: ", ""), "VALIDATION", 400);
     }
+    if (error.message.startsWith("TOKEN_EXPIRED:")) {
+      return jsonError(error.message.replace("TOKEN_EXPIRED: ", ""), "TOKEN_EXPIRED", 410);
+    }
+    if (error.message.startsWith("RATE_LIMITED:")) {
+      return jsonError(error.message.replace("RATE_LIMITED: ", ""), "RATE_LIMITED", 429);
+    }
     return jsonError(error.message, "INTERNAL_ERROR", 500);
   }
   return jsonError("حدث خطأ غير متوقع", "INTERNAL_ERROR", 500);

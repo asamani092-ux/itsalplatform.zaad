@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { handleApiError, jsonError, jsonOk } from "@/lib/api-utils";
 import { submitRequest } from "@/lib/request-service";
+import { checkRateLimit, rateLimitKey } from "@/lib/rate-limit";
 
 interface SubmitBody {
   title?: string;
@@ -15,6 +16,11 @@ interface SubmitBody {
 
 export async function POST(request: NextRequest) {
   try {
+    const limit = checkRateLimit(rateLimitKey(request, "requests"), 10, 60_000);
+    if (!limit.allowed) {
+      return jsonError("تم تجاوز عدد المحاولات المسموح. حاول لاحقاً.", "RATE_LIMITED", 429);
+    }
+
     const body = (await request.json()) as SubmitBody;
 
     if (!body.title?.trim()) return jsonError("العنوان مطلوب", "VALIDATION", 400);

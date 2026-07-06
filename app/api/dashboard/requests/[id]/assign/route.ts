@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { requireManagerSession } from "@/lib/auth/route-guard";
 import { handleApiError, jsonOk } from "@/lib/api-utils";
 import { assignRequest } from "@/lib/request-service";
 
@@ -6,6 +7,9 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const auth = await requireManagerSession();
+  if (auth.error) return auth.error;
+
   try {
     const { id } = await params;
     const body = (await request.json()) as {

@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { requireManagerSession } from "@/lib/auth/route-guard";
 import { prisma } from "@/lib/prisma";
 import { handleApiError, jsonError, jsonOk } from "@/lib/api-utils";
 
@@ -15,6 +16,9 @@ interface BookingBody {
 }
 
 export async function GET(request: NextRequest) {
+  const auth = await requireManagerSession();
+  if (auth.error) return auth.error;
+
   try {
     const from = request.nextUrl.searchParams.get("from");
     const to = request.nextUrl.searchParams.get("to");
@@ -40,6 +44,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const auth = await requireManagerSession();
+  if (auth.error) return auth.error;
+
   try {
     const body = (await request.json()) as BookingBody;
 

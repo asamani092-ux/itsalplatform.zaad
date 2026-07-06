@@ -1,9 +1,10 @@
+import { NextRequest } from "next/server";
 import { requireManagerSession } from "@/lib/auth/route-guard";
-import { getRequestById } from "@/lib/request-service";
 import { handleApiError, jsonOk } from "@/lib/api-utils";
+import { regenerateApprovalLink } from "@/lib/request-service";
 
-export async function GET(
-  _request: Request,
+export async function POST(
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const auth = await requireManagerSession();
@@ -11,8 +12,8 @@ export async function GET(
 
   try {
     const { id } = await params;
-    const request = await getRequestById(id);
-    return jsonOk(request);
+    const result = await regenerateApprovalLink(id);
+    return jsonOk(result);
   } catch (error) {
     return handleApiError(error);
   }

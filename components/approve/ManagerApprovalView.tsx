@@ -8,8 +8,14 @@ import { fetchWithTimeout } from "@/lib/client/fetch-with-timeout";
 interface TokenSummary {
   id: string;
   title: string;
+  description: string;
+  requiredDate: string;
+  contactEmail: string;
+  contactPhone: string;
+  managerEmail: string;
   status: string;
   approvedAt: string | null;
+  approvalTokenExpiresAt: string | null;
   department?: { name: string };
   requestType?: { name: string; requiresVisitDate: boolean };
   visitDate: string | null;
@@ -36,6 +42,7 @@ type ViewState =
   | "approved"
   | "already_processed"
   | "rejected_info"
+  | "expired"
   | "error"
   | "missing_token";
 
@@ -81,6 +88,10 @@ export default function ManagerApprovalView({
       const tokenPayload = await parseApiResponse<TokenSummary>(tokenRes);
 
       if (!tokenRes.ok || !tokenPayload.success) {
+        if (!tokenPayload.success && tokenPayload.error.code === "TOKEN_EXPIRED") {
+          setViewState("expired");
+          return;
+        }
         setErrorMessage(
           getApiErrorMessage(tokenPayload, "تعذّر تحميل الطلب"),
         );
@@ -89,29 +100,14 @@ export default function ManagerApprovalView({
       }
 
       const summary = tokenPayload.data;
+      setDetails(summary);
 
       if (summary.status !== "Pending_Manager") {
         setViewState("already_processed");
-      }
-
-      const detailRes = await fetchWithTimeout(
-        `/api/dashboard/requests/${summary.id}`,
-      );
-      const detailPayload = await parseApiResponse<RequestDetails>(detailRes);
-
-      if (!detailRes.ok || !detailPayload.success) {
-        setErrorMessage(
-          getApiErrorMessage(detailPayload, "تعذّر تحميل تفاصيل الطلب"),
-        );
-        setViewState("error");
         return;
       }
 
-      setDetails(detailPayload.data);
-
-      if (summary.status === "Pending_Manager") {
-        setViewState("ready");
-      }
+      setViewState("ready");
     } catch {
       setErrorMessage("حدث خطأ في الاتصال. تحقق من الشبكة وحاول مجدداً.");
       setViewState("error");
@@ -139,6 +135,10 @@ export default function ManagerApprovalView({
       }>(response);
 
       if (!response.ok || !payload.success) {
+        if (!payload.success && payload.error.code === "TOKEN_EXPIRED") {
+          setViewState("expired");
+          return;
+        }
         setErrorMessage(
           getApiErrorMessage(payload, "تعذّر تنفيذ الموافقة"),
         );
@@ -183,6 +183,19 @@ export default function ManagerApprovalView({
             <span className="badge-danger">رابط غير صالح</span>
             <p className="text-sm text-brand-gray">
               لم يُعثر على رمز الموافقة. افتح الرابط من البريد المرسل إليك.
+            </p>
+            <Link href="/" className="btn-secondary inline-flex">
+              العودة للرئيسية
+            </Link>
+          </div>
+        )}
+
+        {viewState === "expired" && (
+          <div className="card space-y-4 text-center">
+            <span className="badge-warning">انتهت صلاحية الرابط</span>
+            <p className="text-sm text-brand-gray">
+              انتهت صلاحية رابط الموافقة بعد 7 أيام. اطلب رابطاً جديداً من قسم
+              الاتصال المؤسسي.
             </p>
             <Link href="/" className="btn-secondary inline-flex">
               العودة للرئيسية

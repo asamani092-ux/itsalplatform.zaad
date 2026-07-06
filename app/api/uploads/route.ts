@@ -1,13 +1,20 @@
+import { randomUUID } from "crypto";
 import { NextRequest } from "next/server";
 import { writeFile, mkdir } from "fs/promises";
 import path from "path";
 import { handleApiError, jsonError, jsonOk } from "@/lib/api-utils";
+import { detectFileTypeFromBytes } from "@/lib/file-validation";
+import { checkRateLimit, rateLimitKey } from "@/lib/rate-limit";
 
 const MAX_SIZE = 5 * 1024 * 1024;
-const ALLOWED_TYPES = ["application/pdf", "image/png", "image/jpeg"];
 
 export async function POST(request: NextRequest) {
   try {
+    const limit = checkRateLimit(rateLimitKey(request, "uploads"), 10, 60_000);
+    if (!limit.allowed) {
+      return jsonError("تم تجاوز عدد المحاولات المسموح. حاول لاحقاً.", "RATE_LIMITED", 429);
+    }
+
     const formData = await request.formData();
     const file = formData.get("file");
 
@@ -19,13 +26,14 @@ export async function POST(request: NextRequest) {
       return jsonError("حجم الملف يتجاوز 5MB", "VALIDATION", 400);
     }
 
-    if (!ALLOWED_TYPES.includes(file.type)) {
+    const bytes = Buffer.from(await file.arrayBuffer());
+    const detected = detectFileTypeFromBytes(bytes);
+
+    if (!detected) {
       return jsonError("نوع الملف غير مدعوم (PDF/PNG/JPG فقط)", "VALIDATION", 400);
     }
 
-    const bytes = Buffer.from(await file.arrayBuffer());
-    const ext = file.name.split(".").pop() ?? "bin";
-    const filename = `upload-${Date.now()}.${ext}`;
+    const filename = `${randomUUID()}.${detected.ext}`;
     const uploadDir = path.join(process.cwd(), "public", "uploads", "proofs");
     await mkdir(uploadDir, { recursive: true });
     await writeFile(path.join(uploadDir, filename), bytes);

@@ -9,6 +9,22 @@ import { getAppUrl } from "./api-utils";
 
 type DashboardView = "active" | "archive" | "all";
 
+const APPROVAL_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+function approvalTokenExpiresAtFromNow(): Date {
+  return new Date(Date.now() + APPROVAL_TOKEN_TTL_MS);
+}
+
+function assertApprovalTokenNotExpired(request: {
+  approvalTokenExpiresAt: Date | null;
+}): void {
+  if (request.approvalTokenExpiresAt && request.approvalTokenExpiresAt < new Date()) {
+    throw new Error(
+      "TOKEN_EXPIRED: انتهت صلاحية رابط الموافقة. اطلب رابطاً جديداً من قسم الاتصال.",
+    );
+  }
+}
+
 const requestInclude = {
   assignedEmployee: { select: { id: true, name: true, email: true } },
   department: { select: { id: true, name: true, slug: true } },
@@ -97,6 +113,8 @@ export async function getRequestByToken(token: string) {
     throw new Error("NOT_FOUND: رمز الموافقة غير صالح");
   }
 
+  assertApprovalTokenNotExpired(request);
+
   return withSla(request);
 }
 
@@ -175,6 +193,7 @@ export async function submitRequest(params: {
       requestTypeId: params.requestTypeId,
       visitDate: params.visitDate ?? null,
       approvalToken,
+      approvalTokenExpiresAt: approvalTokenExpiresAtFromNow(),
       status: RequestStatus.Pending_Manager,
     },
     include: requestInclude,
@@ -209,6 +228,8 @@ export async function approveRequest(token: string) {
   if (request.status !== RequestStatus.Pending_Manager) {
     throw new Error("ALREADY_PROCESSED: تمت معالجة هذا الطلب مسبقاً");
   }
+
+  assertApprovalTokenNotExpired(request);
 
   const assignee = await resolveAssignee(request.requestTypeId);
   const now = new Date();
@@ -557,4 +578,41 @@ export async function markVisitAttendance(params: {
   });
 
   return { department, request: withSla(updated) };
+}
+
+export async function regenerateApprovalLink(requestId: string) {
+  const request = await prisma.communicationRequest.findUnique({
+    where: { id: requestId },
+    include: requestInclude,
+  });
+
+  if (!request) {
+    throw new Error("NOT_FOUND: الطلب غير موجود");
+  }
+
+  if (request.status !== RequestStatus.Pending_Manager) {
+    throw new Error("INVALID_STATE: يمكن إعادة إرسال الرابط فقط للطلبات بانتظار موافقة المدير");
+  }
+
+  const approvalToken = generateApprovalToken();
+  const approvalTokenExpiresAt = approvalTokenExpiresAtFromNow();
+
+  const updated = await prisma.communicationRequest.update({
+    where: { id: requestId },
+    data: { approvalToken, approvalTokenExpiresAt },
+    include: requestInclude,
+  });
+
+  const approvalUrl = `${getAppUrl()}/approve?token=${approvalToken}`;
+  await notifyManager({
+    managerEmail: updated.managerEmail,
+    requestTitle: updated.title,
+    approvalUrl,
+  });
+
+  return {
+    id: updated.id,
+    approvalUrl,
+    approvalTokenExpiresAt,
+  };
 }

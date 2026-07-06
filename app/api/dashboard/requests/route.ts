@@ -1,9 +1,13 @@
 import { NextRequest } from "next/server";
+import { requireManagerSession } from "@/lib/auth/route-guard";
 import { handleApiError, jsonOk } from "@/lib/api-utils";
 import { listRequests } from "@/lib/request-service";
 import { RequestStatus } from "@/generated/prisma/client";
 
 export async function GET(request: NextRequest) {
+  const auth = await requireManagerSession();
+  if (auth.error) return auth.error;
+
   try {
     const view = request.nextUrl.searchParams.get("view") as
       | "active"
