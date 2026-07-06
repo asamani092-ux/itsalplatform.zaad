@@ -598,13 +598,19 @@ export async function listReceptionVisits(token: string) {
   return { department, requests: requests.map(withSla) };
 }
 
+export type ReceptionVisitRequest = Awaited<
+  ReturnType<typeof listReceptionVisits>
+>["requests"][number];
+
 export async function markVisitAttendance(params: {
   token: string;
   requestId: string;
   attended: boolean;
 }) {
   const { department, requests } = await listReceptionVisits(params.token);
-  const target = requests.find((r) => r.id === params.requestId);
+  const target = requests.find(
+    (r: ReceptionVisitRequest) => r.id === params.requestId,
+  );
 
   if (!target) {
     throw new Error("NOT_FOUND: الطلب غير موجود في قائمة الاستقبال");

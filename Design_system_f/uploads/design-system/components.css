@@ -1,14 +1,14 @@
 /**
- * Zaad Design System — Component Classes (framework-agnostic)
+ * Tmkeen Design System — Component Classes (framework-agnostic)
  * يتطلب tokens.css
  */
 
 /* ── Base RTL ── */
-.zaad-root,
-[data-zaad] {
-  color: var(--zaad-foreground);
-  background: var(--zaad-background);
-  font-family: var(--zaad-font-sans);
+.tmkeen-root,
+[data-tmkeen] {
+  color: var(--tmkeen-foreground);
+  background: var(--tmkeen-background);
+  font-family: var(--tmkeen-font-sans);
   direction: rtl;
   text-align: start;
   -webkit-font-smoothing: antialiased;
@@ -20,8 +20,8 @@
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  border-radius: var(--zaad-radius-lg);
-  background: var(--zaad-primary);
+  border-radius: var(--tmkeen-radius-lg);
+  background: var(--tmkeen-primary);
   padding: 0.75rem 1.5rem;
   font-weight: 600;
   color: #fff;
@@ -31,10 +31,10 @@
   cursor: pointer;
 }
 .btn-primary:hover {
-  background: var(--zaad-primary-dark);
+  background: var(--tmkeen-primary-dark);
 }
 .btn-primary:focus-visible {
-  outline: 2px solid var(--zaad-primary);
+  outline: 2px solid var(--tmkeen-primary);
   outline-offset: 2px;
 }
 .btn-primary:disabled {
@@ -47,21 +47,21 @@
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  border-radius: var(--zaad-radius-lg);
-  border: 1px solid var(--zaad-surface-border);
-  background: var(--zaad-surface);
+  border-radius: var(--tmkeen-radius-lg);
+  border: 1px solid var(--tmkeen-surface-border);
+  background: var(--tmkeen-surface);
   padding: 0.75rem 1.5rem;
   font-weight: 600;
-  color: var(--zaad-brand-gray);
+  color: var(--tmkeen-brand-gray);
   text-align: start;
   transition: background-color 0.15s ease;
   cursor: pointer;
 }
 .btn-secondary:hover {
-  background: var(--zaad-surface-muted);
+  background: var(--tmkeen-surface-muted);
 }
 .btn-secondary:focus-visible {
-  outline: 2px solid var(--zaad-surface-border);
+  outline: 2px solid var(--tmkeen-surface-border);
   outline-offset: 2px;
 }
 
@@ -70,18 +70,18 @@
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  border-radius: var(--zaad-radius-lg);
-  background: var(--zaad-secondary);
+  border-radius: var(--tmkeen-radius-lg);
+  background: var(--tmkeen-secondary);
   padding: 0.75rem 1.5rem;
   font-weight: 600;
-  color: var(--zaad-warning);
+  color: var(--tmkeen-warning);
   text-align: start;
   transition: background-color 0.15s ease;
   border: none;
   cursor: pointer;
 }
 .btn-recommend:hover {
-  background: var(--zaad-secondary-light);
+  background: var(--tmkeen-secondary-light);
 }
 
 .btn-register {
@@ -89,34 +89,34 @@
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  border-radius: var(--zaad-radius-lg);
+  border-radius: var(--tmkeen-radius-lg);
   background: rgb(250, 204, 21);
   padding: 0.75rem 1.5rem;
   font-weight: 600;
-  color: var(--zaad-warning);
+  color: var(--tmkeen-warning);
   text-align: start;
   transition: background-color 0.15s ease;
   border: none;
   cursor: pointer;
 }
 .btn-register:hover {
-  background: var(--zaad-secondary);
+  background: var(--tmkeen-secondary);
 }
 
 /* ── Cards ── */
 .card {
-  border-radius: var(--zaad-radius-xl);
-  border: 2px solid var(--zaad-surface-border);
-  background: var(--zaad-surface);
+  border-radius: var(--tmkeen-radius-xl);
+  border: 2px solid var(--tmkeen-surface-border);
+  background: var(--tmkeen-surface);
   padding: 1.5rem;
   text-align: start;
   box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
 }
 
 .card-section {
-  border-radius: var(--zaad-radius-xl);
-  border: 2px solid color-mix(in srgb, var(--zaad-primary) 20%, transparent);
-  background: var(--zaad-surface);
+  border-radius: var(--tmkeen-radius-xl);
+  border: 2px solid color-mix(in srgb, var(--tmkeen-primary) 20%, transparent);
+  background: var(--tmkeen-surface);
   padding: 1.25rem;
   text-align: start;
   box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
@@ -125,18 +125,18 @@
 /* ── Forms ── */
 .input-field {
   width: 100%;
-  border-radius: var(--zaad-radius-lg);
-  border: 1px solid var(--zaad-surface-border);
-  background: var(--zaad-surface);
+  border-radius: var(--tmkeen-radius-lg);
+  border: 1px solid var(--tmkeen-surface-border);
+  background: var(--tmkeen-surface);
   padding: 0.75rem 1rem;
-  color: var(--zaad-brand-gray);
+  color: var(--tmkeen-brand-gray);
   text-align: start;
   outline: none;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 .input-field:focus {
-  border-color: var(--zaad-primary);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--zaad-primary) 20%, transparent);
+  border-color: var(--tmkeen-primary);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--tmkeen-primary) 20%, transparent);
 }
 
 .label-field {
@@ -144,8 +144,58 @@
   margin-bottom: 0.5rem;
   font-size: 0.875rem;
   font-weight: 600;
-  color: var(--zaad-brand-gray);
+  color: var(--tmkeen-brand-gray);
   text-align: start;
+}
+
+.field-cell {
+  border-radius: var(--tmkeen-radius-lg);
+  border: 2px solid color-mix(in srgb, var(--tmkeen-primary) 20%, transparent);
+  background: var(--tmkeen-surface);
+  padding: 0.75rem 1rem;
+  text-align: start;
+}
+
+.field-cell-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  text-align: start;
+}
+
+.field-cell-label {
+  flex-shrink: 0;
+  min-width: 7rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--tmkeen-brand-gray);
+}
+
+.field-cell-value {
+  min-width: 0;
+  flex: 1;
+  font-weight: 500;
+  color: var(--tmkeen-primary);
+  word-break: break-word;
+}
+
+.field-cell-control {
+  min-width: 0;
+  flex: 1;
+}
+
+.field-grid {
+  display: grid;
+  gap: 0.75rem;
+}
+
+@media (min-width: 640px) {
+  .field-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .field-cell-label {
+    min-width: 9rem;
+  }
 }
 
 /* LTR fields (email, phone, url, datetime) */
@@ -163,48 +213,48 @@ input[type="password"][dir="ltr"],
 .badge-primary {
   display: inline-block;
   border-radius: 9999px;
-  background: color-mix(in srgb, var(--zaad-primary) 10%, transparent);
+  background: color-mix(in srgb, var(--tmkeen-primary) 10%, transparent);
   padding: 0.125rem 0.75rem;
   font-size: 0.75rem;
   font-weight: 600;
-  color: var(--zaad-primary);
+  color: var(--tmkeen-primary);
 }
 
 .badge-warning {
   display: inline-block;
   border-radius: 0.25rem;
-  background: var(--zaad-warning-bg);
+  background: var(--tmkeen-warning-bg);
   padding: 0.125rem 0.5rem;
   font-size: 0.75rem;
   font-weight: 600;
-  color: var(--zaad-warning);
+  color: var(--tmkeen-warning);
 }
 
 .badge-danger {
   display: inline-block;
   border-radius: 9999px;
-  background: var(--zaad-danger-bg);
+  background: var(--tmkeen-danger-bg);
   padding: 0.125rem 0.75rem;
   font-size: 0.75rem;
   font-weight: 600;
-  color: var(--zaad-danger);
+  color: var(--tmkeen-danger);
 }
 
 .badge-success {
   font-size: 0.75rem;
   font-weight: 600;
-  color: var(--zaad-success);
+  color: var(--tmkeen-success);
 }
 
 /* ── Layout helpers ── */
 .page-shell {
   min-height: 100vh;
-  background: var(--zaad-surface-muted);
+  background: var(--tmkeen-surface-muted);
 }
 
 .page-container {
   margin-inline: auto;
-  max-width: var(--zaad-page-max-width);
+  max-width: var(--tmkeen-page-max-width);
   padding-inline: 1rem;
   padding-block: 2rem;
 }
@@ -217,27 +267,27 @@ input[type="password"][dir="ltr"],
 }
 
 /* ── Tables ── */
-.zaad-table {
+.tmkeen-table {
   width: 100%;
   font-size: 0.875rem;
   text-align: start;
 }
-.zaad-table thead {
-  background: color-mix(in srgb, var(--zaad-primary) 5%, transparent);
-  color: var(--zaad-primary);
+.tmkeen-table thead {
+  background: color-mix(in srgb, var(--tmkeen-primary) 5%, transparent);
+  color: var(--tmkeen-primary);
 }
-.zaad-table th,
-.zaad-table td {
+.tmkeen-table th,
+.tmkeen-table td {
   padding: 0.75rem 1rem;
 }
-.zaad-table tbody tr {
-  border-top: 1px solid var(--zaad-surface-border);
+.tmkeen-table tbody tr {
+  border-top: 1px solid var(--tmkeen-surface-border);
 }
-.zaad-table tbody tr:nth-child(even) {
-  background: color-mix(in srgb, var(--zaad-surface-muted) 40%, transparent);
+.tmkeen-table tbody tr:nth-child(even) {
+  background: color-mix(in srgb, var(--tmkeen-surface-muted) 40%, transparent);
 }
-.zaad-table tbody tr:hover {
-  background: color-mix(in srgb, var(--zaad-secondary) 10%, transparent);
+.tmkeen-table tbody tr:hover {
+  background: color-mix(in srgb, var(--tmkeen-secondary) 10%, transparent);
   cursor: pointer;
 }
 
@@ -246,19 +296,19 @@ input[type="password"][dir="ltr"],
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
-  border-radius: var(--zaad-radius-xl);
-  background: var(--zaad-surface);
+  border-radius: var(--tmkeen-radius-xl);
+  background: var(--tmkeen-surface);
   padding: 0.25rem;
   box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
 }
 .tab-bar button {
   flex: 1;
   min-width: 100px;
-  border-radius: var(--zaad-radius-lg);
+  border-radius: var(--tmkeen-radius-lg);
   padding: 0.75rem 0.5rem;
   font-size: 0.875rem;
   font-weight: 600;
-  color: var(--zaad-brand-gray);
+  color: var(--tmkeen-brand-gray);
   background: transparent;
   border: none;
   cursor: pointer;
@@ -266,7 +316,7 @@ input[type="password"][dir="ltr"],
 }
 .tab-bar button[data-active="true"],
 .tab-bar button.active {
-  background: var(--zaad-primary);
+  background: var(--tmkeen-primary);
   color: #fff;
 }
 
@@ -278,7 +328,7 @@ input[type="password"][dir="ltr"],
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--zaad-overlay);
+  background: var(--tmkeen-overlay);
   padding: 1rem;
 }
 .modal-panel {

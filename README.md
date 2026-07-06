@@ -7,7 +7,7 @@
 | الطبقة | التقنية |
 |--------|---------|
 | Framework | Next.js 15 (App Router) + React 18 |
-| UI | Tailwind CSS + [نظام تصميم الزاد](./design-system/README.md) (RTL، Tajawal، `.btn-primary` / `.card` / …) |
+| UI | Tailwind CSS + [Tmkeen Design System](./Design_system_f/uploads/design-system/README.md) (RTL، Tajawal، `.btn-primary` / `.card` / …) |
 | ORM | Prisma 7 + PostgreSQL 16 |
 | Auth | JWT في cookie `zaad_session` (jose + bcrypt) |
 | Port | `3001` |
@@ -25,6 +25,25 @@
 |-------|-------|
 | `main` | خط الأساس — design system |
 | `cursor/zaad-portal-architecture-f122` | **الفرع النشط** — معمارية كاملة + UI Phase 1 + Security Phase 1 |
+
+## نظام التصميم (Design_system_f)
+
+المصدر الوحيد للتصميم:
+
+```
+Design_system_f/
+└── uploads/design-system/
+    ├── tokens.css
+    ├── tokens.json
+    ├── components.css
+    ├── tailwind.preset.ts
+    ├── README.md
+    └── examples/html-rtl-demo.html
+```
+
+- `tailwind.config.ts` → `Design_system_f/uploads/design-system/tailwind.preset.ts`
+- `app/globals.css` → يستورد `tokens.css` + `components.css` من المسار أعلاه
+- alias: `@/design-system/*` → `Design_system_f/uploads/design-system/*`
 
 ## المتطلبات
 

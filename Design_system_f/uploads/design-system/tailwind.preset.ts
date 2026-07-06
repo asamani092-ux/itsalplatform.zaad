@@ -1,13 +1,13 @@
 import type { Config } from "tailwindcss";
 
 /**
- * Zaad Design System — Tailwind Preset
+ * Tmkeen Design System — Tailwind Preset
  *
  * Usage in tailwind.config.ts:
- *   import zaadPreset from "./design-system/tailwind.preset";
- *   export default { presets: [zaadPreset], content: [...] };
+ *   import tmkeenPreset from "./design-system/tailwind.preset";
+ *   export default { presets: [tmkeenPreset], content: [...] };
  */
-const zaadPreset: Partial<Config> = {
+const tmkeenPreset: Partial<Config> = {
   theme: {
     extend: {
       colors: {
@@ -31,7 +31,7 @@ const zaadPreset: Partial<Config> = {
         },
       },
       fontFamily: {
-        sans: ["Tahoma", "Arial", "sans-serif"],
+        sans: ["Tajawal", "Tahoma", "Arial", "sans-serif"],
       },
       maxWidth: {
         page: "72rem",
@@ -40,4 +40,4 @@ const zaadPreset: Partial<Config> = {
   },
 };
 
-export default zaadPreset;
+export default tmkeenPreset;

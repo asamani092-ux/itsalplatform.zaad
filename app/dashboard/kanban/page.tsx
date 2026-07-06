@@ -1,4 +1,4 @@
-import KanbanBoard from "@/components/manager/kanban/KanbanBoard";
+import KanbanBoard from "@/components/dashboard/kanban/KanbanBoard";
 
 export default function DashboardKanbanPage() {
   return <KanbanBoard />;

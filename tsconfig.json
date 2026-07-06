@@ -14,7 +14,8 @@
     "incremental": true,
     "plugins": [{ "name": "next" }],
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./*"],
+      "@/design-system/*": ["./Design_system_f/uploads/design-system/*"]
     },
     "target": "ES2017"
   },
