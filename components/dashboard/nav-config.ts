@@ -4,6 +4,7 @@ export const DASHBOARD_NAV = [
   { href: "/dashboard/team", label: "الفريق" },
   { href: "/dashboard/settings", label: "الإعدادات" },
   { href: "/dashboard/hospitality", label: "حجوزات الضيافة" },
+  { href: "/dashboard/media", label: "مركز الوثائق" },
 ] as const;
 
 export function getDashboardPageTitle(pathname: string): string {
@@ -13,5 +14,6 @@ export function getDashboardPageTitle(pathname: string): string {
   if (pathname.startsWith("/dashboard/settings/preview")) return "معاينة النموذج";
   if (pathname.startsWith("/dashboard/settings")) return "الإعدادات";
   if (pathname.startsWith("/dashboard/hospitality")) return "حجوزات الضيافة";
+  if (pathname.startsWith("/dashboard/media")) return "مركز الوثائق";
   return "مركز التحكم";
 }
