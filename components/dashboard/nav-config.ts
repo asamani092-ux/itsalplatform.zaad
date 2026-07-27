@@ -3,6 +3,7 @@ export const DASHBOARD_NAV = [
   { href: "/dashboard/kanban", label: "Kanban" },
   { href: "/dashboard/team", label: "الفريق" },
   { href: "/dashboard/settings", label: "الإعدادات" },
+  { href: "/dashboard/hospitality", label: "حجوزات الضيافة" },
 ] as const;
 
 export function getDashboardPageTitle(pathname: string): string {
@@ -11,5 +12,6 @@ export function getDashboardPageTitle(pathname: string): string {
   if (pathname.startsWith("/dashboard/team")) return "إدارة الفريق";
   if (pathname.startsWith("/dashboard/settings/preview")) return "معاينة النموذج";
   if (pathname.startsWith("/dashboard/settings")) return "الإعدادات";
+  if (pathname.startsWith("/dashboard/hospitality")) return "حجوزات الضيافة";
   return "مركز التحكم";
 }

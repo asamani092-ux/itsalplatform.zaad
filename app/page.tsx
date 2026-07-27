@@ -2,6 +2,8 @@ import DynamicSubmitForm from "@/components/public/DynamicSubmitForm";
 import PublicSubmitShell from "@/components/public/PublicSubmitShell";
 import { prisma } from "@/lib/prisma";
 
+export const dynamic = "force-dynamic";
+
 export default async function HomePage() {
   const [departments, requestTypes] = await Promise.all([
     prisma.department.findMany({
