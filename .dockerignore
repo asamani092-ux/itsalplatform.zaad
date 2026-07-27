@@ -1,0 +1,15 @@
+node_modules
+.next
+.git
+.env
+.env.*
+!.env.example
+tests
+coverage
+*.md
+!docs/DEPLOYMENT.md
+.DS_Store
+uploads/proofs/*
+!uploads/proofs/.gitkeep
+playwright-report
+test-results
