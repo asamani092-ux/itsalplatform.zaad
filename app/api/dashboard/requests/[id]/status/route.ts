@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { requireManagerSession } from "@/lib/auth/route-guard";
 import { notifySubmitter } from "@/lib/notifications";
 import { handleApiError, jsonError, jsonOk } from "@/lib/api-utils";
 import { updateRequestStatus } from "@/lib/request-service";
@@ -13,6 +14,9 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const auth = await requireManagerSession();
+  if (auth.error) return auth.error;
+
   try {
     const { id } = await params;
     const body = (await request.json()) as {

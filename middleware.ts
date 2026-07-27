@@ -1,24 +1,27 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { SESSION_COOKIE } from "@/lib/auth/session";
+import { jwtVerify } from "jose";
+import {
+  SESSION_COOKIE,
+  assertSessionSecret,
+  getSessionSecretKey,
+} from "@/lib/auth/session-secret";
 
-function parseSessionCookie(token: string): { sub: string; role: string } | null {
+assertSessionSecret();
+
+async function verifySessionFromRequest(
+  request: NextRequest,
+): Promise<{ sub: string; role: string } | null> {
+  const token = request.cookies.get(SESSION_COOKIE)?.value;
+  if (!token) return null;
+
   try {
-    const parts = token.split(".");
-    if (parts.length !== 3) return null;
-    const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
-    const payload = JSON.parse(atob(base64)) as { sub?: string; role?: string };
-    if (!payload.sub) return null;
-    return { sub: String(payload.sub), role: String(payload.role ?? "EMPLOYEE") };
+    const { payload } = await jwtVerify(token, getSessionSecretKey());
+    if (!payload.sub || typeof payload.sub !== "string") return null;
+    return { sub: payload.sub, role: String(payload.role ?? "EMPLOYEE") };
   } catch {
     return null;
   }
-}
-
-function getSessionFromRequest(request: NextRequest) {
-  const token = request.cookies.get(SESSION_COOKIE)?.value;
-  if (!token) return null;
-  return parseSessionCookie(token);
 }
 
 function managerToDashboard(pathname: string): string {
@@ -26,7 +29,7 @@ function managerToDashboard(pathname: string): string {
   return pathname.replace(/^\/manager/, "/dashboard");
 }
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (pathname.startsWith("/manager")) {
@@ -35,7 +38,7 @@ export function middleware(request: NextRequest) {
   }
 
   if (pathname.startsWith("/employee") || pathname.startsWith("/dashboard")) {
-    const session = getSessionFromRequest(request);
+    const session = await verifySessionFromRequest(request);
     if (!session) {
       const login = new URL("/login", request.url);
       login.searchParams.set("next", pathname);

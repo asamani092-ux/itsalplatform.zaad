@@ -1,8 +1,8 @@
 import type { Config } from "tailwindcss";
-import zaadPreset from "./design-system/tailwind.preset";
+import tmkeenPreset from "./Design_system_f/uploads/design-system/tailwind.preset";
 
 const config: Config = {
-  presets: [zaadPreset],
+  presets: [tmkeenPreset],
   content: ["./app/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}"],
 };
 

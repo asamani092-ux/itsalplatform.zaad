@@ -13,7 +13,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ar" dir="rtl">
-      <body className="zaad-root min-h-screen bg-surface-muted font-sans antialiased">
+      <body className="tmkeen-root min-h-screen bg-surface-muted font-sans antialiased">
         {children}
       </body>
     </html>

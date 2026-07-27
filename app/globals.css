@@ -1,12 +1,78 @@
-@import "../design-system/tokens.css";
-@import "../design-system/components.css";
+@import "../Design_system_f/uploads/design-system/tokens.css";
+@import "../Design_system_f/uploads/design-system/components.css";
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-body {
-  font-family: Tahoma, Arial, sans-serif;
+/* Compatibility aliases — values sourced from Design_system_f tokens */
+:root {
+  --zaad-primary: var(--tmkeen-primary);
+  --zaad-primary-dark: var(--tmkeen-primary-dark);
+  --zaad-primary-light: var(--tmkeen-primary-light);
+  --zaad-secondary: var(--tmkeen-secondary);
+  --zaad-secondary-dark: var(--tmkeen-secondary-dark);
+  --zaad-secondary-light: var(--tmkeen-secondary-light);
+  --zaad-brand-gray: var(--tmkeen-brand-gray);
+  --zaad-surface: var(--tmkeen-surface);
+  --zaad-surface-muted: var(--tmkeen-surface-muted);
+  --zaad-surface-border: var(--tmkeen-surface-border);
+  --zaad-background: var(--tmkeen-background);
+  --zaad-foreground: var(--tmkeen-foreground);
+  --zaad-success: var(--tmkeen-success);
+  --zaad-success-bg: var(--tmkeen-success-bg);
+  --zaad-warning: var(--tmkeen-warning);
+  --zaad-warning-bg: var(--tmkeen-warning-bg);
+  --zaad-danger: var(--tmkeen-danger);
+  --zaad-danger-bg: var(--tmkeen-danger-bg);
+  --zaad-overlay: var(--tmkeen-overlay);
+  --zaad-font-sans: var(--tmkeen-font-sans);
+  --zaad-page-max-width: var(--tmkeen-page-max-width);
+  --zaad-radius-lg: var(--tmkeen-radius-lg);
+  --zaad-radius-xl: var(--tmkeen-radius-xl);
+}
+
+.zaad-root,
+.tmkeen-root {
+  color: var(--tmkeen-foreground);
+  background: var(--tmkeen-background);
+  font-family: var(--tmkeen-font-sans);
   direction: rtl;
   text-align: start;
+  -webkit-font-smoothing: antialiased;
+}
+
+.zaad-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+.zaad-table thead {
+  background: var(--tmkeen-surface-muted);
+  color: var(--tmkeen-primary);
+}
+.zaad-table th,
+.zaad-table td {
+  padding: 0.75rem 1rem;
+  text-align: start;
+  border-bottom: 1px solid var(--tmkeen-surface-border);
+}
+.zaad-table tbody tr:nth-child(even) {
+  background: color-mix(in srgb, var(--tmkeen-surface-muted) 40%, transparent);
+}
+.zaad-table tbody tr:hover {
+  background: color-mix(in srgb, var(--tmkeen-primary) 5%, transparent);
+}
+
+body {
+  font-family: var(--tmkeen-font-sans);
+  direction: rtl;
+  text-align: start;
+}
+
+.input-field:focus-visible,
+select.input-field:focus-visible,
+textarea.input-field:focus-visible {
+  outline: 2px solid var(--tmkeen-primary);
+  outline-offset: 2px;
 }

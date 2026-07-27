@@ -20,6 +20,17 @@ interface RequestType {
   departmentId: string | null;
 }
 
+interface FieldErrors {
+  departmentId?: string;
+  requestTypeId?: string;
+  title?: string;
+  description?: string;
+  requiredDate?: string;
+  visitDate?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+}
+
 function resolveSlugDefaults(
   slug: string,
   departments: Department[],
@@ -35,6 +46,39 @@ function resolveSlugDefaults(
     if (typeBySlug.departmentId) departmentId = typeBySlug.departmentId;
   }
   return { departmentId, requestTypeId };
+}
+
+function validateFields(
+  values: {
+    departmentId: string;
+    requestTypeId: string;
+    title: string;
+    description: string;
+    requiredDate: string;
+    visitDate: string;
+    contactEmail: string;
+    contactPhone: string;
+    needsVisit: boolean;
+  },
+): FieldErrors {
+  const errors: FieldErrors = {};
+  if (!values.departmentId) errors.departmentId = "اختر القسم";
+  if (!values.requestTypeId) errors.requestTypeId = "اختر نوع الطلب";
+  if (!values.title.trim()) errors.title = "العنوان مطلوب";
+  if (!values.description.trim()) errors.description = "الوصف مطلوب";
+  if (!values.requiredDate) errors.requiredDate = "التاريخ المطلوب مطلوب";
+  if (values.needsVisit && !values.visitDate) errors.visitDate = "تاريخ الزيارة مطلوب";
+  if (!values.contactEmail.trim()) {
+    errors.contactEmail = "البريد الإلكتروني مطلوب";
+  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.contactEmail.trim())) {
+    errors.contactEmail = "صيغة البريد غير صحيحة";
+  }
+  if (!values.contactPhone.trim()) {
+    errors.contactPhone = "رقم الجوال مطلوب";
+  } else if (!/^05\d{8}$/.test(values.contactPhone.trim())) {
+    errors.contactPhone = "أدخل رقم جوال سعودي صحيح (05xxxxxxxx)";
+  }
+  return errors;
 }
 
 export default function DynamicSubmitForm({
@@ -70,7 +114,8 @@ export default function DynamicSubmitForm({
   const [loading, setLoading] = useState(!hasInitial);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
-  const [successUrl, setSuccessUrl] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const [submittedId, setSubmittedId] = useState<string | null>(null);
 
   const selectedType = requestTypes.find((rt) => rt.id === requestTypeId);
 
@@ -127,63 +172,101 @@ export default function DynamicSubmitForm({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setSubmitting(true);
     setError("");
+
+    const errors = validateFields({
+      departmentId,
+      requestTypeId,
+      title,
+      description,
+      requiredDate,
+      visitDate,
+      contactEmail,
+      contactPhone,
+      needsVisit: Boolean(selectedType?.requiresVisitDate),
+    });
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) return;
+
+    setSubmitting(true);
 
     try {
       const res = await fetchWithTimeout("/api/public/requests", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          title,
-          description,
+          title: title.trim(),
+          description: description.trim(),
           requiredDate,
-          contactEmail,
-          contactPhone,
+          contactEmail: contactEmail.trim(),
+          contactPhone: contactPhone.trim(),
           departmentId,
           requestTypeId,
           visitDate: selectedType?.requiresVisitDate ? visitDate : undefined,
         }),
       });
-      const payload = await parseApiResponse<{ approvalUrl: string }>(res);
+      const payload = await parseApiResponse<{ id: string; approvalUrl: string }>(res);
       if (!res.ok || !payload.success) {
         throw new Error(getApiErrorMessage(payload, "فشل التقديم"));
       }
-      setSuccessUrl(payload.data.approvalUrl);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "خطأ");
+      setSubmittedId(payload.data.id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "خطأ");
     } finally {
       setSubmitting(false);
     }
   }
 
-  if (successUrl) {
+  if (submittedId) {
     return (
-      <div className="space-y-4 text-center">
-        <span className="badge-success">تم تقديم الطلب</span>
-        <p className="text-sm text-brand-gray">
-          سيُرسل رابط الموافقة للمدير المباشر تلقائياً.
-        </p>
-        <Link href="/" className="btn-secondary inline-flex rounded-lg">
-          العودة للرئيسية
+      <div className="space-y-4 text-center" role="status">
+        <span className="badge-success">تم تقديم الطلب بنجاح</span>
+        <div className="card-section space-y-2 text-sm text-brand-gray">
+          <p>
+            رقم مرجعي للطلب:{" "}
+            <span className="font-mono font-bold text-primary" dir="ltr">
+              #{submittedId.slice(-8).toUpperCase()}
+            </span>
+          </p>
+          <p>الخطوات التالية:</p>
+          <ol className="list-decimal space-y-1 ps-5 text-start">
+            <li>سيُرسل رابط الموافقة للمدير المباشر تلقائياً.</li>
+            <li>بعد الموافقة ينتقل الطلب إلى لوحة قسم الاتصال.</li>
+            <li>ستصلك تحديثات على البريد/الجوال المُدخل.</li>
+          </ol>
+        </div>
+        <Link href="/" className="btn-secondary inline-flex focus-visible:ring-2 focus-visible:ring-primary/20">
+          تقديم طلب آخر
         </Link>
       </div>
     );
   }
 
   return (
-    <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
+    <form onSubmit={(e) => void handleSubmit(e)} className="w-full space-y-4">
       {preview && (
-        <div className="rounded-lg border border-primary bg-[color-mix(in_srgb,var(--zaad-primary)_8%,transparent)] px-3 py-2 text-xs text-brand-gray">
+        <div className="rounded-lg border border-primary bg-[color-mix(in_srgb,var(--tmkeen-primary)_8%,transparent)] px-3 py-2 text-xs text-brand-gray">
           وضع المعاينة — هذا ما يراه مقدّم الطلب. الإرسال يعمل للاختبار.
         </div>
       )}
       {loading ? (
-        <p className="text-sm text-brand-gray">جاري تحميل النموذج...</p>
+        <div className="flex items-center justify-center gap-3 py-8">
+          <div
+            className="h-8 w-8 animate-pulse rounded-full bg-[color-mix(in_srgb,var(--tmkeen-primary)_15%,transparent)]"
+            aria-hidden
+          />
+          <p className="text-sm text-brand-gray">جاري تحميل النموذج...</p>
+        </div>
       ) : error && !departments.length ? (
         <div className="space-y-3">
-          <p className="text-sm text-[var(--zaad-danger)]" role="alert">{error}</p>
-          <button type="button" className="btn-secondary" onClick={() => void loadMeta()}>
+          <p className="text-sm text-[var(--tmkeen-danger)]" role="alert">
+            {error}
+          </p>
+          <button
+            type="button"
+            className="btn-secondary focus-visible:ring-2 focus-visible:ring-primary/20"
+            onClick={() => void loadMeta()}
+          >
             إعادة المحاولة
           </button>
         </div>
@@ -195,9 +278,14 @@ export default function DynamicSubmitForm({
             </label>
             <select
               id="department"
-              className="input-field w-full rounded-lg"
+              className="input-field w-full focus-visible:ring-2 focus-visible:ring-primary/20"
               value={departmentId}
-              onChange={(e) => setDepartmentId(e.target.value)}
+              onChange={(e) => {
+                setDepartmentId(e.target.value);
+                setFieldErrors((prev) => ({ ...prev, departmentId: undefined }));
+              }}
+              aria-invalid={Boolean(fieldErrors.departmentId)}
+              aria-describedby={fieldErrors.departmentId ? "department-error" : undefined}
               required
             >
               <option value="">اختر القسم...</option>
@@ -207,6 +295,11 @@ export default function DynamicSubmitForm({
                 </option>
               ))}
             </select>
+            {fieldErrors.departmentId && (
+              <p id="department-error" className="text-xs text-[var(--tmkeen-danger)]">
+                {fieldErrors.departmentId}
+              </p>
+            )}
           </div>
 
           <div className="space-y-1">
@@ -215,9 +308,14 @@ export default function DynamicSubmitForm({
             </label>
             <select
               id="requestType"
-              className="input-field w-full rounded-lg"
+              className="input-field w-full focus-visible:ring-2 focus-visible:ring-primary/20"
               value={requestTypeId}
-              onChange={(e) => setRequestTypeId(e.target.value)}
+              onChange={(e) => {
+                setRequestTypeId(e.target.value);
+                setFieldErrors((prev) => ({ ...prev, requestTypeId: undefined }));
+              }}
+              aria-invalid={Boolean(fieldErrors.requestTypeId)}
+              aria-describedby={fieldErrors.requestTypeId ? "requestType-error" : undefined}
               required
             >
               <option value="">اختر النوع...</option>
@@ -227,70 +325,185 @@ export default function DynamicSubmitForm({
                 </option>
               ))}
             </select>
+            {fieldErrors.requestTypeId && (
+              <p id="requestType-error" className="text-xs text-[var(--tmkeen-danger)]">
+                {fieldErrors.requestTypeId}
+              </p>
+            )}
           </div>
 
-          <input
-            className="input-field w-full rounded-lg"
-            placeholder="عنوان الطلب"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            required
-          />
-          <textarea
-            className="input-field min-h-24 w-full rounded-lg"
-            placeholder="الوصف"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            required
-          />
-          <input
-            className="input-field w-full rounded-lg"
-            type="date"
-            value={requiredDate}
-            onChange={(e) => setRequiredDate(e.target.value)}
-            required
-          />
-
-          {selectedType?.requiresVisitDate && (
+          <div className="space-y-1">
+            <label className="label-field" htmlFor="title">
+              عنوان الطلب
+            </label>
             <input
-              className="input-field w-full rounded-lg"
-              type="datetime-local"
-              value={visitDate}
-              onChange={(e) => setVisitDate(e.target.value)}
+              id="title"
+              className="input-field w-full focus-visible:ring-2 focus-visible:ring-primary/20"
+              placeholder="مثال: طلب تغطية إعلامية"
+              value={title}
+              onChange={(e) => {
+                setTitle(e.target.value);
+                setFieldErrors((prev) => ({ ...prev, title: undefined }));
+              }}
+              aria-invalid={Boolean(fieldErrors.title)}
+              aria-describedby={fieldErrors.title ? "title-error" : undefined}
               required
             />
+            {fieldErrors.title && (
+              <p id="title-error" className="text-xs text-[var(--tmkeen-danger)]">
+                {fieldErrors.title}
+              </p>
+            )}
+          </div>
+
+          <div className="space-y-1">
+            <label className="label-field" htmlFor="description">
+              الوصف
+            </label>
+            <textarea
+              id="description"
+              className="input-field min-h-24 w-full focus-visible:ring-2 focus-visible:ring-primary/20"
+              placeholder="اشرح طلبك بالتفصيل..."
+              value={description}
+              onChange={(e) => {
+                setDescription(e.target.value);
+                setFieldErrors((prev) => ({ ...prev, description: undefined }));
+              }}
+              aria-invalid={Boolean(fieldErrors.description)}
+              aria-describedby={fieldErrors.description ? "description-error" : undefined}
+              required
+            />
+            {fieldErrors.description && (
+              <p id="description-error" className="text-xs text-[var(--tmkeen-danger)]">
+                {fieldErrors.description}
+              </p>
+            )}
+          </div>
+
+          <div className="space-y-1">
+            <label className="label-field" htmlFor="requiredDate">
+              التاريخ المطلوب
+            </label>
+            <input
+              id="requiredDate"
+              className="input-field w-full focus-visible:ring-2 focus-visible:ring-primary/20"
+              type="date"
+              value={requiredDate}
+              onChange={(e) => {
+                setRequiredDate(e.target.value);
+                setFieldErrors((prev) => ({ ...prev, requiredDate: undefined }));
+              }}
+              aria-invalid={Boolean(fieldErrors.requiredDate)}
+              aria-describedby={fieldErrors.requiredDate ? "requiredDate-error" : undefined}
+              required
+            />
+            {fieldErrors.requiredDate && (
+              <p id="requiredDate-error" className="text-xs text-[var(--tmkeen-danger)]">
+                {fieldErrors.requiredDate}
+              </p>
+            )}
+          </div>
+
+          {selectedType?.requiresVisitDate && (
+            <div className="space-y-1">
+              <label className="label-field" htmlFor="visitDate">
+                تاريخ الزيارة
+              </label>
+              <input
+                id="visitDate"
+                className="input-field w-full focus-visible:ring-2 focus-visible:ring-primary/20"
+                type="datetime-local"
+                value={visitDate}
+                onChange={(e) => {
+                  setVisitDate(e.target.value);
+                  setFieldErrors((prev) => ({ ...prev, visitDate: undefined }));
+                }}
+                aria-invalid={Boolean(fieldErrors.visitDate)}
+                aria-describedby={fieldErrors.visitDate ? "visitDate-error" : undefined}
+                required
+              />
+              {fieldErrors.visitDate && (
+                <p id="visitDate-error" className="text-xs text-[var(--tmkeen-danger)]">
+                  {fieldErrors.visitDate}
+                </p>
+              )}
+            </div>
           )}
 
-          <input
-            className="input-field w-full rounded-lg"
-            type="email"
-            placeholder="البريد الإلكتروني"
-            dir="ltr"
-            value={contactEmail}
-            onChange={(e) => setContactEmail(e.target.value)}
-            required
-          />
-          <input
-            className="input-field w-full rounded-lg"
-            placeholder="رقم الجوال"
-            dir="ltr"
-            value={contactPhone}
-            onChange={(e) => setContactPhone(e.target.value)}
-            required
-          />
+          <div className="space-y-1">
+            <label className="label-field" htmlFor="contactEmail">
+              البريد الإلكتروني
+            </label>
+            <input
+              id="contactEmail"
+              className="input-field w-full focus-visible:ring-2 focus-visible:ring-primary/20"
+              type="email"
+              placeholder="name@example.com"
+              dir="ltr"
+              value={contactEmail}
+              onChange={(e) => {
+                setContactEmail(e.target.value);
+                setFieldErrors((prev) => ({ ...prev, contactEmail: undefined }));
+              }}
+              aria-invalid={Boolean(fieldErrors.contactEmail)}
+              aria-describedby={fieldErrors.contactEmail ? "contactEmail-error" : undefined}
+              required
+            />
+            {fieldErrors.contactEmail && (
+              <p id="contactEmail-error" className="text-xs text-[var(--tmkeen-danger)]">
+                {fieldErrors.contactEmail}
+              </p>
+            )}
+          </div>
+
+          <div className="space-y-1">
+            <label className="label-field" htmlFor="contactPhone">
+              رقم الجوال
+            </label>
+            <input
+              id="contactPhone"
+              className="input-field w-full focus-visible:ring-2 focus-visible:ring-primary/20"
+              placeholder="05xxxxxxxx"
+              dir="ltr"
+              inputMode="tel"
+              value={contactPhone}
+              onChange={(e) => {
+                setContactPhone(e.target.value);
+                setFieldErrors((prev) => ({ ...prev, contactPhone: undefined }));
+              }}
+              aria-invalid={Boolean(fieldErrors.contactPhone)}
+              aria-describedby={fieldErrors.contactPhone ? "contactPhone-error" : undefined}
+              required
+            />
+            {fieldErrors.contactPhone && (
+              <p id="contactPhone-error" className="text-xs text-[var(--tmkeen-danger)]">
+                {fieldErrors.contactPhone}
+              </p>
+            )}
+          </div>
 
           {error && (
-            <p className="text-sm text-[var(--zaad-danger)]" role="alert">
+            <p className="text-sm text-[var(--tmkeen-danger)]" role="alert">
               {error}
             </p>
           )}
 
           <button
             type="submit"
-            className="btn-primary w-full rounded-lg py-2.5"
+            className="btn-primary w-full py-2.5 focus-visible:ring-2 focus-visible:ring-primary/20"
             disabled={submitting}
           >
-            {submitting ? "جاري الإرسال..." : "تقديم الطلب"}
+            {submitting ? (
+              <span className="inline-flex items-center gap-2">
+                <span
+                  className="inline-block h-4 w-4 animate-pulse rounded-full bg-white/60"
+                  aria-hidden
+                />
+                جاري الإرسال...
+              </span>
+            ) : (
+              "تقديم الطلب"
+            )}
           </button>
         </>
       )}
