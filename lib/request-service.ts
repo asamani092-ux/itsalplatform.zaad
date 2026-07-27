@@ -4,7 +4,7 @@ import { ARCHIVE_STATUSES, ACTIVE_STATUSES, assertTransition } from "./workflow"
 import { resolveAssignee } from "./routing-service";
 import { RequestStatus } from "../generated/prisma/client";
 import { generateApprovalToken } from "./tokens";
-import { notifyManager } from "./notifications";
+import { notify, notifyManager } from "./notifications";
 import { getAppUrl } from "./api-utils";
 
 type DashboardView = "active" | "archive" | "all";
@@ -272,6 +272,25 @@ export async function approveRequest(token: string) {
       note: "إسناد تلقائي",
     });
 
+    await notify({
+      recipientId: assignee.id,
+      recipientEmail: assignee.email,
+      type: "assignment",
+      title: "تم إسناد تذكرة جديدة إليك",
+      body: `الطلب: ${updated.title}`,
+      link: `/employee/tickets/${updated.id}`,
+      channel: "both",
+      emailKind: "assigned",
+    });
+
+    await notifyManagersInApp(
+      request.managerEmail,
+      "new_request",
+      "طلب معتمد جديد",
+      `تمت الموافقة على: ${updated.title}`,
+      "/dashboard/kanban",
+    );
+
     return withSla(updated);
   }
 
@@ -294,7 +313,37 @@ export async function approveRequest(token: string) {
     note: "موافقة المدير المباشر",
   });
 
+  await notifyManagersInApp(
+    request.managerEmail,
+    "new_request",
+    "طلب معتمد جديد",
+    `تمت الموافقة على: ${updated.title}`,
+    "/dashboard/kanban",
+  );
+
   return withSla(updated);
+}
+
+async function notifyManagersInApp(
+  managerEmail: string,
+  type: string,
+  title: string,
+  body: string,
+  link: string,
+): Promise<void> {
+  const manager = await prisma.commEmployee.findFirst({
+    where: { email: managerEmail, isActive: true },
+  });
+  if (!manager) return;
+  await notify({
+    recipientId: manager.id,
+    recipientEmail: manager.email,
+    type,
+    title,
+    body,
+    link,
+    channel: "inapp",
+  });
 }
 
 export async function assignRequest(params: {
@@ -343,6 +392,17 @@ export async function assignRequest(params: {
     employeeId: params.employeeId,
     assignedBy: params.assignedBy,
     note: params.note,
+  });
+
+  await notify({
+    recipientId: employee.id,
+    recipientEmail: employee.email,
+    type: "assignment",
+    title: "تم إسناد تذكرة جديدة إليك",
+    body: `الطلب: ${updated.title}`,
+    link: `/employee/tickets/${updated.id}`,
+    channel: "both",
+    emailKind: "assigned",
   });
 
   return withSla(updated);
@@ -440,13 +500,24 @@ export async function completeEmployeeTicket(params: {
     throw new Error("INVALID_STATE: يمكن إكمال الطلبات قيد التنفيذ فقط");
   }
 
-  return updateRequestStatus({
+  const completed = await updateRequestStatus({
     requestId: params.requestId,
     status: RequestStatus.Completed,
     changedBy: params.employeeId,
     note: "إكمال من مساحة الموظف",
     proofFileUrl: params.proofFileUrl,
   });
+
+  const { notifySubmitter } = await import("./notifications");
+  await notifySubmitter({
+    contactEmail: completed.contactEmail,
+    contactPhone: completed.contactPhone,
+    requestTitle: completed.title,
+    message: `تم إكمال طلبك "${completed.title}".`,
+    reference: completed.id.slice(-8).toUpperCase(),
+  });
+
+  return completed;
 }
 
 interface KpiDepartmentNameRow {

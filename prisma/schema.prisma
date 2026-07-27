@@ -79,11 +79,28 @@ model CommEmployee {
   assignedRequests  CommunicationRequest[] @relation("AssignedEmployee")
   assignmentHistory AssignmentHistory[]
   routingRules      RoutingRule[]
+  notifications     Notification[]
   createdAt         DateTime              @default(now())
   updatedAt         DateTime              @updatedAt
 
   @@index([isActive])
   @@index([role])
+}
+
+model Notification {
+  id          String       @id @default(cuid())
+  recipientId String
+  recipient   CommEmployee @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+  type        String
+  title       String
+  body        String
+  link        String?
+  readAt      DateTime?
+  createdAt   DateTime     @default(now())
+
+  @@index([recipientId])
+  @@index([readAt])
+  @@index([createdAt])
 }
 
 model CommunicationRequest {
