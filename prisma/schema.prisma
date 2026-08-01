@@ -188,6 +188,22 @@ model HospitalityBooking {
   @@index([meetingDate])
 }
 
+model FormSettings {
+  id             String   @id @default(cuid())
+  key            String   @unique @default("default")
+  pageTitle      String   @default("جمعية الزاد")
+  pageSubtitle   String   @default("تقديم طلب")
+  introText      String   @default("")
+  submitLabel    String   @default("تقديم الطلب")
+  successTitle   String   @default("تم تقديم الطلب بنجاح")
+  successMessage String   @default("سيُرسل رابط الموافقة للمدير المباشر تلقائياً.")
+  fields         Json     @default("{}")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([key])
+}
+
 model MediaDocument {
   id          String   @id @default(cuid())
   title       String

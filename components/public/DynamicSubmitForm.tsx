@@ -4,6 +4,10 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { getApiErrorMessage, parseApiResponse } from "@/components/lib/api-types";
 import { fetchWithTimeout } from "@/lib/client/fetch-with-timeout";
+import {
+  DEFAULT_FORM_SETTINGS,
+  type FormSettingsData,
+} from "@/lib/form-settings/schema";
 
 interface Department {
   id: string;
@@ -60,24 +64,42 @@ function validateFields(
     contactPhone: string;
     needsVisit: boolean;
   },
+  settings: FormSettingsData,
 ): FieldErrors {
   const errors: FieldErrors = {};
+  const f = settings.fields;
+
   if (!values.departmentId) errors.departmentId = "اختر القسم";
   if (!values.requestTypeId) errors.requestTypeId = "اختر نوع الطلب";
   if (!values.title.trim()) errors.title = "العنوان مطلوب";
-  if (!values.description.trim()) errors.description = "الوصف مطلوب";
-  if (!values.requiredDate) errors.requiredDate = "التاريخ المطلوب مطلوب";
-  if (values.needsVisit && !values.visitDate) errors.visitDate = "تاريخ الزيارة مطلوب";
+
+  if (f.description.enabled && f.description.required && !values.description.trim()) {
+    errors.description = "الوصف مطلوب";
+  }
+  if (f.requiredDate.enabled && f.requiredDate.required && !values.requiredDate) {
+    errors.requiredDate = "التاريخ المطلوب مطلوب";
+  }
+  if (values.needsVisit && f.visitDate.enabled && !values.visitDate) {
+    errors.visitDate = "تاريخ الزيارة مطلوب";
+  }
+
   if (!values.contactEmail.trim()) {
     errors.contactEmail = "البريد الإلكتروني مطلوب";
   } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.contactEmail.trim())) {
     errors.contactEmail = "صيغة البريد غير صحيحة";
   }
-  if (!values.contactPhone.trim()) {
-    errors.contactPhone = "رقم الجوال مطلوب";
-  } else if (!/^05\d{8}$/.test(values.contactPhone.trim())) {
-    errors.contactPhone = "أدخل رقم جوال سعودي صحيح (05xxxxxxxx)";
+
+  if (f.contactPhone.enabled) {
+    if (f.contactPhone.required && !values.contactPhone.trim()) {
+      errors.contactPhone = "رقم الجوال مطلوب";
+    } else if (
+      values.contactPhone.trim() &&
+      !/^05\d{8}$/.test(values.contactPhone.trim())
+    ) {
+      errors.contactPhone = "أدخل رقم جوال سعودي صحيح (05xxxxxxxx)";
+    }
   }
+
   return errors;
 }
 
@@ -86,12 +108,15 @@ export default function DynamicSubmitForm({
   preview = false,
   initialDepartments,
   initialRequestTypes,
+  settings = DEFAULT_FORM_SETTINGS,
 }: {
   slug: string;
   preview?: boolean;
   initialDepartments?: Department[];
   initialRequestTypes?: RequestType[];
+  settings?: FormSettingsData;
 }) {
+  const fields = settings.fields;
   const hasInitial = Boolean(initialDepartments?.length);
   const defaults = hasInitial
     ? resolveSlugDefaults(slug, initialDepartments!, initialRequestTypes ?? [])
@@ -174,17 +199,20 @@ export default function DynamicSubmitForm({
     e.preventDefault();
     setError("");
 
-    const errors = validateFields({
-      departmentId,
-      requestTypeId,
-      title,
-      description,
-      requiredDate,
-      visitDate,
-      contactEmail,
-      contactPhone,
-      needsVisit: Boolean(selectedType?.requiresVisitDate),
-    });
+    const errors = validateFields(
+      {
+        departmentId,
+        requestTypeId,
+        title,
+        description,
+        requiredDate,
+        visitDate,
+        contactEmail,
+        contactPhone,
+        needsVisit: Boolean(selectedType?.requiresVisitDate),
+      },
+      settings,
+    );
     setFieldErrors(errors);
     if (Object.keys(errors).length > 0) return;
 
@@ -202,7 +230,10 @@ export default function DynamicSubmitForm({
           contactPhone: contactPhone.trim(),
           departmentId,
           requestTypeId,
-          visitDate: selectedType?.requiresVisitDate ? visitDate : undefined,
+          visitDate:
+            selectedType?.requiresVisitDate && fields.visitDate.enabled
+              ? visitDate
+              : undefined,
         }),
       });
       const payload = await parseApiResponse<{ id: string; approvalUrl: string }>(res);
@@ -220,7 +251,7 @@ export default function DynamicSubmitForm({
   if (submittedId) {
     return (
       <div className="space-y-4 text-center" role="status">
-        <span className="badge-success">تم تقديم الطلب بنجاح</span>
+        <span className="badge-success">{settings.successTitle}</span>
         <div className="card-section space-y-2 text-sm text-brand-gray">
           <p>
             رقم مرجعي للطلب:{" "}
@@ -228,14 +259,18 @@ export default function DynamicSubmitForm({
               #{submittedId.slice(-8).toUpperCase()}
             </span>
           </p>
+          <p>{settings.successMessage}</p>
           <p>الخطوات التالية:</p>
           <ol className="list-decimal space-y-1 ps-5 text-start">
             <li>سيُرسل رابط الموافقة للمدير المباشر تلقائياً.</li>
             <li>بعد الموافقة ينتقل الطلب إلى لوحة قسم الاتصال.</li>
-            <li>ستصلك تحديثات على البريد/الجوال المُدخل.</li>
+            <li>ستصلك تحديثات على البريد المُدخل.</li>
           </ol>
         </div>
-        <Link href="/" className="btn-secondary inline-flex focus-visible:ring-2 focus-visible:ring-primary/20">
+        <Link
+          href="/request"
+          className="btn-secondary inline-flex focus-visible:ring-2 focus-visible:ring-primary/20"
+        >
           تقديم طلب آخر
         </Link>
       </div>
@@ -274,7 +309,7 @@ export default function DynamicSubmitForm({
         <>
           <div className="space-y-1">
             <label className="label-field" htmlFor="department">
-              القسم
+              {fields.department.label}
             </label>
             <select
               id="department"
@@ -288,7 +323,7 @@ export default function DynamicSubmitForm({
               aria-describedby={fieldErrors.departmentId ? "department-error" : undefined}
               required
             >
-              <option value="">اختر القسم...</option>
+              <option value="">{fields.department.placeholder}</option>
               {departments.map((d) => (
                 <option key={d.id} value={d.id}>
                   {d.name}
@@ -304,7 +339,7 @@ export default function DynamicSubmitForm({
 
           <div className="space-y-1">
             <label className="label-field" htmlFor="requestType">
-              نوع الطلب
+              {fields.requestType.label}
             </label>
             <select
               id="requestType"
@@ -318,7 +353,7 @@ export default function DynamicSubmitForm({
               aria-describedby={fieldErrors.requestTypeId ? "requestType-error" : undefined}
               required
             >
-              <option value="">اختر النوع...</option>
+              <option value="">{fields.requestType.placeholder}</option>
               {requestTypes.map((rt) => (
                 <option key={rt.id} value={rt.id}>
                   {rt.name}
@@ -334,12 +369,12 @@ export default function DynamicSubmitForm({
 
           <div className="space-y-1">
             <label className="label-field" htmlFor="title">
-              عنوان الطلب
+              {fields.title.label}
             </label>
             <input
               id="title"
               className="input-field w-full focus-visible:ring-2 focus-visible:ring-primary/20"
-              placeholder="مثال: طلب تغطية إعلامية"
+              placeholder={fields.title.placeholder}
               value={title}
               onChange={(e) => {
                 setTitle(e.target.value);
@@ -356,58 +391,70 @@ export default function DynamicSubmitForm({
             )}
           </div>
 
-          <div className="space-y-1">
-            <label className="label-field" htmlFor="description">
-              الوصف
-            </label>
-            <textarea
-              id="description"
-              className="input-field min-h-24 w-full focus-visible:ring-2 focus-visible:ring-primary/20"
-              placeholder="اشرح طلبك بالتفصيل..."
-              value={description}
-              onChange={(e) => {
-                setDescription(e.target.value);
-                setFieldErrors((prev) => ({ ...prev, description: undefined }));
-              }}
-              aria-invalid={Boolean(fieldErrors.description)}
-              aria-describedby={fieldErrors.description ? "description-error" : undefined}
-              required
-            />
-            {fieldErrors.description && (
-              <p id="description-error" className="text-xs text-[var(--tmkeen-danger)]">
-                {fieldErrors.description}
-              </p>
-            )}
-          </div>
+          {fields.description.enabled && (
+            <div className="space-y-1">
+              <label className="label-field" htmlFor="description">
+                {fields.description.label}
+                {!fields.description.required && (
+                  <span className="text-brand-gray"> (اختياري)</span>
+                )}
+              </label>
+              <textarea
+                id="description"
+                className="input-field min-h-24 w-full focus-visible:ring-2 focus-visible:ring-primary/20"
+                placeholder={fields.description.placeholder}
+                value={description}
+                onChange={(e) => {
+                  setDescription(e.target.value);
+                  setFieldErrors((prev) => ({ ...prev, description: undefined }));
+                }}
+                aria-invalid={Boolean(fieldErrors.description)}
+                aria-describedby={fieldErrors.description ? "description-error" : undefined}
+                required={fields.description.required}
+              />
+              {fieldErrors.description && (
+                <p id="description-error" className="text-xs text-[var(--tmkeen-danger)]">
+                  {fieldErrors.description}
+                </p>
+              )}
+            </div>
+          )}
 
-          <div className="space-y-1">
-            <label className="label-field" htmlFor="requiredDate">
-              التاريخ المطلوب
-            </label>
-            <input
-              id="requiredDate"
-              className="input-field w-full focus-visible:ring-2 focus-visible:ring-primary/20"
-              type="date"
-              value={requiredDate}
-              onChange={(e) => {
-                setRequiredDate(e.target.value);
-                setFieldErrors((prev) => ({ ...prev, requiredDate: undefined }));
-              }}
-              aria-invalid={Boolean(fieldErrors.requiredDate)}
-              aria-describedby={fieldErrors.requiredDate ? "requiredDate-error" : undefined}
-              required
-            />
-            {fieldErrors.requiredDate && (
-              <p id="requiredDate-error" className="text-xs text-[var(--tmkeen-danger)]">
-                {fieldErrors.requiredDate}
-              </p>
-            )}
-          </div>
+          {fields.requiredDate.enabled && (
+            <div className="space-y-1">
+              <label className="label-field" htmlFor="requiredDate">
+                {fields.requiredDate.label}
+                {!fields.requiredDate.required && (
+                  <span className="text-brand-gray"> (اختياري)</span>
+                )}
+              </label>
+              <input
+                id="requiredDate"
+                className="input-field w-full focus-visible:ring-2 focus-visible:ring-primary/20"
+                type="date"
+                value={requiredDate}
+                onChange={(e) => {
+                  setRequiredDate(e.target.value);
+                  setFieldErrors((prev) => ({ ...prev, requiredDate: undefined }));
+                }}
+                aria-invalid={Boolean(fieldErrors.requiredDate)}
+                aria-describedby={
+                  fieldErrors.requiredDate ? "requiredDate-error" : undefined
+                }
+                required={fields.requiredDate.required}
+              />
+              {fieldErrors.requiredDate && (
+                <p id="requiredDate-error" className="text-xs text-[var(--tmkeen-danger)]">
+                  {fieldErrors.requiredDate}
+                </p>
+              )}
+            </div>
+          )}
 
-          {selectedType?.requiresVisitDate && (
+          {selectedType?.requiresVisitDate && fields.visitDate.enabled && (
             <div className="space-y-1">
               <label className="label-field" htmlFor="visitDate">
-                تاريخ الزيارة
+                {fields.visitDate.label}
               </label>
               <input
                 id="visitDate"
@@ -432,13 +479,13 @@ export default function DynamicSubmitForm({
 
           <div className="space-y-1">
             <label className="label-field" htmlFor="contactEmail">
-              البريد الإلكتروني
+              {fields.contactEmail.label}
             </label>
             <input
               id="contactEmail"
               className="input-field w-full focus-visible:ring-2 focus-visible:ring-primary/20"
               type="email"
-              placeholder="name@example.com"
+              placeholder={fields.contactEmail.placeholder}
               dir="ltr"
               value={contactEmail}
               onChange={(e) => {
@@ -456,31 +503,38 @@ export default function DynamicSubmitForm({
             )}
           </div>
 
-          <div className="space-y-1">
-            <label className="label-field" htmlFor="contactPhone">
-              رقم الجوال
-            </label>
-            <input
-              id="contactPhone"
-              className="input-field w-full focus-visible:ring-2 focus-visible:ring-primary/20"
-              placeholder="05xxxxxxxx"
-              dir="ltr"
-              inputMode="tel"
-              value={contactPhone}
-              onChange={(e) => {
-                setContactPhone(e.target.value);
-                setFieldErrors((prev) => ({ ...prev, contactPhone: undefined }));
-              }}
-              aria-invalid={Boolean(fieldErrors.contactPhone)}
-              aria-describedby={fieldErrors.contactPhone ? "contactPhone-error" : undefined}
-              required
-            />
-            {fieldErrors.contactPhone && (
-              <p id="contactPhone-error" className="text-xs text-[var(--tmkeen-danger)]">
-                {fieldErrors.contactPhone}
-              </p>
-            )}
-          </div>
+          {fields.contactPhone.enabled && (
+            <div className="space-y-1">
+              <label className="label-field" htmlFor="contactPhone">
+                {fields.contactPhone.label}
+                {!fields.contactPhone.required && (
+                  <span className="text-brand-gray"> (اختياري)</span>
+                )}
+              </label>
+              <input
+                id="contactPhone"
+                className="input-field w-full focus-visible:ring-2 focus-visible:ring-primary/20"
+                placeholder={fields.contactPhone.placeholder}
+                dir="ltr"
+                inputMode="tel"
+                value={contactPhone}
+                onChange={(e) => {
+                  setContactPhone(e.target.value);
+                  setFieldErrors((prev) => ({ ...prev, contactPhone: undefined }));
+                }}
+                aria-invalid={Boolean(fieldErrors.contactPhone)}
+                aria-describedby={
+                  fieldErrors.contactPhone ? "contactPhone-error" : undefined
+                }
+                required={fields.contactPhone.required}
+              />
+              {fieldErrors.contactPhone && (
+                <p id="contactPhone-error" className="text-xs text-[var(--tmkeen-danger)]">
+                  {fieldErrors.contactPhone}
+                </p>
+              )}
+            </div>
+          )}
 
           {error && (
             <p className="text-sm text-[var(--tmkeen-danger)]" role="alert">
@@ -502,7 +556,7 @@ export default function DynamicSubmitForm({
                 جاري الإرسال...
               </span>
             ) : (
-              "تقديم الطلب"
+              settings.submitLabel
             )}
           </button>
         </>

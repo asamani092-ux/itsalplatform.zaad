@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 import DynamicSubmitForm from "@/components/public/DynamicSubmitForm";
+import FormSettingsEditor from "@/components/dashboard/FormSettingsEditor";
 import { getApiErrorMessage, parseApiResponse } from "@/components/lib/api-types";
+import { DEFAULT_FORM_SETTINGS, type FormSettingsData } from "@/lib/form-settings/schema";
 
 type SettingsSection = "departments" | "requestTypes" | "routing" | "form";
 
@@ -61,6 +63,9 @@ export default function DashboardSettingsClient({
     }[]
   >([]);
   const [error, setError] = useState("");
+  const [formSettings, setFormSettings] = useState<FormSettingsData>(
+    DEFAULT_FORM_SETTINGS,
+  );
 
   const load = useCallback(async () => {
     try {
@@ -213,9 +218,22 @@ export default function DashboardSettingsClient({
         {section === "form" && (
           <div className="space-y-4">
             <div className="card-section">
-              <h2 className="text-lg font-bold text-primary">معاينة النموذج العام</h2>
+              <h2 className="text-lg font-bold text-primary">التحكم بواجهة الطلب</h2>
               <p className="mt-1 text-sm text-brand-gray">
-                عرض حي لنموذج التقديم كما يراه مقدّمو الطلبات — بناءً على الإعدادات الحالية
+                تظهر التعديلات على{" "}
+                <a href="/request" target="_blank" rel="noreferrer" className="underline">
+                  /request
+                </a>{" "}
+                بعد الحفظ. المعاينة أدناه حيّة أثناء التعديل.
+              </p>
+            </div>
+
+            <FormSettingsEditor onChange={setFormSettings} />
+
+            <div className="card-section">
+              <h3 className="font-bold text-primary">معاينة</h3>
+              <p className="mt-1 text-xs text-brand-gray">
+                هذا ما يراه مقدّم الطلب — الإرسال يعمل للاختبار.
               </p>
             </div>
             <DynamicSubmitForm
@@ -223,6 +241,7 @@ export default function DashboardSettingsClient({
               preview
               initialDepartments={previewDepartments}
               initialRequestTypes={previewRequestTypes}
+              settings={formSettings}
             />
           </div>
         )}

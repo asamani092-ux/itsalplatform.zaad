@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import DynamicSubmitForm from "@/components/public/DynamicSubmitForm";
 import PublicSubmitShell from "@/components/public/PublicSubmitShell";
 import { getFormSettings } from "@/lib/form-settings/server";
@@ -5,13 +6,12 @@ import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
-export default async function SubmitSlugPage({
-  params,
-}: {
-  params: Promise<{ slug: string }>;
-}) {
-  const { slug } = await params;
+export const metadata: Metadata = {
+  title: "تقديم طلب — منصة قسم الاتصال المؤسسي",
+  description: "نموذج تقديم طلب لقسم الاتصال المؤسسي — جمعية الزاد",
+};
 
+export default async function RequestPage() {
   const [departments, requestTypes, formSettings] = await Promise.all([
     prisma.department.findMany({
       where: { isActive: true },
@@ -40,7 +40,7 @@ export default async function SubmitSlugPage({
       introText={formSettings.introText}
     >
       <DynamicSubmitForm
-        slug={slug}
+        slug="communications"
         initialDepartments={departments}
         initialRequestTypes={requestTypes}
         settings={formSettings}
