@@ -2,8 +2,7 @@ import { NextRequest } from "next/server";
 import { requireManagerSession } from "@/lib/auth/route-guard";
 import { prisma } from "@/lib/prisma";
 import { handleApiError, jsonError, jsonOk } from "@/lib/api-utils";
-import { sameCalendarDay, timesOverlap } from "@/lib/hospitality/conflict";
-import type { HospitalityBooking } from "@/generated/prisma/client";
+import { createBookingWithRequest, findBookingConflict } from "@/lib/hospitality/service";
 
 interface BookingBody {
   requesterName?: string;
@@ -15,6 +14,12 @@ interface BookingBody {
   endTime?: string;
   attendeesCount?: number;
   notes?: string;
+}
+
+function timeToMinutes(time: string): number {
+  const [h, m] = time.split(":").map((part) => Number(part));
+  if (Number.isNaN(h) || Number.isNaN(m)) return -1;
+  return h * 60 + m;
 }
 
 export async function GET(request: NextRequest) {
@@ -35,6 +40,11 @@ export async function GET(request: NextRequest) {
               },
             }
           : {}),
+      },
+      include: {
+        request: {
+          select: { id: true, status: true, assignedEmployee: { select: { name: true } } },
+        },
       },
       orderBy: [{ meetingDate: "asc" }, { startTime: "asc" }],
     });
@@ -74,27 +84,16 @@ export async function POST(request: NextRequest) {
     const endTime = body.endTime.trim();
     const roomName = body.roomName.trim();
 
-    if (timeToMinutesSafe(startTime) >= timeToMinutesSafe(endTime)) {
+    if (timeToMinutes(startTime) >= timeToMinutes(endTime)) {
       return jsonError("وقت النهاية يجب أن يكون بعد وقت البداية", "VALIDATION", 400);
     }
 
-    const dayStart = new Date(meetingDate);
-    dayStart.setHours(0, 0, 0, 0);
-    const dayEnd = new Date(meetingDate);
-    dayEnd.setHours(23, 59, 59, 999);
-
-    const sameRoomBookings = await prisma.hospitalityBooking.findMany({
-      where: {
-        roomName,
-        meetingDate: { gte: dayStart, lte: dayEnd },
-      },
+    const conflict = await findBookingConflict({
+      roomName,
+      meetingDate,
+      startTime,
+      endTime,
     });
-
-    const conflict = sameRoomBookings.find(
-      (existing: HospitalityBooking) =>
-        sameCalendarDay(existing.meetingDate, meetingDate) &&
-        timesOverlap(existing.startTime, existing.endTime, startTime, endTime),
-    );
 
     if (conflict) {
       return jsonError(
@@ -104,28 +103,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const booking = await prisma.hospitalityBooking.create({
-      data: {
-        requesterName: body.requesterName.trim(),
-        requesterEmail: body.requesterEmail.trim(),
-        requesterPhone: body.requesterPhone.trim(),
-        roomName,
-        meetingDate,
-        startTime,
-        endTime,
-        attendeesCount: body.attendeesCount,
-        notes: body.notes?.trim() ?? "",
-      },
+    const { booking, requestId } = await createBookingWithRequest({
+      requesterName: body.requesterName.trim(),
+      requesterEmail: body.requesterEmail.trim(),
+      requesterPhone: body.requesterPhone.trim(),
+      roomName,
+      meetingDate,
+      startTime,
+      endTime,
+      attendeesCount: body.attendeesCount,
+      notes: body.notes?.trim() ?? "",
     });
 
-    return jsonOk(booking, 201);
+    return jsonOk({ ...booking, requestId }, 201);
   } catch (error) {
     return handleApiError(error);
   }
-}
-
-function timeToMinutesSafe(time: string): number {
-  const [h, m] = time.split(":").map((part) => Number(part));
-  if (Number.isNaN(h) || Number.isNaN(m)) return -1;
-  return h * 60 + m;
 }

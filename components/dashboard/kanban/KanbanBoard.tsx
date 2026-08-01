@@ -160,6 +160,12 @@ export default function KanbanBoard() {
     );
   }
 
+  function handleResendApproval(requestId: string) {
+    return runAction(() =>
+      fetch(`/api/manager/tickets/${requestId}/resend-approval`, { method: "POST" }),
+    );
+  }
+
   function handleDropOnCompleted() {
     if (!draggingId) return;
     const dragged = requests.find((r) => r.id === draggingId);
@@ -224,12 +230,45 @@ export default function KanbanBoard() {
         </button>
       </div>
 
-      {pendingRequests.length > 0 && tab === "board" && (
-        <div className="card-section">
-          <p className="text-sm font-bold text-primary">
-            بانتظار موافقة المدير ({pendingRequests.length})
-          </p>
-        </div>
+      {tab === "board" && pendingRequests.length > 0 && (
+        <section className="space-y-3">
+          <div className="card-section">
+            <p className="text-sm font-bold text-primary">
+              بانتظار موافقة المدير ({pendingRequests.length})
+            </p>
+            <p className="mt-1 text-xs text-brand-gray">
+              لم تصل هذه الطلبات للوحة بعد — تنتظر ضغط المدير على رابط الموافقة.
+            </p>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {pendingRequests.map((request) => (
+              <article key={request.id} className="card space-y-2 p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <h3 className="text-sm font-bold text-primary">{request.title}</h3>
+                  <span className="badge-warning shrink-0 text-[10px]">بانتظار الموافقة</span>
+                </div>
+                <p className="line-clamp-2 text-xs text-brand-gray">
+                  {request.description}
+                </p>
+                <p className="text-[10px] text-brand-gray">
+                  {request.department?.name ?? "—"}
+                  {request.requestType ? ` — ${request.requestType.name}` : ""}
+                </p>
+                <p className="text-[10px] text-brand-gray" dir="ltr">
+                  {request.contactEmail}
+                </p>
+                <button
+                  type="button"
+                  className="btn-secondary w-full text-xs"
+                  disabled={busy}
+                  onClick={() => void handleResendApproval(request.id)}
+                >
+                  إعادة إرسال رابط الموافقة
+                </button>
+              </article>
+            ))}
+          </div>
+        </section>
       )}
 
       {error && (

@@ -82,6 +82,7 @@ model CommEmployee {
   assignmentHistory AssignmentHistory[]
   routingRules      RoutingRule[]
   notifications     Notification[]
+  passwordResets    PasswordResetToken[]
   createdAt         DateTime              @default(now())
   updatedAt         DateTime              @updatedAt
 
@@ -131,6 +132,7 @@ model CommunicationRequest {
   visitMarkedAt      DateTime?
   assignmentHistory  AssignmentHistory[]
   statusHistory      StatusHistory[]
+  hospitalityBooking HospitalityBooking?
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
 
@@ -174,7 +176,7 @@ model StatusHistory {
 }
 
 model HospitalityBooking {
-  id             String   @id @default(cuid())
+  id             String                @id @default(cuid())
   requesterName  String
   requesterEmail String
   requesterPhone String
@@ -183,11 +185,27 @@ model HospitalityBooking {
   startTime      String
   endTime        String
   attendeesCount Int
-  notes          String   @default("")
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  notes          String                @default("")
+  requestId      String?               @unique
+  request        CommunicationRequest? @relation(fields: [requestId], references: [id], onDelete: SetNull)
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
 
   @@index([meetingDate])
+  @@index([requestId])
+}
+
+model PasswordResetToken {
+  id         String       @id @default(cuid())
+  token      String       @unique
+  employeeId String
+  employee   CommEmployee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  expiresAt  DateTime
+  usedAt     DateTime?
+  createdAt  DateTime     @default(now())
+
+  @@index([employeeId])
+  @@index([expiresAt])
 }
 
 model PlatformModule {

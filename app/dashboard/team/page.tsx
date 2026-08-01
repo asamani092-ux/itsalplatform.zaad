@@ -28,24 +28,28 @@ const EMPTY_FORM: MemberForm = {
   role: "EMPLOYEE",
 };
 
-function AddMemberModal({
+function MemberModal({
   open,
+  mode,
+  initial,
   onClose,
   onSubmit,
   submitting,
   error,
 }: {
   open: boolean;
+  mode: "create" | "edit";
+  initial: MemberForm;
   onClose: () => void;
   onSubmit: (form: MemberForm) => Promise<void>;
   submitting: boolean;
   error: string;
 }) {
-  const [form, setForm] = useState<MemberForm>(EMPTY_FORM);
+  const [form, setForm] = useState<MemberForm>(initial);
 
   useEffect(() => {
-    if (open) setForm(EMPTY_FORM);
-  }, [open]);
+    if (open) setForm(initial);
+  }, [open, initial]);
 
   if (!open) return null;
 
@@ -54,14 +58,14 @@ function AddMemberModal({
       className="modal-overlay"
       role="dialog"
       aria-modal="true"
-      aria-labelledby="add-member-title"
+      aria-labelledby="member-modal-title"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
       <div className="modal-panel card space-y-4">
-        <h2 id="add-member-title" className="text-lg font-bold text-primary">
-          إضافة عضو للفريق
+        <h2 id="member-modal-title" className="text-lg font-bold text-primary">
+          {mode === "create" ? "إضافة عضو للفريق" : "تعديل بيانات العضو"}
         </h2>
 
         <form
@@ -77,7 +81,7 @@ function AddMemberModal({
             </label>
             <input
               id="member-name"
-              className="input-field w-full focus-visible:ring-2 focus-visible:ring-primary/20"
+              className="input-field w-full"
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
               required
@@ -89,7 +93,7 @@ function AddMemberModal({
             </label>
             <input
               id="member-email"
-              className="input-field w-full focus-visible:ring-2 focus-visible:ring-primary/20"
+              className="input-field w-full"
               dir="ltr"
               type="email"
               value={form.email}
@@ -103,7 +107,7 @@ function AddMemberModal({
             </label>
             <input
               id="member-phone"
-              className="input-field w-full focus-visible:ring-2 focus-visible:ring-primary/20"
+              className="input-field w-full"
               dir="ltr"
               value={form.phoneNumber}
               onChange={(e) => setForm({ ...form, phoneNumber: e.target.value })}
@@ -112,15 +116,15 @@ function AddMemberModal({
           </div>
           <div className="space-y-1 sm:col-span-2">
             <label className="label-field" htmlFor="member-password">
-              كلمة المرور
+              {mode === "create" ? "كلمة المرور" : "كلمة مرور جديدة (اتركها فارغة للإبقاء)"}
             </label>
             <input
               id="member-password"
-              className="input-field w-full focus-visible:ring-2 focus-visible:ring-primary/20"
+              className="input-field w-full"
               type="password"
               value={form.password}
               onChange={(e) => setForm({ ...form, password: e.target.value })}
-              required
+              required={mode === "create"}
             />
           </div>
           <div className="space-y-1 sm:col-span-2">
@@ -129,7 +133,7 @@ function AddMemberModal({
             </label>
             <select
               id="member-role"
-              className="input-field w-full focus-visible:ring-2 focus-visible:ring-primary/20"
+              className="input-field w-full"
               value={form.role}
               onChange={(e) => setForm({ ...form, role: e.target.value })}
             >
@@ -145,19 +149,11 @@ function AddMemberModal({
           )}
 
           <div className="flex flex-col gap-2 sm:col-span-2 sm:flex-row">
-            <button
-              type="button"
-              className="btn-secondary flex-1 focus-visible:ring-2 focus-visible:ring-primary/20"
-              onClick={onClose}
-            >
+            <button type="button" className="btn-secondary flex-1" onClick={onClose}>
               إلغاء
             </button>
-            <button
-              type="submit"
-              className="btn-primary flex-1 focus-visible:ring-2 focus-visible:ring-primary/20"
-              disabled={submitting}
-            >
-              {submitting ? "جاري الإضافة..." : "إضافة"}
+            <button type="submit" className="btn-primary flex-1" disabled={submitting}>
+              {submitting ? "جاري الحفظ..." : "حفظ"}
             </button>
           </div>
         </form>
@@ -170,9 +166,14 @@ export default function DashboardTeamPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [status, setStatus] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
+  const [modalMode, setModalMode] = useState<"create" | "edit">("create");
+  const [editingId, setEditingId] = useState("");
+  const [modalInitial, setModalInitial] = useState<MemberForm>(EMPTY_FORM);
   const [submitting, setSubmitting] = useState(false);
   const [modalError, setModalError] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<Employee | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -194,37 +195,114 @@ export default function DashboardTeamPage() {
     void load();
   }, [load]);
 
-  async function handleCreate(form: MemberForm) {
+  function openCreate() {
+    setModalMode("create");
+    setModalInitial(EMPTY_FORM);
+    setEditingId("");
+    setModalError("");
+    setModalOpen(true);
+  }
+
+  function openEdit(employee: Employee) {
+    setModalMode("edit");
+    setModalInitial({
+      name: employee.name,
+      email: employee.email,
+      phoneNumber: employee.phoneNumber,
+      password: "",
+      role: employee.role,
+    });
+    setEditingId(employee.id);
+    setModalError("");
+    setModalOpen(true);
+  }
+
+  async function handleSubmit(form: MemberForm) {
     setSubmitting(true);
     setModalError("");
+    try {
+      const isEdit = modalMode === "edit";
+      const body = isEdit
+        ? {
+            id: editingId,
+            name: form.name,
+            email: form.email,
+            phoneNumber: form.phoneNumber,
+            role: form.role,
+            ...(form.password ? { password: form.password } : {}),
+          }
+        : form;
+
+      const res = await fetch("/api/manager/team", {
+        method: isEdit ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const payload = await parseApiResponse<unknown>(res);
+      if (!res.ok || !payload.success) {
+        setModalError(getApiErrorMessage(payload, "فشل الحفظ"));
+        return;
+      }
+      setModalOpen(false);
+      await load();
+      setStatus(isEdit ? "تم تحديث بيانات العضو" : "تمت إضافة العضو");
+      window.setTimeout(() => setStatus(""), 4000);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function toggleActive(employee: Employee) {
+    setError("");
     const res = await fetch("/api/manager/team", {
-      method: "POST",
+      method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
+      body: JSON.stringify({ id: employee.id, isActive: !employee.isActive }),
     });
     const payload = await parseApiResponse<unknown>(res);
     if (!res.ok || !payload.success) {
-      setModalError(getApiErrorMessage(payload, "فشل الإنشاء"));
-      setSubmitting(false);
+      setError(getApiErrorMessage(payload, "فشل التحديث"));
       return;
     }
-    setModalOpen(false);
-    setSubmitting(false);
     await load();
+  }
+
+  async function handleDelete() {
+    if (!deleteTarget) return;
+    setSubmitting(true);
+    setError("");
+    try {
+      const res = await fetch(
+        `/api/manager/team?id=${encodeURIComponent(deleteTarget.id)}`,
+        { method: "DELETE" },
+      );
+      const payload = await parseApiResponse<{
+        deleted: boolean;
+        deactivated: boolean;
+        message?: string;
+      }>(res);
+      if (!res.ok || !payload.success) {
+        setError(getApiErrorMessage(payload, "فشل الحذف"));
+        return;
+      }
+      setStatus(
+        payload.data.deactivated
+          ? (payload.data.message ?? "تم تعطيل الحساب")
+          : "تم حذف العضو",
+      );
+      window.setTimeout(() => setStatus(""), 5000);
+      setDeleteTarget(null);
+      await load();
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-brand-gray">إدارة حسابات الموظفين والمديرين</p>
-        <button
-          type="button"
-          className="btn-primary text-sm focus-visible:ring-2 focus-visible:ring-primary/20"
-          onClick={() => {
-            setModalError("");
-            setModalOpen(true);
-          }}
-        >
+        <button type="button" className="btn-primary text-sm" onClick={openCreate}>
           + إضافة عضو
         </button>
       </div>
@@ -232,6 +310,11 @@ export default function DashboardTeamPage() {
       {error && (
         <p className="text-sm text-[var(--tmkeen-danger)]" role="alert">
           {error}
+        </p>
+      )}
+      {status && (
+        <p className="text-sm font-semibold text-primary" role="status">
+          {status}
         </p>
       )}
 
@@ -243,12 +326,13 @@ export default function DashboardTeamPage() {
               <th>الهاتف</th>
               <th>الدور</th>
               <th>الحالة</th>
+              <th>إجراءات</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={4} className="py-8 text-center">
+                <td colSpan={5} className="py-8 text-center">
                   جاري التحميل...
                 </td>
               </tr>
@@ -263,6 +347,31 @@ export default function DashboardTeamPage() {
                       {emp.isActive ? "نشط" : "معطّل"}
                     </span>
                   </td>
+                  <td>
+                    <div className="flex flex-wrap gap-1">
+                      <button
+                        type="button"
+                        className="btn-secondary text-xs"
+                        onClick={() => openEdit(emp)}
+                      >
+                        تعديل
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-secondary text-xs"
+                        onClick={() => void toggleActive(emp)}
+                      >
+                        {emp.isActive ? "تعطيل" : "تفعيل"}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-secondary border-[var(--tmkeen-danger)] text-xs text-[var(--tmkeen-danger)]"
+                        onClick={() => setDeleteTarget(emp)}
+                      >
+                        حذف
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               ))
             )}
@@ -270,13 +379,44 @@ export default function DashboardTeamPage() {
         </table>
       </div>
 
-      <AddMemberModal
+      <MemberModal
         open={modalOpen}
+        mode={modalMode}
+        initial={modalInitial}
         onClose={() => setModalOpen(false)}
-        onSubmit={handleCreate}
+        onSubmit={handleSubmit}
         submitting={submitting}
         error={modalError}
       />
+
+      {deleteTarget && (
+        <div className="modal-overlay" role="dialog" aria-modal="true">
+          <div className="modal-panel card space-y-4">
+            <h2 className="text-lg font-bold text-primary">تأكيد الحذف</h2>
+            <p className="text-sm text-brand-gray">
+              هل أنت متأكد من حذف «{deleteTarget.name}»؟ إذا كانت له طلبات مرتبطة سيُعطَّل
+              الحساب بدل حذفه للحفاظ على سجل الطلبات.
+            </p>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <button
+                type="button"
+                className="btn-secondary flex-1"
+                onClick={() => setDeleteTarget(null)}
+              >
+                إلغاء
+              </button>
+              <button
+                type="button"
+                className="btn-primary flex-1 border-[var(--tmkeen-danger)] bg-[var(--tmkeen-danger)]"
+                disabled={submitting}
+                onClick={() => void handleDelete()}
+              >
+                {submitting ? "جاري..." : "تأكيد"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

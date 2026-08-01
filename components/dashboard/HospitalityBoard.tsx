@@ -15,7 +15,21 @@ interface Booking {
   endTime: string;
   attendeesCount: number;
   notes: string;
+  requestId?: string | null;
+  request?: {
+    id: string;
+    status: string;
+    assignedEmployee?: { name: string } | null;
+  } | null;
 }
+
+const STATUS_LABELS: Record<string, string> = {
+  Pending_Manager: "بانتظار موافقة المدير",
+  Approved_Pending_Assignment: "معتمد — بانتظار الإسناد",
+  In_Progress: "قيد التنفيذ",
+  Completed: "مكتمل",
+  Archived: "مؤرشف",
+};
 
 const ROOMS = ["قاعة الاجتماعات الكبرى", "قاعة التدريب", "قاعة الاستقبال", "قاعة الوسائط"];
 
@@ -112,7 +126,9 @@ export default function HospitalityBoard() {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-brand-gray">إدارة حجوزات القاعات والاجتماعات</p>
+        <p className="text-sm text-brand-gray">
+          كل حجز يُنشئ مهمة في لوحة العمل ويتبع نفس مسار الموافقة والإسناد
+        </p>
         <button
           type="button"
           className="btn-primary text-sm focus-visible:ring-2 focus-visible:ring-primary/20"
@@ -170,6 +186,18 @@ export default function HospitalityBoard() {
                       <p className="text-xs text-brand-gray">
                         الحضور: {booking.attendeesCount}
                       </p>
+                      {booking.request && (
+                        <p className="text-xs">
+                          <span className="badge-primary">
+                            {STATUS_LABELS[booking.request.status] ?? booking.request.status}
+                          </span>
+                          {booking.request.assignedEmployee && (
+                            <span className="ms-2 text-brand-gray">
+                              المسؤول: {booking.request.assignedEmployee.name}
+                            </span>
+                          )}
+                        </p>
+                      )}
                       {conflict && (
                         <p className="text-xs font-semibold text-[var(--tmkeen-danger)]">
                           يوجد حجز متعارض في نفس القاعة خلال هذا الوقت

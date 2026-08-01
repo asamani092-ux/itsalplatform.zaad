@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -13,6 +14,7 @@ export default function LoginForm({ nextUrl }: { nextUrl?: string | null }) {
 
   const [phoneNumber, setPhoneNumber] = useState("");
   const [password, setPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -25,7 +27,7 @@ export default function LoginForm({ nextUrl }: { nextUrl?: string | null }) {
       const res = await fetchWithTimeout("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phoneNumber, password }),
+        body: JSON.stringify({ phoneNumber, password, rememberMe }),
       });
       const payload = await parseApiResponse<{
         user: { role: string };
@@ -81,8 +83,24 @@ export default function LoginForm({ nextUrl }: { nextUrl?: string | null }) {
           required
         />
 
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <label className="flex items-center gap-2 text-sm text-brand-gray" htmlFor="remember">
+            <input
+              id="remember"
+              type="checkbox"
+              className="h-4 w-4 accent-[var(--tmkeen-primary)]"
+              checked={rememberMe}
+              onChange={(e) => setRememberMe(e.target.checked)}
+            />
+            تذكرني
+          </label>
+          <Link href="/forgot-password" className="text-sm text-primary underline">
+            نسيت كلمة المرور؟
+          </Link>
+        </div>
+
         {error && (
-          <p className="text-sm font-semibold text-[var(--zaad-danger)]" role="alert">
+          <p className="text-sm font-semibold text-[var(--tmkeen-danger)]" role="alert">
             {error}
           </p>
         )}

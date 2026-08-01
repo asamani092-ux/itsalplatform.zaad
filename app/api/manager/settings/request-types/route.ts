@@ -89,3 +89,34 @@ export async function PATCH(request: NextRequest) {
     return handleApiError(error);
   }
 }
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const auth = await requireManagerSession();
+    if (auth.error) return auth.error;
+
+    const id = request.nextUrl.searchParams.get("id");
+    if (!id) return jsonError("معرّف نوع الطلب مطلوب", "VALIDATION", 400);
+
+    const used = await prisma.communicationRequest.count({ where: { requestTypeId: id } });
+    if (used > 0) {
+      const deactivated = await prisma.requestType.update({
+        where: { id },
+        data: { isActive: false },
+      });
+      return jsonOk({
+        id,
+        deleted: false,
+        deactivated: true,
+        requestType: deactivated,
+        message: "النوع مستخدم في طلبات قائمة — تم تعطيله بدل حذفه",
+      });
+    }
+
+    await prisma.routingRule.deleteMany({ where: { requestTypeId: id } });
+    await prisma.requestType.delete({ where: { id } });
+    return jsonOk({ id, deleted: true, deactivated: false });
+  } catch (error) {
+    return handleApiError(error);
+  }
+}

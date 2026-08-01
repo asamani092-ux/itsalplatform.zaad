@@ -2,6 +2,10 @@
 
 import { useCallback, useEffect, useState } from "react";
 import ModuleManager from "@/components/dashboard/ModuleManager";
+import {
+  DepartmentsManager,
+  RequestTypesManager,
+} from "@/components/dashboard/TaxonomyManager";
 import { getApiErrorMessage, parseApiResponse } from "@/components/lib/api-types";
 
 type SettingsSection =
@@ -16,14 +20,6 @@ interface Department {
   slug: string;
   managerEmail: string;
   receptionToken: string | null;
-}
-
-interface RequestType {
-  id: string;
-  name: string;
-  slug: string;
-  requiresVisitDate: boolean;
-  departmentId: string | null;
 }
 
 interface RoutingRule {
@@ -49,27 +45,21 @@ export default function DashboardSettingsClient({
     initialSection ?? "modules",
   );
   const [departments, setDepartments] = useState<Department[]>([]);
-  const [requestTypes, setRequestTypes] = useState<RequestType[]>([]);
   const [rules, setRules] = useState<RoutingRule[]>([]);
   const [error, setError] = useState("");
 
   const load = useCallback(async () => {
     try {
-      const [deptRes, rtRes, rulesRes] = await Promise.all([
+      const [deptRes, rulesRes] = await Promise.all([
         fetch("/api/manager/settings/departments"),
-        fetch("/api/manager/settings/request-types"),
         fetch("/api/manager/settings/routing-rules"),
       ]);
 
       const deptPayload = await parseApiResponse<{ departments: Department[] }>(deptRes);
-      const rtPayload = await parseApiResponse<{ requestTypes: RequestType[] }>(rtRes);
       const rulesPayload = await parseApiResponse<{ rules: RoutingRule[] }>(rulesRes);
 
       if (deptPayload.success) {
         setDepartments(deptPayload.data.departments);
-      }
-      if (rtPayload.success) {
-        setRequestTypes(rtPayload.data.requestTypes);
       }
       if (rulesPayload.success) setRules(rulesPayload.data.rules);
     } catch (e) {
@@ -113,54 +103,10 @@ export default function DashboardSettingsClient({
 
         {section === "modules" && <ModuleManager />}
 
-        {section === "departments" && (
-          <div className="card overflow-x-auto p-0">
-            <table className="tmkeen-table">
-              <thead>
-                <tr>
-                  <th>القسم</th>
-                  <th>المعرّف</th>
-                  <th>بريد المدير</th>
-                  <th>رمز الاستقبال</th>
-                </tr>
-              </thead>
-              <tbody>
-                {departments.map((d) => (
-                  <tr key={d.id}>
-                    <td>{d.name}</td>
-                    <td dir="ltr">{d.slug}</td>
-                    <td dir="ltr">{d.managerEmail}</td>
-                    <td dir="ltr" className="text-xs">
-                      {d.receptionToken ?? "—"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        {section === "departments" && <DepartmentsManager />}
 
         {section === "requestTypes" && (
-          <div className="card overflow-x-auto p-0">
-            <table className="tmkeen-table">
-              <thead>
-                <tr>
-                  <th>النوع</th>
-                  <th>المعرّف</th>
-                  <th>يتطلب زيارة</th>
-                </tr>
-              </thead>
-              <tbody>
-                {requestTypes.map((rt) => (
-                  <tr key={rt.id}>
-                    <td>{rt.name}</td>
-                    <td dir="ltr">{rt.slug}</td>
-                    <td>{rt.requiresVisitDate ? "نعم" : "لا"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <RequestTypesManager departments={departments} />
         )}
 
         {section === "routing" && (

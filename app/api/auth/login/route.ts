@@ -17,6 +17,7 @@ export async function POST(request: NextRequest) {
     const body = (await request.json()) as {
       phoneNumber?: string;
       password?: string;
+      rememberMe?: boolean;
     };
 
     if (!body.phoneNumber?.trim() || !body.password) {
@@ -36,7 +37,7 @@ export async function POST(request: NextRequest) {
       role: user.role,
     });
 
-    await setSessionCookie(token);
+    await setSessionCookie(token, body.rememberMe === true);
 
     return jsonOk({
       user: {
