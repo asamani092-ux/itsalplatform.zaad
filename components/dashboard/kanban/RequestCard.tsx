@@ -1,5 +1,6 @@
 import { formatDurationMs, formatElapsedSince } from "@/components/shared/format-sla";
 import { isSlaBreached } from "./sla-utils";
+import { IconArchive, IconCheck } from "@/components/shared/icons";
 
 export interface SlaMetrics {
   createdToApprovalMs: number | null;
@@ -204,6 +205,7 @@ export default function RequestCard({
             disabled={busy}
             onClick={() => void onComplete(request.id)}
           >
+            <IconCheck size={16} />
             وضع علامة مكتمل
           </button>
         </div>
@@ -216,6 +218,7 @@ export default function RequestCard({
           disabled={busy}
           onClick={() => void onArchive(request.id)}
         >
+          <IconArchive size={16} />
           نقل للأرشيف
         </button>
       )}

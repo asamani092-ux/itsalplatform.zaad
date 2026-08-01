@@ -12,21 +12,24 @@ import BrandLogo from "@/components/shared/brand-logo";
 
 const CATEGORY_ORDER: ModuleCategory[] = ["operations", "services", "admin"];
 
-function ModuleIcon({ path }: { path: string }) {
+function ModuleIcon({ paths }: { paths: readonly string[] }) {
   return (
     <svg
-      width="18"
-      height="18"
+      width="20"
+      height="20"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth="1.6"
+      strokeWidth="2"
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden
+      focusable="false"
       className="shrink-0"
     >
-      <path d={path} />
+      {paths.map((d) => (
+        <path key={d} d={d} />
+      ))}
     </svg>
   );
 }
@@ -77,7 +80,7 @@ export default function DashboardSidebar({
                       : "text-brand-gray hover:bg-surface-muted"
                   }`}
                 >
-                  <ModuleIcon path={MODULE_ICON_PATHS[item.icon]} />
+                  <ModuleIcon paths={MODULE_ICON_PATHS[item.icon]} />
                   <span className="min-w-0 truncate">{item.label}</span>
                 </Link>
               ))}

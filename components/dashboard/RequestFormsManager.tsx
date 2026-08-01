@@ -12,6 +12,16 @@ import {
   type FormFieldKey,
   type RequestFormData,
 } from "@/lib/forms/schema";
+import { IconButton, IconLinkButton } from "@/components/ui/icon-button";
+import {
+  IconCopy,
+  IconEdit,
+  IconExternal,
+  IconPlus,
+  IconQr,
+  IconTrash,
+  IconX,
+} from "@/components/shared/icons";
 
 interface Department {
   id: string;
@@ -211,6 +221,7 @@ export default function RequestFormsManager({
           className="btn-primary text-sm"
           onClick={() => setCreating((v) => !v)}
         >
+          {creating ? <IconX size={18} /> : <IconPlus size={18} />}
           {creating ? "إلغاء" : "نموذج جديد"}
         </button>
       </div>
@@ -282,20 +293,23 @@ export default function RequestFormsManager({
                 </td>
                 <td>
                   <div className="flex flex-wrap gap-1">
-                    <button
-                      type="button"
-                      className="btn-secondary text-xs"
+                    <IconButton
+                      label="تحرير النموذج"
+                      icon={<IconEdit size={18} />}
                       onClick={() => setSelectedId(form.id)}
-                    >
-                      تحرير
-                    </button>
-                    <button
-                      type="button"
-                      className="btn-secondary text-xs"
+                    />
+                    <IconButton
+                      label="رمز QR"
+                      icon={<IconQr size={18} />}
                       onClick={() => setQrFormId(form.id)}
-                    >
-                      QR
-                    </button>
+                    />
+                    <IconLinkButton
+                      label="فتح الرابط العام"
+                      icon={<IconExternal size={18} />}
+                      href={formPublicPath(form.slug)}
+                      target="_blank"
+                      rel="noreferrer"
+                    />
                   </div>
                 </td>
               </tr>
@@ -405,25 +419,24 @@ export default function RequestFormsManager({
               <p className="mt-1 break-all font-mono text-sm text-primary" dir="ltr">
                 {publicUrl || formPublicPath(draft.slug)}
               </p>
-              <div className="mt-2 flex flex-wrap gap-2">
-                <button type="button" className="btn-secondary text-xs" onClick={() => void copyLink()}>
-                  نسخ الرابط
-                </button>
-                <a
+              <div className="mt-2 flex flex-wrap gap-1">
+                <IconButton
+                  label="نسخ الرابط"
+                  icon={<IconCopy size={18} />}
+                  onClick={() => void copyLink()}
+                />
+                <IconLinkButton
+                  label="فتح الرابط العام"
+                  icon={<IconExternal size={18} />}
                   href={formPublicPath(draft.slug)}
                   target="_blank"
                   rel="noreferrer"
-                  className="btn-secondary text-xs"
-                >
-                  فتح
-                </a>
-                <button
-                  type="button"
-                  className="btn-secondary text-xs"
+                />
+                <IconButton
+                  label="عرض رمز QR"
+                  icon={<IconQr size={18} />}
                   onClick={() => setQrFormId(draft.id)}
-                >
-                  عرض QR
-                </button>
+                />
               </div>
             </div>
           </div>
@@ -594,14 +607,13 @@ export default function RequestFormsManager({
               استرجاع المحفوظ
             </button>
             {!draft.isDefault && (
-              <button
-                type="button"
-                className="btn-secondary border-[var(--tmkeen-danger)] text-sm text-[var(--tmkeen-danger)]"
+              <IconButton
+                label="حذف النموذج"
+                icon={<IconTrash size={18} />}
+                tone="danger"
                 disabled={saving}
                 onClick={() => void handleDelete()}
-              >
-                حذف النموذج
-              </button>
+              />
             )}
           </div>
 
@@ -633,7 +645,14 @@ export default function RequestFormsManager({
           }}
         >
           <div className="modal-panel card space-y-4 text-center">
-            <h3 className="text-lg font-bold text-primary">رمز QR للنموذج</h3>
+            <div className="flex items-start justify-between gap-2">
+              <h3 className="text-lg font-bold text-primary">رمز QR للنموذج</h3>
+              <IconButton
+                label="إغلاق"
+                icon={<IconX size={18} />}
+                onClick={() => setQrFormId("")}
+              />
+            </div>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={`/api/manager/forms/${qrFormId}/qr`}

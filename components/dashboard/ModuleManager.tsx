@@ -8,6 +8,8 @@ import {
   type ModuleCategory,
   type PlatformModuleState,
 } from "@/lib/modules/registry";
+import { IconButton, IconLinkButton } from "@/components/ui/icon-button";
+import { IconExternal, IconPower } from "@/components/shared/icons";
 
 const CATEGORY_ORDER: ModuleCategory[] = ["operations", "services", "admin"];
 
@@ -106,18 +108,21 @@ export default function ModuleManager() {
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex min-w-0 items-center gap-2">
                       <svg
-                        width="20"
-                        height="20"
+                        width="22"
+                        height="22"
                         viewBox="0 0 24 24"
                         fill="none"
                         stroke="currentColor"
-                        strokeWidth="1.6"
+                        strokeWidth="2"
                         strokeLinecap="round"
                         strokeLinejoin="round"
                         className="shrink-0 text-primary"
                         aria-hidden
+                        focusable="false"
                       >
-                        <path d={MODULE_ICON_PATHS[item.icon]} />
+                        {MODULE_ICON_PATHS[item.icon].map((d) => (
+                          <path key={d} d={d} />
+                        ))}
                       </svg>
                       <h4 className="truncate font-bold text-primary">{item.label}</h4>
                     </div>
@@ -149,26 +154,25 @@ export default function ModuleManager() {
                     </p>
                   )}
 
-                  <div className="flex flex-wrap gap-2">
-                    <a href={item.href} className="btn-secondary text-xs">
-                      فتح الأداة
-                    </a>
-                    <button
-                      type="button"
-                      className={`text-xs ${
-                        item.isEnabled
-                          ? "btn-secondary border-[var(--tmkeen-danger)] text-[var(--tmkeen-danger)]"
-                          : "btn-primary"
-                      }`}
+                  <div className="flex flex-wrap gap-1">
+                    <IconLinkButton
+                      label="فتح الأداة"
+                      icon={<IconExternal size={18} />}
+                      href={item.href}
+                    />
+                    <IconButton
+                      label={
+                        item.core
+                          ? "أداة أساسية لا يمكن تعطيلها"
+                          : item.isEnabled
+                            ? "تعطيل الأداة"
+                            : "تفعيل الأداة"
+                      }
+                      icon={<IconPower size={18} />}
+                      tone={item.isEnabled ? "danger" : "primary"}
                       disabled={item.core || busyKey === item.key}
                       onClick={() => void toggle(item.key, !item.isEnabled)}
-                    >
-                      {busyKey === item.key
-                        ? "جاري..."
-                        : item.isEnabled
-                          ? "تعطيل"
-                          : "تفعيل"}
-                    </button>
+                    />
                   </div>
                 </article>
               ))}

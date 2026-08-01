@@ -2,6 +2,15 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getApiErrorMessage, parseApiResponse } from "@/components/lib/api-types";
+import { IconButton, IconLinkButton } from "@/components/ui/icon-button";
+import {
+  IconDownload,
+  IconEye,
+  IconPlus,
+  IconSearch,
+  IconTrash,
+  IconX,
+} from "@/components/shared/icons";
 
 interface MediaDocument {
   id: string;
@@ -178,18 +187,24 @@ export default function MediaLibrary() {
             setModalOpen(true);
           }}
         >
+          <IconPlus size={18} />
           رفع وثيقة
         </button>
       </div>
 
       <div className="flex flex-col gap-3 sm:flex-row">
-        <input
-          className="input-field w-full sm:max-w-sm"
-          placeholder="بحث بالعنوان..."
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          aria-label="بحث بالعنوان"
-        />
+        <div className="relative w-full sm:max-w-sm">
+          <span className="pointer-events-none absolute inset-y-0 start-3 flex items-center text-brand-gray">
+            <IconSearch size={18} />
+          </span>
+          <input
+            className="input-field w-full ps-10"
+            placeholder="بحث بالعنوان..."
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            aria-label="بحث بالعنوان"
+          />
+        </div>
         <div className="flex flex-wrap gap-2">
           {CATEGORIES.map((item) => (
             <button
@@ -230,25 +245,26 @@ export default function MediaLibrary() {
                 {doc.description || "بدون وصف"}
               </p>
               <p className="text-xs text-brand-gray">{formatDate(doc.createdAt)}</p>
-              <div className="flex flex-wrap gap-2">
-                <a
+              <div className="flex flex-wrap gap-1">
+                <IconLinkButton
+                  label="معاينة"
+                  icon={<IconEye size={18} />}
                   href={doc.fileUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="btn-secondary text-xs"
-                >
-                  معاينة
-                </a>
-                <a href={doc.fileUrl} download className="btn-secondary text-xs">
-                  تنزيل
-                </a>
-                <button
-                  type="button"
-                  className="btn-secondary border-[var(--tmkeen-danger)] text-xs text-[var(--tmkeen-danger)]"
+                />
+                <IconLinkButton
+                  label="تنزيل"
+                  icon={<IconDownload size={18} />}
+                  href={doc.fileUrl}
+                  download
+                />
+                <IconButton
+                  label="حذف الوثيقة"
+                  icon={<IconTrash size={18} />}
+                  tone="danger"
                   onClick={() => setDeleteTarget(doc)}
-                >
-                  حذف
-                </button>
+                />
               </div>
             </article>
           ))}
@@ -266,9 +282,16 @@ export default function MediaLibrary() {
           }}
         >
           <div className="modal-panel card space-y-4">
-            <h2 id="upload-doc-title" className="text-lg font-bold text-primary">
-              رفع وثيقة
-            </h2>
+            <div className="flex items-start justify-between gap-2">
+              <h2 id="upload-doc-title" className="text-lg font-bold text-primary">
+                رفع وثيقة
+              </h2>
+              <IconButton
+                label="إغلاق"
+                icon={<IconX size={18} />}
+                onClick={() => setModalOpen(false)}
+              />
+            </div>
             <form className="space-y-3" onSubmit={(e) => void handleUpload(e)}>
               <div className="space-y-1">
                 <label className="label-field" htmlFor="doc-title">

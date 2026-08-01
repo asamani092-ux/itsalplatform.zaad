@@ -2,6 +2,14 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { getApiErrorMessage, parseApiResponse } from "@/components/lib/api-types";
+import { IconButton } from "@/components/ui/icon-button";
+import {
+  IconEdit,
+  IconPlus,
+  IconPower,
+  IconTrash,
+  IconX,
+} from "@/components/shared/icons";
 
 interface Employee {
   id: string;
@@ -64,9 +72,12 @@ function MemberModal({
       }}
     >
       <div className="modal-panel card space-y-4">
-        <h2 id="member-modal-title" className="text-lg font-bold text-primary">
-          {mode === "create" ? "إضافة عضو للفريق" : "تعديل بيانات العضو"}
-        </h2>
+        <div className="flex items-start justify-between gap-2">
+          <h2 id="member-modal-title" className="text-lg font-bold text-primary">
+            {mode === "create" ? "إضافة عضو للفريق" : "تعديل بيانات العضو"}
+          </h2>
+          <IconButton label="إغلاق" icon={<IconX size={18} />} onClick={onClose} />
+        </div>
 
         <form
           className="grid gap-3 sm:grid-cols-2"
@@ -303,7 +314,8 @@ export default function DashboardTeamPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-brand-gray">إدارة حسابات الموظفين والمديرين</p>
         <button type="button" className="btn-primary text-sm" onClick={openCreate}>
-          + إضافة عضو
+          <IconPlus size={18} />
+          إضافة عضو
         </button>
       </div>
 
@@ -349,27 +361,23 @@ export default function DashboardTeamPage() {
                   </td>
                   <td>
                     <div className="flex flex-wrap gap-1">
-                      <button
-                        type="button"
-                        className="btn-secondary text-xs"
+                      <IconButton
+                        label="تعديل"
+                        icon={<IconEdit size={18} />}
                         onClick={() => openEdit(emp)}
-                      >
-                        تعديل
-                      </button>
-                      <button
-                        type="button"
-                        className="btn-secondary text-xs"
+                      />
+                      <IconButton
+                        label={emp.isActive ? "تعطيل الحساب" : "تفعيل الحساب"}
+                        icon={<IconPower size={18} />}
+                        tone={emp.isActive ? "neutral" : "primary"}
                         onClick={() => void toggleActive(emp)}
-                      >
-                        {emp.isActive ? "تعطيل" : "تفعيل"}
-                      </button>
-                      <button
-                        type="button"
-                        className="btn-secondary border-[var(--tmkeen-danger)] text-xs text-[var(--tmkeen-danger)]"
+                      />
+                      <IconButton
+                        label="حذف"
+                        icon={<IconTrash size={18} />}
+                        tone="danger"
                         onClick={() => setDeleteTarget(emp)}
-                      >
-                        حذف
-                      </button>
+                      />
                     </div>
                   </td>
                 </tr>

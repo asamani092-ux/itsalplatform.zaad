@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { getApiErrorMessage, parseApiResponse } from "@/components/lib/api-types";
+import { IconButton } from "@/components/ui/icon-button";
+import { IconEdit, IconPlus, IconTrash, IconX } from "@/components/shared/icons";
 
 export interface DepartmentRow {
   id: string;
@@ -104,7 +106,8 @@ export function DepartmentsManager() {
           className="btn-primary text-sm"
           onClick={() => setCreating((v) => !v)}
         >
-          {creating ? "إلغاء" : "+ قسم جديد"}
+          {creating ? <IconX size={18} /> : <IconPlus size={18} />}
+          {creating ? "إلغاء" : "قسم جديد"}
         </button>
       </div>
 
@@ -207,20 +210,17 @@ export function DepartmentsManager() {
                   </td>
                   <td>
                     <div className="flex flex-wrap gap-1">
-                      <button
-                        type="button"
-                        className="btn-secondary text-xs"
+                      <IconButton
+                        label="تعديل القسم"
+                        icon={<IconEdit size={18} />}
                         onClick={() => setEditing(d)}
-                      >
-                        تعديل
-                      </button>
-                      <button
-                        type="button"
-                        className="btn-secondary border-[var(--tmkeen-danger)] text-xs text-[var(--tmkeen-danger)]"
+                      />
+                      <IconButton
+                        label="حذف القسم"
+                        icon={<IconTrash size={18} />}
+                        tone="danger"
                         onClick={() => setDeleteTarget(d)}
-                      >
-                        حذف
-                      </button>
+                      />
                     </div>
                   </td>
                 </tr>
@@ -233,7 +233,14 @@ export function DepartmentsManager() {
       {editing && (
         <div className="modal-overlay" role="dialog" aria-modal="true">
           <div className="modal-panel card space-y-4">
-            <h3 className="text-lg font-bold text-primary">تعديل القسم</h3>
+            <div className="flex items-start justify-between gap-2">
+              <h3 className="text-lg font-bold text-primary">تعديل القسم</h3>
+              <IconButton
+                label="إغلاق"
+                icon={<IconX size={18} />}
+                onClick={() => setEditing(null)}
+              />
+            </div>
             <form
               className="space-y-3"
               onSubmit={async (e) => {
@@ -370,7 +377,8 @@ export function RequestTypesManager({
           className="btn-primary text-sm"
           onClick={() => setCreating((v) => !v)}
         >
-          {creating ? "إلغاء" : "+ نوع طلب جديد"}
+          {creating ? <IconX size={18} /> : <IconPlus size={18} />}
+          {creating ? "إلغاء" : "نوع طلب جديد"}
         </button>
       </div>
 
@@ -509,20 +517,17 @@ export function RequestTypesManager({
                   <td>{rt.requiresVisitDate ? "نعم" : "لا"}</td>
                   <td>
                     <div className="flex flex-wrap gap-1">
-                      <button
-                        type="button"
-                        className="btn-secondary text-xs"
+                      <IconButton
+                        label="تعديل نوع الطلب"
+                        icon={<IconEdit size={18} />}
                         onClick={() => setEditing(rt)}
-                      >
-                        تعديل
-                      </button>
-                      <button
-                        type="button"
-                        className="btn-secondary border-[var(--tmkeen-danger)] text-xs text-[var(--tmkeen-danger)]"
+                      />
+                      <IconButton
+                        label="حذف نوع الطلب"
+                        icon={<IconTrash size={18} />}
+                        tone="danger"
                         onClick={() => setDeleteTarget(rt)}
-                      >
-                        حذف
-                      </button>
+                      />
                     </div>
                   </td>
                 </tr>
@@ -535,7 +540,14 @@ export function RequestTypesManager({
       {editing && (
         <div className="modal-overlay" role="dialog" aria-modal="true">
           <div className="modal-panel card space-y-4">
-            <h3 className="text-lg font-bold text-primary">تعديل نوع الطلب</h3>
+            <div className="flex items-start justify-between gap-2">
+              <h3 className="text-lg font-bold text-primary">تعديل نوع الطلب</h3>
+              <IconButton
+                label="إغلاق"
+                icon={<IconX size={18} />}
+                onClick={() => setEditing(null)}
+              />
+            </div>
             <form
               className="space-y-3"
               onSubmit={async (e) => {

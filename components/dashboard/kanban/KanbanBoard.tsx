@@ -7,6 +7,8 @@ import RequestCard, {
 } from "./RequestCard";
 import { formatDurationMs } from "@/components/shared/format-sla";
 import { getApiErrorMessage, parseApiResponse } from "@/components/lib/api-types";
+import { IconButton } from "@/components/ui/icon-button";
+import { IconRefresh, IconSend } from "@/components/shared/icons";
 
 type BoardTab = "board" | "archive";
 
@@ -191,14 +193,13 @@ export default function KanbanBoard() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-brand-gray">إسناد ومتابعة SLA — اسحب أو اضغط Enter على البطاقة</p>
-        <button
-          type="button"
-          className="btn-primary text-sm focus-visible:ring-2 focus-visible:ring-primary/20"
+        <IconButton
+          label={loading ? "جاري التحديث..." : "تحديث اللوحة"}
+          icon={<IconRefresh size={18} />}
+          tone="primary"
           disabled={loading}
           onClick={() => void loadData()}
-        >
-          {loading ? "جاري التحديث..." : "تحديث"}
-        </button>
+        />
       </div>
 
       <div className="flex flex-wrap gap-2" role="tablist" aria-label="عرض اللوحة">
@@ -263,6 +264,7 @@ export default function KanbanBoard() {
                   disabled={busy}
                   onClick={() => void handleResendApproval(request.id)}
                 >
+                  <IconSend size={16} />
                   إعادة إرسال رابط الموافقة
                 </button>
               </article>

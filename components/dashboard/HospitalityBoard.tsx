@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getApiErrorMessage, parseApiResponse } from "@/components/lib/api-types";
 import { timesOverlap } from "@/lib/hospitality/conflict";
+import { IconButton } from "@/components/ui/icon-button";
+import { IconPlus, IconX } from "@/components/shared/icons";
 
 interface Booking {
   id: string;
@@ -137,6 +139,7 @@ export default function HospitalityBoard() {
             setModalOpen(true);
           }}
         >
+          <IconPlus size={18} />
           حجز جديد
         </button>
       </div>
@@ -223,9 +226,16 @@ export default function HospitalityBoard() {
           }}
         >
           <div className="modal-panel card space-y-4">
-            <h2 id="booking-modal-title" className="text-lg font-bold text-primary">
-              حجز جديد
-            </h2>
+            <div className="flex items-start justify-between gap-2">
+              <h2 id="booking-modal-title" className="text-lg font-bold text-primary">
+                حجز جديد
+              </h2>
+              <IconButton
+                label="إغلاق"
+                icon={<IconX size={18} />}
+                onClick={() => setModalOpen(false)}
+              />
+            </div>
             <form className="grid gap-3 sm:grid-cols-2" onSubmit={(e) => void handleSubmit(e)}>
               <div className="space-y-1 sm:col-span-2">
                 <label className="label-field" htmlFor="roomName">
