@@ -43,7 +43,7 @@ export default function ResetPasswordForm({ token }: { token: string | null }) {
         return;
       }
       setDone(true);
-      window.setTimeout(() => router.push("/login"), 2500);
+      window.setTimeout(() => router.push("/"), 2500);
     } catch (err) {
       setError(err instanceof Error ? err.message : "حدث خطأ في الاتصال");
     } finally {

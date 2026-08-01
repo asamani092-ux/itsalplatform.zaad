@@ -40,7 +40,7 @@ export async function middleware(request: NextRequest) {
   if (pathname.startsWith("/employee") || pathname.startsWith("/dashboard")) {
     const session = await verifySessionFromRequest(request);
     if (!session) {
-      const login = new URL("/login", request.url);
+      const login = new URL("/", request.url);
       login.searchParams.set("next", pathname);
       return NextResponse.redirect(login);
     }

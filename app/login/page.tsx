@@ -1,4 +1,4 @@
-import LoginForm from "@/components/employee/LoginForm";
+import { redirect } from "next/navigation";
 
 export default async function LoginPage({
   searchParams,
@@ -6,5 +6,8 @@ export default async function LoginPage({
   searchParams: Promise<{ next?: string }>;
 }) {
   const { next } = await searchParams;
-  return <LoginForm nextUrl={next ?? null} />;
+  if (next) {
+    redirect(`/?next=${encodeURIComponent(next)}`);
+  }
+  redirect("/");
 }

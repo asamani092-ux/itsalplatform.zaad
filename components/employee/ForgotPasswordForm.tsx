@@ -57,7 +57,7 @@ export default function ForgotPasswordForm() {
               إذا كان الرقم مسجلاً، فقد أُرسل رابط إعادة التعيين إلى بريد الحساب. الرابط
               صالح لمدة ساعة.
             </p>
-            <Link href="/login" className="btn-secondary inline-flex">
+            <Link href="/" className="btn-secondary inline-flex">
               العودة لتسجيل الدخول
             </Link>
           </div>
@@ -88,7 +88,7 @@ export default function ForgotPasswordForm() {
             </Button>
 
             <p className="text-center text-xs text-brand-gray">
-              <Link href="/login" className="underline">
+              <Link href="/" className="underline">
                 العودة لتسجيل الدخول
               </Link>
             </p>
