@@ -3,6 +3,7 @@ import { requireManagerSession } from "@/lib/auth/route-guard";
 import { prisma } from "@/lib/prisma";
 import { handleApiError, jsonError, jsonOk } from "@/lib/api-utils";
 import { sameCalendarDay, timesOverlap } from "@/lib/hospitality/conflict";
+import type { HospitalityBooking } from "@/generated/prisma/client";
 
 interface BookingBody {
   requesterName?: string;
@@ -90,7 +91,7 @@ export async function POST(request: NextRequest) {
     });
 
     const conflict = sameRoomBookings.find(
-      (existing) =>
+      (existing: HospitalityBooking) =>
         sameCalendarDay(existing.meetingDate, meetingDate) &&
         timesOverlap(existing.startTime, existing.endTime, startTime, endTime),
     );
