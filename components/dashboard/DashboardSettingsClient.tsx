@@ -1,18 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import DynamicSubmitForm from "@/components/public/DynamicSubmitForm";
-import FormSettingsEditor from "@/components/dashboard/FormSettingsEditor";
 import ModuleManager from "@/components/dashboard/ModuleManager";
 import { getApiErrorMessage, parseApiResponse } from "@/components/lib/api-types";
-import { DEFAULT_FORM_SETTINGS, type FormSettingsData } from "@/lib/form-settings/schema";
 
 type SettingsSection =
   | "modules"
   | "departments"
   | "requestTypes"
-  | "routing"
-  | "form";
+  | "routing";
 
 interface Department {
   id: string;
@@ -42,7 +38,6 @@ const NAV: { id: SettingsSection; label: string }[] = [
   { id: "departments", label: "الأقسام" },
   { id: "requestTypes", label: "أنواع الطلبات" },
   { id: "routing", label: "قواعد التوجيه" },
-  { id: "form", label: "نموذج الطلبات" },
 ];
 
 export default function DashboardSettingsClient({
@@ -56,23 +51,7 @@ export default function DashboardSettingsClient({
   const [departments, setDepartments] = useState<Department[]>([]);
   const [requestTypes, setRequestTypes] = useState<RequestType[]>([]);
   const [rules, setRules] = useState<RoutingRule[]>([]);
-  const [previewDepartments, setPreviewDepartments] = useState<
-    { id: string; name: string; slug: string }[]
-  >([]);
-  const [previewRequestTypes, setPreviewRequestTypes] = useState<
-    {
-      id: string;
-      name: string;
-      slug: string;
-      description: string;
-      requiresVisitDate: boolean;
-      departmentId: string | null;
-    }[]
-  >([]);
   const [error, setError] = useState("");
-  const [formSettings, setFormSettings] = useState<FormSettingsData>(
-    DEFAULT_FORM_SETTINGS,
-  );
 
   const load = useCallback(async () => {
     try {
@@ -88,26 +67,9 @@ export default function DashboardSettingsClient({
 
       if (deptPayload.success) {
         setDepartments(deptPayload.data.departments);
-        setPreviewDepartments(
-          deptPayload.data.departments.map((d) => ({
-            id: d.id,
-            name: d.name,
-            slug: d.slug,
-          })),
-        );
       }
       if (rtPayload.success) {
         setRequestTypes(rtPayload.data.requestTypes);
-        setPreviewRequestTypes(
-          rtPayload.data.requestTypes.map((rt) => ({
-            id: rt.id,
-            name: rt.name,
-            slug: rt.slug,
-            description: "",
-            requiresVisitDate: rt.requiresVisitDate,
-            departmentId: rt.departmentId,
-          })),
-        );
       }
       if (rulesPayload.success) setRules(rulesPayload.data.rules);
     } catch (e) {
@@ -224,36 +186,6 @@ export default function DashboardSettingsClient({
           </div>
         )}
 
-        {section === "form" && (
-          <div className="space-y-4">
-            <div className="card-section">
-              <h2 className="text-lg font-bold text-primary">التحكم بواجهة الطلب</h2>
-              <p className="mt-1 text-sm text-brand-gray">
-                تظهر التعديلات على{" "}
-                <a href="/request" target="_blank" rel="noreferrer" className="underline">
-                  /request
-                </a>{" "}
-                بعد الحفظ. المعاينة أدناه حيّة أثناء التعديل.
-              </p>
-            </div>
-
-            <FormSettingsEditor onChange={setFormSettings} />
-
-            <div className="card-section">
-              <h3 className="font-bold text-primary">معاينة</h3>
-              <p className="mt-1 text-xs text-brand-gray">
-                هذا ما يراه مقدّم الطلب — الإرسال يعمل للاختبار.
-              </p>
-            </div>
-            <DynamicSubmitForm
-              slug="communications"
-              preview
-              initialDepartments={previewDepartments}
-              initialRequestTypes={previewRequestTypes}
-              settings={formSettings}
-            />
-          </div>
-        )}
       </div>
     </div>
   );

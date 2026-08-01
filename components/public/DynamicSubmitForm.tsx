@@ -7,7 +7,7 @@ import { fetchWithTimeout } from "@/lib/client/fetch-with-timeout";
 import {
   DEFAULT_FORM_SETTINGS,
   type FormSettingsData,
-} from "@/lib/form-settings/schema";
+} from "@/lib/forms/schema";
 
 interface Department {
   id: string;
@@ -109,12 +109,16 @@ export default function DynamicSubmitForm({
   initialDepartments,
   initialRequestTypes,
   settings = DEFAULT_FORM_SETTINGS,
+  pinnedDepartmentId = null,
+  pinnedRequestTypeId = null,
 }: {
   slug: string;
   preview?: boolean;
   initialDepartments?: Department[];
   initialRequestTypes?: RequestType[];
   settings?: FormSettingsData;
+  pinnedDepartmentId?: string | null;
+  pinnedRequestTypeId?: string | null;
 }) {
   const fields = settings.fields;
   const hasInitial = Boolean(initialDepartments?.length);
@@ -128,8 +132,12 @@ export default function DynamicSubmitForm({
   const [requestTypes, setRequestTypes] = useState<RequestType[]>(
     initialRequestTypes ?? [],
   );
-  const [departmentId, setDepartmentId] = useState(defaults.departmentId);
-  const [requestTypeId, setRequestTypeId] = useState(defaults.requestTypeId);
+  const [departmentId, setDepartmentId] = useState(
+    pinnedDepartmentId ?? defaults.departmentId,
+  );
+  const [requestTypeId, setRequestTypeId] = useState(
+    pinnedRequestTypeId ?? defaults.requestTypeId,
+  );
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [requiredDate, setRequiredDate] = useState("");
@@ -230,6 +238,7 @@ export default function DynamicSubmitForm({
           contactPhone: contactPhone.trim(),
           departmentId,
           requestTypeId,
+          formSlug: slug,
           visitDate:
             selectedType?.requiresVisitDate && fields.visitDate.enabled
               ? visitDate
@@ -307,6 +316,7 @@ export default function DynamicSubmitForm({
         </div>
       ) : (
         <>
+          {!pinnedDepartmentId && (
           <div className="space-y-1">
             <label className="label-field" htmlFor="department">
               {fields.department.label}
@@ -336,7 +346,9 @@ export default function DynamicSubmitForm({
               </p>
             )}
           </div>
+          )}
 
+          {!pinnedRequestTypeId && (
           <div className="space-y-1">
             <label className="label-field" htmlFor="requestType">
               {fields.requestType.label}
@@ -366,6 +378,7 @@ export default function DynamicSubmitForm({
               </p>
             )}
           </div>
+          )}
 
           <div className="space-y-1">
             <label className="label-field" htmlFor="title">

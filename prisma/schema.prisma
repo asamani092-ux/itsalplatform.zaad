@@ -29,6 +29,7 @@ model Department {
   isActive      Boolean                @default(true)
   requestTypes  RequestType[]
   requests      CommunicationRequest[]
+  requestForms  RequestForm[]
   createdAt     DateTime               @default(now())
   updatedAt     DateTime               @updatedAt
 
@@ -46,6 +47,7 @@ model RequestType {
   department        Department?            @relation(fields: [departmentId], references: [id])
   routingRules      RoutingRule[]
   requests          CommunicationRequest[]
+  requestForms      RequestForm[]
   createdAt         DateTime               @default(now())
   updatedAt         DateTime               @updatedAt
 
@@ -201,21 +203,29 @@ model PlatformModule {
   @@index([sortOrder])
 }
 
-model FormSettings {
-  id             String   @id @default(cuid())
-  key            String   @unique @default("default")
-  isPublished    Boolean  @default(true)
-  pageTitle      String   @default("جمعية الزاد")
-  pageSubtitle   String   @default("تقديم طلب")
-  introText      String   @default("")
-  submitLabel    String   @default("تقديم الطلب")
-  successTitle   String   @default("تم تقديم الطلب بنجاح")
-  successMessage String   @default("سيُرسل رابط الموافقة للمدير المباشر تلقائياً.")
-  fields         Json     @default("{}")
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+model RequestForm {
+  id             String       @id @default(cuid())
+  slug           String       @unique
+  name           String
+  isPublished    Boolean      @default(false)
+  isDefault      Boolean      @default(false)
+  departmentId   String?
+  department     Department?  @relation(fields: [departmentId], references: [id])
+  requestTypeId  String?
+  requestType    RequestType? @relation(fields: [requestTypeId], references: [id])
+  pageTitle      String       @default("جمعية الزاد")
+  pageSubtitle   String       @default("تقديم طلب")
+  introText      String       @default("")
+  submitLabel    String       @default("تقديم الطلب")
+  successTitle   String       @default("تم تقديم الطلب بنجاح")
+  successMessage String       @default("سيُرسل رابط الموافقة للمدير المباشر تلقائياً.")
+  fields         Json         @default("{}")
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 
-  @@index([key])
+  @@index([isPublished])
+  @@index([departmentId])
+  @@index([requestTypeId])
 }
 
 model MediaDocument {

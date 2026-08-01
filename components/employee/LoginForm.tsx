@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { getApiErrorMessage, parseApiResponse } from "@/components/lib/api-types";
 import { fetchWithTimeout } from "@/lib/client/fetch-with-timeout";
+import BrandLogo from "@/components/shared/brand-logo";
 
 export default function LoginForm({ nextUrl }: { nextUrl?: string | null }) {
   const router = useRouter();
@@ -54,9 +55,12 @@ export default function LoginForm({ nextUrl }: { nextUrl?: string | null }) {
         onSubmit={(e) => void handleSubmit(e)}
         className="w-full max-w-md space-y-4 rounded-lg border border-surface-border bg-surface p-6 shadow-sm"
       >
-        <div className="text-center">
-          <h1 className="text-xl font-bold text-primary">تسجيل الدخول</h1>
-          <p className="text-xs text-brand-gray">قسم الاتصال المؤسسي — جمعية الزاد</p>
+        <div className="flex flex-col items-center gap-3 text-center">
+          <BrandLogo size="lg" withWordmark={false} />
+          <div>
+            <h1 className="text-xl font-bold text-primary">تسجيل الدخول</h1>
+            <p className="text-xs text-brand-gray">قسم الاتصال المؤسسي — جمعية الزاد</p>
+          </div>
         </div>
 
         <Input

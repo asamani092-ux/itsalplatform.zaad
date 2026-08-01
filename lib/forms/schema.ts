@@ -47,6 +47,29 @@ export interface FormSettingsData {
   fields: FormFieldsConfig;
 }
 
+/** A publishable request form with its own public link and QR code. */
+export interface RequestFormData extends FormSettingsData {
+  id: string;
+  slug: string;
+  name: string;
+  isDefault: boolean;
+  departmentId: string | null;
+  requestTypeId: string | null;
+}
+
+export function formPublicPath(slug: string): string {
+  return `/f/${slug}`;
+}
+
+export function normalizeSlug(input: string): string {
+  return input
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40);
+}
+
 const DEFAULT_FIELDS: FormFieldsConfig = {
   department: {
     enabled: true,

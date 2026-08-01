@@ -2,7 +2,8 @@ import { NextRequest } from "next/server";
 import { handleApiError, jsonError, jsonOk } from "@/lib/api-utils";
 import { submitRequest } from "@/lib/request-service";
 import { checkRateLimit, rateLimitKey } from "@/lib/rate-limit";
-import { getFormSettings } from "@/lib/form-settings/server";
+import { getFormBySlug, getDefaultForm } from "@/lib/forms/server";
+import { DEFAULT_FORM_SETTINGS } from "@/lib/forms/schema";
 
 interface SubmitBody {
   title?: string;
@@ -13,6 +14,7 @@ interface SubmitBody {
   departmentId?: string;
   requestTypeId?: string;
   visitDate?: string;
+  formSlug?: string;
 }
 
 const DEFAULT_LEAD_TIME_DAYS = 7;
@@ -25,14 +27,23 @@ export async function POST(request: NextRequest) {
     }
 
     const body = (await request.json()) as SubmitBody;
-    const { fields } = await getFormSettings();
+
+    const form = body.formSlug
+      ? await getFormBySlug(body.formSlug)
+      : await getDefaultForm();
+    if (form && !form.isPublished) {
+      return jsonError("هذا النموذج غير متاح حالياً", "FORM_CLOSED", 403);
+    }
+    const fields = form?.fields ?? DEFAULT_FORM_SETTINGS.fields;
+    const departmentId = body.departmentId || form?.departmentId || undefined;
+    const requestTypeId = body.requestTypeId || form?.requestTypeId || undefined;
 
     if (!body.title?.trim()) return jsonError("العنوان مطلوب", "VALIDATION", 400);
     if (!body.contactEmail?.trim()) {
       return jsonError("البريد الإلكتروني مطلوب", "VALIDATION", 400);
     }
-    if (!body.departmentId) return jsonError("القسم مطلوب", "VALIDATION", 400);
-    if (!body.requestTypeId) return jsonError("نوع الطلب مطلوب", "VALIDATION", 400);
+    if (!departmentId) return jsonError("القسم مطلوب", "VALIDATION", 400);
+    if (!requestTypeId) return jsonError("نوع الطلب مطلوب", "VALIDATION", 400);
 
     if (
       fields.description.enabled &&
@@ -84,8 +95,8 @@ export async function POST(request: NextRequest) {
       requiredDate,
       contactEmail: body.contactEmail.trim(),
       contactPhone: body.contactPhone?.trim() ?? "",
-      departmentId: body.departmentId,
-      requestTypeId: body.requestTypeId,
+      departmentId,
+      requestTypeId,
       visitDate,
     });
 

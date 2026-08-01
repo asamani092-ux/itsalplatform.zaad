@@ -8,6 +8,7 @@ import {
   type ModuleCategory,
   type PlatformModuleState,
 } from "@/lib/modules/registry";
+import BrandLogo from "@/components/shared/brand-logo";
 
 const CATEGORY_ORDER: ModuleCategory[] = ["operations", "services", "admin"];
 
@@ -53,8 +54,7 @@ export default function DashboardSidebar({
   return (
     <aside className="fixed inset-y-0 right-0 flex w-64 flex-col border-l border-surface-border bg-surface">
       <div className="border-b border-surface-border p-4">
-        <p className="text-xs text-brand-gray">جمعية الزاد</p>
-        <p className="font-bold text-primary">الاتصال المؤسسي</p>
+        <BrandLogo size="sm" />
       </div>
 
       <nav className="flex-1 space-y-4 overflow-y-auto p-3">

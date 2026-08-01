@@ -10,8 +10,7 @@ export default async function DashboardSettingsPage({
     section === "modules" ||
     section === "departments" ||
     section === "requestTypes" ||
-    section === "routing" ||
-    section === "form"
+    section === "routing"
       ? section
       : undefined;
 
