@@ -40,11 +40,15 @@ function wrapArabicEmail(title: string, bodyHtml: string, ctaLabel?: string, cta
 </html>`;
 }
 
-export type EmailTemplateKind = "approval_needed" | "assigned" | "completed";
+export type EmailTemplateKind =
+  | "approval_needed"
+  | "assigned"
+  | "completed"
+  | "rejected";
 
 export function buildEmailTemplate(
   kind: EmailTemplateKind,
-  data: { title: string; link?: string; reference?: string },
+  data: { title: string; link?: string; reference?: string; reason?: string },
 ): { subject: string; html: string } {
   if (kind === "approval_needed") {
     return {
@@ -68,6 +72,22 @@ export function buildEmailTemplate(
          <p>يمكنك متابعة التذكرة من مساحة الموظف.</p>`,
         "فتح التذكرة",
         data.link,
+      ),
+    };
+  }
+
+  if (kind === "rejected") {
+    const reasonHtml = data.reason
+      ? `<p><strong>سبب الرفض:</strong></p><p style="background:#F5F5F5;padding:12px;border-radius:8px">${data.reason}</p>`
+      : "";
+    return {
+      subject: "تم رفض طلبك",
+      html: wrapArabicEmail(
+        "تم رفض طلبك",
+        `<p>نأسف لإبلاغك برفض الطلب: <strong style="color:#8B1538">${data.title}</strong>.</p>
+         <p>الرقم المرجعي: <span dir="ltr">${data.reference ?? "—"}</span></p>
+         ${reasonHtml}
+         <p>للاستفسار يرجى التواصل مع قسم الاتصال المؤسسي.</p>`,
       ),
     };
   }

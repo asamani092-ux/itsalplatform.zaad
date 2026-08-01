@@ -4,7 +4,7 @@ import { ARCHIVE_STATUSES, ACTIVE_STATUSES, assertTransition } from "./workflow"
 import { resolveAssignee } from "./routing-service";
 import { RequestStatus } from "../generated/prisma/client";
 import { generateApprovalToken } from "./tokens";
-import { notify, notifyManager } from "./notifications";
+import { notify, notifyManager, notifySubmitter } from "./notifications";
 import { getAppUrl } from "./api-utils";
 
 type DashboardView = "active" | "archive" | "all";
@@ -113,7 +113,10 @@ export async function getRequestByToken(token: string) {
     throw new Error("NOT_FOUND: رمز الموافقة غير صالح");
   }
 
-  assertApprovalTokenNotExpired(request);
+  // Expiry applies only while awaiting decision
+  if (request.status === RequestStatus.Pending_Manager) {
+    assertApprovalTokenNotExpired(request);
+  }
 
   return withSla(request);
 }
@@ -320,6 +323,86 @@ export async function approveRequest(token: string) {
     `تمت الموافقة على: ${updated.title}`,
     "/dashboard/kanban",
   );
+
+  return withSla(updated);
+}
+
+export async function approveRequestById(requestId: string) {
+  const request = await prisma.communicationRequest.findUnique({
+    where: { id: requestId },
+    select: { approvalToken: true },
+  });
+  if (!request) {
+    throw new Error("NOT_FOUND: الطلب غير موجود");
+  }
+  return approveRequest(request.approvalToken);
+}
+
+export async function rejectRequest(params: {
+  reason: string;
+  token?: string;
+  requestId?: string;
+  changedBy?: string;
+}) {
+  const reason = params.reason.trim();
+  if (reason.length < 3) {
+    throw new Error("VALIDATION: سبب الرفض مطلوب (3 أحرف على الأقل)");
+  }
+
+  if (!params.token && !params.requestId) {
+    throw new Error("VALIDATION: معرّف الطلب أو رمز الموافقة مطلوب");
+  }
+
+  const request = params.token
+    ? await prisma.communicationRequest.findUnique({
+        where: { approvalToken: params.token },
+      })
+    : await prisma.communicationRequest.findUnique({
+        where: { id: params.requestId! },
+      });
+
+  if (!request) {
+    throw new Error("NOT_FOUND: الطلب غير موجود");
+  }
+
+  if (request.status !== RequestStatus.Pending_Manager) {
+    throw new Error("ALREADY_PROCESSED: تمت معالجة هذا الطلب مسبقاً");
+  }
+
+  if (params.token) {
+    assertApprovalTokenNotExpired(request);
+  }
+
+  assertTransition(request.status, RequestStatus.Rejected);
+
+  const updated = await prisma.communicationRequest.update({
+    where: { id: request.id },
+    data: {
+      status: RequestStatus.Rejected,
+      rejectedAt: new Date(),
+      rejectionReason: reason,
+      approvalTokenExpiresAt: new Date(),
+    },
+    include: requestInclude,
+  });
+
+  await recordStatusChange({
+    requestId: request.id,
+    fromStatus: RequestStatus.Pending_Manager,
+    toStatus: RequestStatus.Rejected,
+    changedBy: params.changedBy ?? request.managerEmail,
+    note: reason,
+  });
+
+  await notifySubmitter({
+    contactEmail: updated.contactEmail,
+    contactPhone: updated.contactPhone,
+    requestTitle: updated.title,
+    message: `تم رفض الطلب: ${reason}`,
+    reference: updated.id.slice(-8),
+    emailKind: "rejected",
+    reason,
+  });
 
   return withSla(updated);
 }

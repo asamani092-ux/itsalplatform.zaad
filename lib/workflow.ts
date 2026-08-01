@@ -11,11 +11,15 @@ export const ARCHIVE_STATUSES: RequestStatus[] = [
 ];
 
 const ALLOWED_TRANSITIONS: Record<RequestStatus, RequestStatus[]> = {
-  [RequestStatus.Pending_Manager]: [RequestStatus.Approved_Pending_Assignment],
+  [RequestStatus.Pending_Manager]: [
+    RequestStatus.Approved_Pending_Assignment,
+    RequestStatus.Rejected,
+  ],
   [RequestStatus.Approved_Pending_Assignment]: [RequestStatus.In_Progress],
   [RequestStatus.In_Progress]: [RequestStatus.Completed],
   [RequestStatus.Completed]: [RequestStatus.Archived],
   [RequestStatus.Archived]: [],
+  [RequestStatus.Rejected]: [],
 };
 
 export function canTransition(from: RequestStatus, to: RequestStatus): boolean {

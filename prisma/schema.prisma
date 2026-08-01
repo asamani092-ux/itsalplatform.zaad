@@ -13,6 +13,7 @@ enum RequestStatus {
   In_Progress
   Completed
   Archived
+  Rejected
 }
 
 enum EmployeeRole {
@@ -126,6 +127,8 @@ model CommunicationRequest {
   approvedAt         DateTime?
   assignedAt         DateTime?
   completedAt        DateTime?
+  rejectedAt         DateTime?
+  rejectionReason    String?
   proofFileUrl       String?
   visitDate          DateTime?
   visitAttended      Boolean?

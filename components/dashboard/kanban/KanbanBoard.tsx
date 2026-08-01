@@ -47,6 +47,8 @@ export default function KanbanBoard() {
   const [error, setError] = useState<string | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dropHighlight, setDropHighlight] = useState<string | null>(null);
+  const [rejectTargetId, setRejectTargetId] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -168,6 +170,31 @@ export default function KanbanBoard() {
     );
   }
 
+  function handleApprovePending(requestId: string) {
+    return runAction(() =>
+      fetch(`/api/manager/tickets/${requestId}/approve`, { method: "POST" }),
+    );
+  }
+
+  function handleRejectPending() {
+    if (!rejectTargetId || rejectReason.trim().length < 3) {
+      setError("سبب الرفض مطلوب (3 أحرف على الأقل)");
+      return Promise.resolve();
+    }
+    const id = rejectTargetId;
+    const reason = rejectReason.trim();
+    return runAction(() =>
+      fetch(`/api/manager/tickets/${id}/reject`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason }),
+      }),
+    ).then(() => {
+      setRejectTargetId(null);
+      setRejectReason("");
+    });
+  }
+
   function handleDropOnCompleted() {
     if (!draggingId) return;
     const dragged = requests.find((r) => r.id === draggingId);
@@ -238,7 +265,7 @@ export default function KanbanBoard() {
               بانتظار موافقة المدير ({pendingRequests.length})
             </p>
             <p className="mt-1 text-xs text-brand-gray">
-              لم تصل هذه الطلبات للوحة بعد — تنتظر ضغط المدير على رابط الموافقة.
+              يمكن الموافقة أو الرفض مباشرة من المنصة — أو إعادة إرسال رابط البريد.
             </p>
           </div>
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -258,19 +285,89 @@ export default function KanbanBoard() {
                 <p className="text-[10px] text-brand-gray" dir="ltr">
                   {request.contactEmail}
                 </p>
-                <button
-                  type="button"
-                  className="btn-secondary w-full text-xs"
-                  disabled={busy}
-                  onClick={() => void handleResendApproval(request.id)}
-                >
-                  <IconSend size={16} />
-                  إعادة إرسال رابط الموافقة
-                </button>
+                <div className="grid gap-2">
+                  <button
+                    type="button"
+                    className="btn-primary w-full text-xs"
+                    disabled={busy}
+                    onClick={() => void handleApprovePending(request.id)}
+                  >
+                    موافقة
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-secondary w-full border-[var(--tmkeen-danger)] text-xs text-[var(--tmkeen-danger)]"
+                    disabled={busy}
+                    onClick={() => {
+                      setRejectTargetId(request.id);
+                      setRejectReason("");
+                      setError(null);
+                    }}
+                  >
+                    رفض مع سبب
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-secondary w-full text-xs"
+                    disabled={busy}
+                    onClick={() => void handleResendApproval(request.id)}
+                  >
+                    <IconSend size={16} />
+                    إعادة إرسال رابط الموافقة
+                  </button>
+                </div>
               </article>
             ))}
           </div>
         </section>
+      )}
+
+      {rejectTargetId && (
+        <div
+          className="modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setRejectTargetId(null);
+          }}
+        >
+          <div className="modal-panel card space-y-4">
+            <h3 className="text-lg font-bold text-primary">رفض الطلب</h3>
+            <p className="text-sm text-brand-gray">
+              سيُرسل سبب الرفض إلى بريد مقدّم الطلب.
+            </p>
+            <div className="space-y-1">
+              <label className="label-field" htmlFor="kanban-reject-reason">
+                سبب الرفض
+              </label>
+              <textarea
+                id="kanban-reject-reason"
+                className="input-field min-h-24 w-full"
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                placeholder="اكتب سبب الرفض..."
+              />
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                className="btn-secondary border-[var(--tmkeen-danger)] text-sm text-[var(--tmkeen-danger)]"
+                disabled={busy}
+                onClick={() => void handleRejectPending()}
+              >
+                تأكيد الرفض
+              </button>
+              <button
+                type="button"
+                className="btn-secondary text-sm"
+                disabled={busy}
+                onClick={() => setRejectTargetId(null)}
+              >
+                إلغاء
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {error && (
