@@ -58,10 +58,10 @@ export default function LoginForm({ nextUrl }: { nextUrl?: string | null }) {
         className="w-full max-w-md space-y-4 rounded-lg border border-surface-border bg-surface p-6 shadow-sm"
       >
         <div className="flex flex-col items-center gap-3 text-center">
-          <BrandLogo size="lg" withWordmark={false} />
+          <BrandLogo size="lg" />
           <div>
             <h1 className="text-xl font-bold text-primary">تسجيل الدخول</h1>
-            <p className="text-xs text-brand-gray">قسم الاتصال المؤسسي — جمعية الزاد</p>
+            <p className="text-xs text-brand-gray">قسم الاتصال المؤسسي</p>
           </div>
         </div>
 

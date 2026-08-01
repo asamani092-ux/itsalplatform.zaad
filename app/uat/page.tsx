@@ -14,11 +14,8 @@ export default function UatPage() {
       <header className="border-b border-surface-border bg-surface px-4 py-4 sm:px-6">
         <div className="page-container flex flex-wrap items-center justify-between gap-3 py-0">
           <div className="flex items-center gap-3">
-            <BrandLogo size="md" withWordmark={false} />
-            <div>
-              <p className="text-xs text-brand-gray">جمعية الزاد</p>
-              <h1 className="text-lg font-bold text-primary">نموذج تقييم الأدوات</h1>
-            </div>
+            <BrandLogo size="md" />
+            <h1 className="text-lg font-bold text-primary">نموذج تقييم الأدوات</h1>
           </div>
           <Link href="/" className="btn-secondary text-sm">
             الرئيسية

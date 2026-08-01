@@ -17,7 +17,7 @@ export default function PublicSubmitShell({
       <div className="w-full max-w-lg space-y-3">
         <div className="rounded-lg border border-surface-border bg-surface p-5 shadow-sm sm:p-6">
           <div className="mb-6 flex flex-col items-center gap-3 text-center">
-            <BrandLogo size="lg" withWordmark={false} />
+            <BrandLogo size="lg" />
             <div>
               <h1 className="text-xl font-bold text-primary">{title}</h1>
               <p className="mt-1 text-sm text-brand-gray">{subtitle}</p>

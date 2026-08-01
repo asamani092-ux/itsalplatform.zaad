@@ -58,6 +58,7 @@ export default function DashboardSidebar({
     <aside className="fixed inset-y-0 right-0 flex w-64 flex-col border-l border-surface-border bg-surface">
       <div className="border-b border-surface-border p-4">
         <BrandLogo size="sm" />
+        <p className="mt-2 text-xs text-brand-gray">الاتصال المؤسسي</p>
       </div>
 
       <nav className="flex-1 space-y-4 overflow-y-auto p-3">
