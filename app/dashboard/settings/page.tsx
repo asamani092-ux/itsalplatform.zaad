@@ -7,6 +7,7 @@ export default async function DashboardSettingsPage({
 }) {
   const { section } = await searchParams;
   const initialSection =
+    section === "modules" ||
     section === "departments" ||
     section === "requestTypes" ||
     section === "routing" ||

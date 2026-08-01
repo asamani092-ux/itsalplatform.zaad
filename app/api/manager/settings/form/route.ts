@@ -16,6 +16,7 @@ export async function GET() {
 }
 
 interface FormSettingsBody {
+  isPublished?: boolean;
   pageTitle?: string;
   pageSubtitle?: string;
   introText?: string;

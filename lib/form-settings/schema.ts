@@ -37,6 +37,7 @@ export interface FormFieldConfig {
 export type FormFieldsConfig = Record<FormFieldKey, FormFieldConfig>;
 
 export interface FormSettingsData {
+  isPublished: boolean;
   pageTitle: string;
   pageSubtitle: string;
   introText: string;
@@ -98,6 +99,7 @@ const DEFAULT_FIELDS: FormFieldsConfig = {
 };
 
 export const DEFAULT_FORM_SETTINGS: FormSettingsData = {
+  isPublished: true,
   pageTitle: "جمعية الزاد",
   pageSubtitle: "تقديم طلب",
   introText: "",

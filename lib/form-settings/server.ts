@@ -34,6 +34,7 @@ export async function getFormSettings(): Promise<FormSettingsData> {
     if (!row) return DEFAULT_FORM_SETTINGS;
 
     return {
+      isPublished: row.isPublished,
       pageTitle: row.pageTitle,
       pageSubtitle: row.pageSubtitle,
       introText: row.introText,
@@ -53,6 +54,8 @@ export async function saveFormSettings(
   const current = await getFormSettings();
 
   const next: FormSettingsData = {
+    isPublished:
+      typeof input.isPublished === "boolean" ? input.isPublished : current.isPublished,
     pageTitle: input.pageTitle?.trim() || current.pageTitle,
     pageSubtitle: input.pageSubtitle?.trim() || current.pageSubtitle,
     introText:
@@ -68,6 +71,7 @@ export async function saveFormSettings(
   await prisma.formSettings.upsert({
     where: { key: "default" },
     update: {
+      isPublished: next.isPublished,
       pageTitle: next.pageTitle,
       pageSubtitle: next.pageSubtitle,
       introText: next.introText,
@@ -78,6 +82,7 @@ export async function saveFormSettings(
     },
     create: {
       key: "default",
+      isPublished: next.isPublished,
       pageTitle: next.pageTitle,
       pageSubtitle: next.pageSubtitle,
       introText: next.introText,

@@ -3,10 +3,16 @@
 import { useCallback, useEffect, useState } from "react";
 import DynamicSubmitForm from "@/components/public/DynamicSubmitForm";
 import FormSettingsEditor from "@/components/dashboard/FormSettingsEditor";
+import ModuleManager from "@/components/dashboard/ModuleManager";
 import { getApiErrorMessage, parseApiResponse } from "@/components/lib/api-types";
 import { DEFAULT_FORM_SETTINGS, type FormSettingsData } from "@/lib/form-settings/schema";
 
-type SettingsSection = "departments" | "requestTypes" | "routing" | "form";
+type SettingsSection =
+  | "modules"
+  | "departments"
+  | "requestTypes"
+  | "routing"
+  | "form";
 
 interface Department {
   id: string;
@@ -32,10 +38,11 @@ interface RoutingRule {
 }
 
 const NAV: { id: SettingsSection; label: string }[] = [
+  { id: "modules", label: "الخدمات والأدوات" },
   { id: "departments", label: "الأقسام" },
   { id: "requestTypes", label: "أنواع الطلبات" },
   { id: "routing", label: "قواعد التوجيه" },
-  { id: "form", label: "النموذج" },
+  { id: "form", label: "نموذج الطلبات" },
 ];
 
 export default function DashboardSettingsClient({
@@ -44,7 +51,7 @@ export default function DashboardSettingsClient({
   initialSection?: SettingsSection;
 }) {
   const [section, setSection] = useState<SettingsSection>(
-    initialSection ?? "departments",
+    initialSection ?? "modules",
   );
   const [departments, setDepartments] = useState<Department[]>([]);
   const [requestTypes, setRequestTypes] = useState<RequestType[]>([]);
@@ -141,6 +148,8 @@ export default function DashboardSettingsClient({
             {error}
           </p>
         )}
+
+        {section === "modules" && <ModuleManager />}
 
         {section === "departments" && (
           <div className="card overflow-x-auto p-0">

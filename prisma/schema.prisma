@@ -188,9 +188,23 @@ model HospitalityBooking {
   @@index([meetingDate])
 }
 
+model PlatformModule {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  isEnabled Boolean  @default(true)
+  sortOrder Int      @default(0)
+  settings  Json     @default("{}")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isEnabled])
+  @@index([sortOrder])
+}
+
 model FormSettings {
   id             String   @id @default(cuid())
   key            String   @unique @default("default")
+  isPublished    Boolean  @default(true)
   pageTitle      String   @default("جمعية الزاد")
   pageSubtitle   String   @default("تقديم طلب")
   introText      String   @default("")

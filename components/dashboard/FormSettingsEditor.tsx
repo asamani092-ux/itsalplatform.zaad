@@ -109,6 +109,46 @@ export default function FormSettingsEditor({
   return (
     <div className="space-y-4">
       <div className="card space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-bold text-primary">حالة النشر</h2>
+            <p className="mt-1 text-xs text-brand-gray">
+              الرابط العام:{" "}
+              <a
+                href="/request"
+                target="_blank"
+                rel="noreferrer"
+                className="font-semibold text-primary underline"
+                dir="ltr"
+              >
+                /request
+              </a>
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className={settings.isPublished ? "badge-success" : "badge-danger"}>
+              {settings.isPublished ? "منشور" : "غير منشور"}
+            </span>
+            <button
+              type="button"
+              className={
+                settings.isPublished
+                  ? "btn-secondary border-[var(--tmkeen-danger)] text-sm text-[var(--tmkeen-danger)]"
+                  : "btn-primary text-sm"
+              }
+              onClick={() => updateContent({ isPublished: !settings.isPublished })}
+            >
+              {settings.isPublished ? "إيقاف النشر" : "نشر النموذج"}
+            </button>
+          </div>
+        </div>
+        <p className="text-xs text-brand-gray">
+          عند إيقاف النشر تظهر للزائر رسالة أن استقبال الطلبات متوقف مؤقتاً، دون تعطيل
+          الطلبات القائمة.
+        </p>
+      </div>
+
+      <div className="card space-y-3">
         <h2 className="text-lg font-bold text-primary">محتوى الصفحة</h2>
 
         <div className="grid gap-3 sm:grid-cols-2">
