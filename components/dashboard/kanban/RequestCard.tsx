@@ -1,4 +1,5 @@
 import { formatDurationMs, formatElapsedSince } from "@/components/shared/format-sla";
+import AvatarGroup from "@/components/ui/avatar-group";
 import { isSlaBreached } from "./sla-utils";
 import { IconArchive, IconCheck } from "@/components/shared/icons";
 
@@ -107,6 +108,10 @@ export default function RequestCard({
           {request.department.name}
           {request.requestType ? ` — ${request.requestType.name}` : ""}
         </p>
+      )}
+
+      {request.assignedEmployee && (
+        <AvatarGroup names={[request.assignedEmployee.name]} />
       )}
 
       <div

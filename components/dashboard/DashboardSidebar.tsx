@@ -55,7 +55,7 @@ export default function DashboardSidebar({
   }
 
   return (
-    <aside className="fixed inset-y-0 right-0 flex w-64 flex-col border-l border-surface-border bg-surface">
+    <aside className="fixed inset-y-0 inset-inline-end-0 flex w-64 flex-col border-inline-start border-surface-border bg-surface">
       <div className="border-b border-surface-border p-4">
         <BrandLogo size="sm" />
         <p className="mt-2 text-xs text-brand-gray">الاتصال المؤسسي</p>
