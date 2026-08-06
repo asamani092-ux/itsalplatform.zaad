@@ -86,14 +86,14 @@ export default function NotificationBell() {
       >
         <IconBell size={22} />
         {unreadCount > 0 && (
-          <span className="absolute -top-0.5 -left-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--tmkeen-danger)] px-1 text-[10px] font-bold text-white">
+          <span className="absolute -top-0.5 -end-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--tmkeen-danger)] px-1 text-[10px] font-bold text-[var(--action-primary-text)]">
             {unreadCount > 99 ? "99+" : unreadCount}
           </span>
         )}
       </button>
 
       {open && (
-        <div className="card absolute left-0 top-full z-50 mt-2 w-[min(22rem,calc(100vw-2rem))] space-y-2 p-3 shadow-md">
+        <div className="card absolute end-0 top-full z-50 mt-2 w-[min(22rem,calc(100vw-2rem))] space-y-2 p-3 shadow-md">
           <div className="flex items-center justify-between gap-2 border-b border-surface-border pb-2">
             <p className="text-sm font-bold text-primary">الإشعارات</p>
             <button

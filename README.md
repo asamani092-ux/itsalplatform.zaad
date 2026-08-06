@@ -26,24 +26,14 @@
 | `main` | خط الأساس — design system |
 | `cursor/zaad-portal-architecture-f122` | **الفرع النشط** — معمارية كاملة + UI Phase 1 + Security Phase 1 |
 
-## نظام التصميم (Design_system_f)
+## نظام التصميم (@zaad/design-system)
 
-المصدر الوحيد للتصميم:
+المصدر الوحيد: الحزمة `@zaad/design-system` من `asamani092-ux/designSystemFinal` (الإصدار المثبّت في `package.json`).
 
-```
-Design_system_f/
-└── uploads/design-system/
-    ├── tokens.css
-    ├── tokens.json
-    ├── components.css
-    ├── tailwind.preset.ts
-    ├── README.md
-    └── examples/html-rtl-demo.html
-```
-
-- `tailwind.config.ts` → `Design_system_f/uploads/design-system/tailwind.preset.ts`
-- `app/globals.css` → يستورد `tokens.css` + `components.css` من المسار أعلاه
-- alias: `@/design-system/*` → `Design_system_f/uploads/design-system/*`
+- `tokens.css` + `components.css` عبر `app/globals.css`
+- Tailwind preset: `@zaad/design-system/tailwind.preset`
+- الجذر: `lang="ar" dir="rtl"` و `class="zad-root"`
+- عقود المكوّنات: `node_modules/@zaad/design-system/components.md`
 
 ## المتطلبات
 

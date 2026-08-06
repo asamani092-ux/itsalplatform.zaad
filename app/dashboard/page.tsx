@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { getApiErrorMessage, parseApiResponse } from "@/components/lib/api-types";
 import { formatDurationMs } from "@/components/shared/format-sla";
+import Progress from "@/components/ui/progress";
+import Skeleton from "@/components/ui/skeleton";
 
 interface Kpis {
   totalRequests: number;
@@ -31,9 +33,9 @@ function KpiCard({
     trend === "up" ? "↑ تحسّن" : trend === "down" ? "↓ يحتاج متابعة" : "→ مستقر";
 
   return (
-    <div className="card flex flex-col gap-2 p-5">
-      <p className="text-xs font-semibold text-brand-gray">{label}</p>
-      <p className="text-4xl font-extrabold tabular-nums text-primary">{value}</p>
+    <div className="zad-kpi">
+      <p className="zad-kpi__label">{label}</p>
+      <p className="zad-kpi__value">{value}</p>
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
         {hint && <span className="text-brand-gray">{hint}</span>}
         {trend && (
@@ -101,12 +103,12 @@ export default function DashboardKpiPage() {
       )}
 
       {loading || !kpis ? (
-        <div className="card flex items-center justify-center gap-3 py-16">
-          <div
-            className="h-8 w-8 animate-pulse rounded-full bg-[color-mix(in_srgb,var(--tmkeen-primary)_15%,transparent)]"
-            aria-hidden
-          />
-          <p className="text-sm text-brand-gray">جاري تحميل المؤشرات...</p>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="zad-kpi">
+              <Skeleton lines={3} />
+            </div>
+          ))}
         </div>
       ) : (
         <>
@@ -137,13 +139,20 @@ export default function DashboardKpiPage() {
             />
           </div>
 
+          <div className="card space-y-3">
+            <Progress
+              value={Math.round(kpis.completionRate * 100)}
+              label="نسبة إنجاز الطلبات"
+            />
+          </div>
+
           <div className="card overflow-x-auto p-0">
             <table className="tmkeen-table">
               <thead>
                 <tr>
-                  <th>نوع الطلب</th>
-                  <th>العدد</th>
-                  <th>متوسط SLA</th>
+                  <th scope="col">نوع الطلب</th>
+                  <th scope="col">العدد</th>
+                  <th scope="col">متوسط SLA</th>
                 </tr>
               </thead>
               <tbody>

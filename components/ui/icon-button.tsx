@@ -37,7 +37,7 @@ export function IconButton({
       type={type}
       aria-label={label}
       title={label}
-      className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] border border-transparent bg-transparent transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--tmkeen-primary)] disabled:cursor-not-allowed disabled:opacity-50 ${TONE_CLASSES[tone]} ${className}`}
+      className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--radius-md)] border border-transparent bg-transparent transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--tmkeen-primary)] disabled:cursor-not-allowed disabled:opacity-50 ${TONE_CLASSES[tone]} ${className}`}
       {...props}
     >
       {icon}
@@ -62,7 +62,7 @@ export function IconLinkButton({
     <a
       aria-label={label}
       title={label}
-      className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] border border-transparent bg-transparent transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--tmkeen-primary)] ${TONE_CLASSES[tone]} ${className}`}
+      className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--radius-md)] border border-transparent bg-transparent transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--tmkeen-primary)] ${TONE_CLASSES[tone]} ${className}`}
       {...props}
     >
       {icon}

@@ -8,6 +8,7 @@ import {
   DEFAULT_FORM_SETTINGS,
   type FormSettingsData,
 } from "@/lib/forms/schema";
+import Stepper from "@/components/ui/stepper";
 
 interface Department {
   id: string;
@@ -260,6 +261,14 @@ export default function DynamicSubmitForm({
   if (submittedId) {
     return (
       <div className="space-y-4 text-center" role="status">
+        <Stepper
+          currentId="done"
+          steps={[
+            { id: "fill", label: "تعبئة الطلب" },
+            { id: "send", label: "الإرسال" },
+            { id: "done", label: "التأكيد" },
+          ]}
+        />
         <span className="badge-success">{settings.successTitle}</span>
         <div className="card-section space-y-2 text-sm text-brand-gray">
           <p>
@@ -288,6 +297,14 @@ export default function DynamicSubmitForm({
 
   return (
     <form onSubmit={(e) => void handleSubmit(e)} className="w-full space-y-4">
+      <Stepper
+        currentId={submitting ? "send" : "fill"}
+        steps={[
+          { id: "fill", label: "تعبئة الطلب" },
+          { id: "send", label: "الإرسال" },
+          { id: "done", label: "التأكيد" },
+        ]}
+      />
       {preview && (
         <div className="rounded-lg border border-primary bg-[color-mix(in_srgb,var(--tmkeen-primary)_8%,transparent)] px-3 py-2 text-xs text-brand-gray">
           وضع المعاينة — هذا ما يراه مقدّم الطلب. الإرسال يعمل للاختبار.
