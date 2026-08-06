@@ -71,9 +71,24 @@ body {
   text-align: start;
 }
 
+/* Force light form controls — OS dark preference must not darken inputs */
+.input-field,
+select.input-field,
+textarea.input-field {
+  background: var(--neutral-0);
+  color: var(--neutral-800);
+  border-color: var(--border-default);
+  color-scheme: light;
+}
+.input-field::placeholder,
+textarea.input-field::placeholder {
+  color: var(--text-muted);
+}
 .input-field:focus-visible,
 select.input-field:focus-visible,
 textarea.input-field:focus-visible {
   outline: 2px solid var(--tmkeen-primary);
   outline-offset: 2px;
+  background: var(--neutral-0);
+  color: var(--neutral-800);
 }
