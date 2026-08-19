@@ -9,6 +9,10 @@ import {
   type FormSettingsData,
 } from "@/lib/forms/schema";
 import Stepper from "@/components/ui/stepper";
+import RoomAvailabilityCalendar from "@/components/public/RoomAvailabilityCalendar";
+
+/** Client-safe duplicate of lib/hospitality HOSPITALITY_TYPE_SLUG (server-only module). */
+const HOSPITALITY_TYPE_SLUG = "hospitality-booking";
 
 interface Department {
   id: string;
@@ -152,6 +156,8 @@ export default function DynamicSubmitForm({
   const [submittedId, setSubmittedId] = useState<string | null>(null);
 
   const selectedType = requestTypes.find((rt) => rt.id === requestTypeId);
+  const showHospitalityAvailability =
+    selectedType?.slug === HOSPITALITY_TYPE_SLUG || slug === HOSPITALITY_TYPE_SLUG;
 
   const loadMeta = useCallback(async () => {
     setLoading(true);
@@ -479,6 +485,16 @@ export default function DynamicSubmitForm({
                 </p>
               )}
             </div>
+          )}
+
+          {showHospitalityAvailability && (
+            <RoomAvailabilityCalendar
+              date={requiredDate}
+              onDateChange={(next) => {
+                setRequiredDate(next);
+                setFieldErrors((prev) => ({ ...prev, requiredDate: undefined }));
+              }}
+            />
           )}
 
           {selectedType?.requiresVisitDate && fields.visitDate.enabled && (

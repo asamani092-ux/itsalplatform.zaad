@@ -74,7 +74,7 @@ model CommEmployee {
   id                String                @id @default(cuid())
   name              String
   email             String                @unique
-  phoneNumber       String                @unique
+  phoneNumber       String?               @unique
   passwordHash      String
   role              EmployeeRole          @default(EMPLOYEE)
   isActive          Boolean               @default(true)

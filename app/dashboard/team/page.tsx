@@ -17,7 +17,7 @@ interface Employee {
   id: string;
   name: string;
   email: string;
-  phoneNumber: string;
+  phoneNumber: string | null;
   role: string;
   isActive: boolean;
 }
@@ -102,13 +102,14 @@ function MemberModal({
           </div>
           <div className="space-y-1">
             <label className="label-field" htmlFor="member-email">
-              البريد
+              البريد (إلزامي)
             </label>
             <input
               id="member-email"
               className="input-field w-full"
               dir="ltr"
               type="email"
+              autoComplete="email"
               value={form.email}
               onChange={(e) => setForm({ ...form, email: e.target.value })}
               required
@@ -116,15 +117,15 @@ function MemberModal({
           </div>
           <div className="space-y-1">
             <label className="label-field" htmlFor="member-phone">
-              الهاتف
+              الهاتف (اختياري)
             </label>
             <input
               id="member-phone"
               className="input-field w-full"
               dir="ltr"
+              inputMode="tel"
               value={form.phoneNumber}
               onChange={(e) => setForm({ ...form, phoneNumber: e.target.value })}
-              required
             />
           </div>
           <div className="space-y-1 sm:col-span-2">
@@ -221,7 +222,7 @@ export default function DashboardTeamPage() {
     setModalInitial({
       name: employee.name,
       email: employee.email,
-      phoneNumber: employee.phoneNumber,
+      phoneNumber: employee.phoneNumber ?? "",
       password: "",
       role: employee.role,
     });
@@ -354,7 +355,7 @@ export default function DashboardTeamPage() {
               employees.map((emp) => (
                 <tr key={emp.id}>
                   <td className="font-semibold">{emp.name}</td>
-                  <td dir="ltr">{emp.phoneNumber}</td>
+                  <td dir="ltr">{emp.phoneNumber || "—"}</td>
                   <td>{emp.role === "MANAGER" ? "مدير" : "موظف"}</td>
                   <td>
                     <span className={emp.isActive ? "badge-success" : "badge-danger"}>

@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
       sub: user.id,
       name: user.name,
       email: user.email,
-      phoneNumber: user.phoneNumber,
+      phoneNumber: user.phoneNumber ?? "",
       role: user.role,
     });
 

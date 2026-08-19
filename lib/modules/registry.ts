@@ -100,7 +100,8 @@ export const PLATFORM_MODULES: PlatformModuleDef[] = [
   {
     key: "request-forms",
     label: "نماذج الطلبات",
-    description: "إنشاء نماذج متعددة، لكل نموذج رابط عام و QR مستقل",
+    description:
+      "بناء النماذج وروابطها و QR — تشغيل/إيقاف الخدمة من الإعدادات ← الخدمات",
     href: "/dashboard/forms",
     category: "services",
     icon: "form",
@@ -133,12 +134,12 @@ export const PLATFORM_MODULES: PlatformModuleDef[] = [
   {
     key: "reception",
     label: "شاشة الاستقبال",
-    description: "متابعة زيارات اليوم وتسجيل الحضور",
-    href: "/dashboard/settings?section=departments",
+    description: "زيارات اليوم وتسجيل الحضور عبر رمز القسم",
+    href: "/dashboard/reception",
     category: "services",
     icon: "desk",
     core: false,
-    defaultEnabled: false,
+    defaultEnabled: true,
     sortOrder: 70,
   },
   {

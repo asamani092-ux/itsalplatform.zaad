@@ -42,14 +42,14 @@ export async function POST(request: NextRequest) {
       role?: EmployeeRole;
     };
 
-    if (!body.name?.trim() || !body.email?.trim() || !body.phoneNumber?.trim() || !body.password) {
-      return jsonError("الاسم والبريد والهاتف وكلمة المرور مطلوبة", "VALIDATION", 400);
+    if (!body.name?.trim() || !body.email?.trim() || !body.password) {
+      return jsonError("الاسم والبريد وكلمة المرور مطلوبة", "VALIDATION", 400);
     }
 
     const employee = await createEmployee({
       name: body.name,
       email: body.email,
-      phoneNumber: body.phoneNumber,
+      phoneNumber: body.phoneNumber?.trim() || null,
       password: body.password,
       role: body.role ?? EmployeeRole.EMPLOYEE,
     });

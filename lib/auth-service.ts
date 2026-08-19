@@ -33,7 +33,7 @@ export async function verifyLogin(email: string, password: string) {
     id: employee.id,
     name: employee.name,
     email: employee.email,
-    phoneNumber: employee.phoneNumber,
+    phoneNumber: employee.phoneNumber ?? "",
     role: employee.role,
   };
 }
@@ -41,16 +41,17 @@ export async function verifyLogin(email: string, password: string) {
 export async function createEmployee(params: {
   name: string;
   email: string;
-  phoneNumber: string;
+  phoneNumber?: string | null;
   password: string;
   role?: EmployeeRole;
 }) {
   const passwordHash = await hashPassword(params.password);
+  const phone = params.phoneNumber?.trim() || null;
   return prisma.commEmployee.create({
     data: {
       name: params.name.trim(),
       email: params.email.trim().toLowerCase(),
-      phoneNumber: params.phoneNumber.trim(),
+      phoneNumber: phone,
       passwordHash,
       role: params.role ?? EmployeeRole.EMPLOYEE,
     },
@@ -71,7 +72,7 @@ export async function updateEmployee(
   params: {
     name?: string;
     email?: string;
-    phoneNumber?: string;
+    phoneNumber?: string | null;
     password?: string;
     role?: EmployeeRole;
     isActive?: boolean;
@@ -80,7 +81,7 @@ export async function updateEmployee(
   const data: {
     name?: string;
     email?: string;
-    phoneNumber?: string;
+    phoneNumber?: string | null;
     passwordHash?: string;
     role?: EmployeeRole;
     isActive?: boolean;
@@ -88,7 +89,9 @@ export async function updateEmployee(
 
   if (params.name !== undefined) data.name = params.name.trim();
   if (params.email !== undefined) data.email = params.email.trim().toLowerCase();
-  if (params.phoneNumber !== undefined) data.phoneNumber = params.phoneNumber.trim();
+  if (params.phoneNumber !== undefined) {
+    data.phoneNumber = params.phoneNumber?.trim() || null;
+  }
   if (params.role !== undefined) data.role = params.role;
   if (params.isActive !== undefined) data.isActive = params.isActive;
   if (params.password) data.passwordHash = await hashPassword(params.password);

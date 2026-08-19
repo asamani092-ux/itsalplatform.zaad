@@ -615,9 +615,78 @@ export async function getManagerKpis() {
     statusCounts.find((s: KpiStatusCountGroupRow) => s.status === RequestStatus.Completed)?._count
       ._all ?? 0;
 
+  const countOf = (status: RequestStatus) =>
+    statusCounts.find((s: KpiStatusCountGroupRow) => s.status === status)?._count._all ?? 0;
+
+  const weekAgo = new Date();
+  weekAgo.setDate(weekAgo.getDate() - 7);
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const monthAhead = new Date();
+  monthAhead.setDate(monthAhead.getDate() + 30);
+
+  const [completedThisWeek, overdueOpen, upcomingBookings, visitsToday, avgAssignMsRows] =
+    await Promise.all([
+      prisma.communicationRequest.count({
+        where: { completedAt: { gte: weekAgo } },
+      }),
+      prisma.communicationRequest.count({
+        where: {
+          requiredDate: { lt: todayStart },
+          status: {
+            notIn: [RequestStatus.Completed, RequestStatus.Archived],
+          },
+        },
+      }),
+      prisma.hospitalityBooking.count({
+        where: { meetingDate: { gte: todayStart, lte: monthAhead } },
+      }),
+      prisma.communicationRequest.count({
+        where: {
+          visitDate: { gte: todayStart, lt: new Date(todayStart.getTime() + 86400000) },
+          approvedAt: { not: null },
+          requestType: { requiresVisitDate: true },
+        },
+      }),
+      prisma.communicationRequest.findMany({
+        where: { assignedAt: { not: null } },
+        select: { createdAt: true, assignedAt: true },
+        take: 500,
+        orderBy: { assignedAt: "desc" },
+      }),
+    ]);
+
+  let avgAssignmentMs: number | null = null;
+  if (avgAssignMsRows.length > 0) {
+    const sum = avgAssignMsRows.reduce((acc, row) => {
+      if (!row.assignedAt) return acc;
+      return acc + (row.assignedAt.getTime() - row.createdAt.getTime());
+    }, 0);
+    avgAssignmentMs = sum / avgAssignMsRows.length;
+  }
+
+  const completedLifecycle = allCompleted.filter((r) => r.completedAt);
+  const avgLifecycleMs =
+    completedLifecycle.length > 0
+      ? completedLifecycle.reduce(
+          (acc, r) => acc + ((r.completedAt as Date).getTime() - r.createdAt.getTime()),
+          0,
+        ) / completedLifecycle.length
+      : null;
+
   return {
     totalRequests: total,
     completionRate: total > 0 ? completed / total : 0,
+    pendingManager: countOf(RequestStatus.Pending_Manager),
+    pendingAssignment: countOf(RequestStatus.Approved_Pending_Assignment),
+    inProgress: countOf(RequestStatus.In_Progress),
+    completed,
+    completedThisWeek,
+    overdueOpen,
+    upcomingBookings,
+    visitsToday,
+    avgLifecycleMs,
+    avgAssignmentMs,
     statusCounts: statusCounts.map((s: KpiStatusCountGroupRow) => ({
       status: s.status,
       count: s._count._all,
