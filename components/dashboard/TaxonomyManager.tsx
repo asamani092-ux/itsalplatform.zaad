@@ -171,7 +171,7 @@ export function DepartmentsManager() {
       )}
 
       {error && (
-        <p className="text-sm text-[var(--tmkeen-danger)]" role="alert">
+        <p className="text-sm text-[var(--zaad-danger)]" role="alert">
           {error}
         </p>
       )}
@@ -322,7 +322,7 @@ export function DepartmentsManager() {
               </button>
               <button
                 type="button"
-                className="btn-primary flex-1 border-[var(--tmkeen-danger)] bg-[var(--tmkeen-danger)]"
+                className="btn-primary flex-1 border-[var(--zaad-danger)] bg-[var(--zaad-danger)]"
                 onClick={async () => {
                   const ok = await mutate(
                     { method: "DELETE", query: `id=${encodeURIComponent(deleteTarget.id)}` },
@@ -465,7 +465,7 @@ export function RequestTypesManager({
           <label className="flex items-end gap-2 pb-2 text-sm text-brand-gray">
             <input
               type="checkbox"
-              className="h-4 w-4 accent-[var(--tmkeen-primary)]"
+              className="h-4 w-4 accent-[var(--zaad-primary)]"
               checked={form.requiresVisitDate}
               onChange={(e) =>
                 setForm({ ...form, requiresVisitDate: e.target.checked })
@@ -482,7 +482,7 @@ export function RequestTypesManager({
       )}
 
       {error && (
-        <p className="text-sm text-[var(--tmkeen-danger)]" role="alert">
+        <p className="text-sm text-[var(--zaad-danger)]" role="alert">
           {error}
         </p>
       )}
@@ -603,7 +603,7 @@ export function RequestTypesManager({
               <label className="flex items-center gap-2 text-sm text-brand-gray">
                 <input
                   type="checkbox"
-                  className="h-4 w-4 accent-[var(--tmkeen-primary)]"
+                  className="h-4 w-4 accent-[var(--zaad-primary)]"
                   checked={editing.requiresVisitDate}
                   onChange={(e) =>
                     setEditing({ ...editing, requiresVisitDate: e.target.checked })
@@ -645,7 +645,7 @@ export function RequestTypesManager({
               </button>
               <button
                 type="button"
-                className="btn-primary flex-1 border-[var(--tmkeen-danger)] bg-[var(--tmkeen-danger)]"
+                className="btn-primary flex-1 border-[var(--zaad-danger)] bg-[var(--zaad-danger)]"
                 onClick={async () => {
                   const ok = await mutate(
                     { method: "DELETE", query: `id=${encodeURIComponent(deleteTarget.id)}` },

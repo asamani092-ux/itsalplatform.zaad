@@ -19,21 +19,21 @@ const COLUMNS = [
     id: "approved",
     status: "Approved_Pending_Assignment",
     title: "جديد (معتمد)",
-    headerClass: "border-secondary bg-[color-mix(in_srgb,var(--tmkeen-secondary)_18%,white)]",
+    headerClass: "border-secondary bg-[color-mix(in_srgb,var(--zaad-secondary)_18%,white)]",
     dropTarget: false,
   },
   {
     id: "in_progress",
     status: "In_Progress",
     title: "قيد التنفيذ",
-    headerClass: "border-primary bg-[color-mix(in_srgb,var(--tmkeen-primary)_10%,white)]",
+    headerClass: "border-primary bg-[color-mix(in_srgb,var(--zaad-primary)_10%,white)]",
     dropTarget: false,
   },
   {
     id: "completed",
     status: "Completed",
     title: "مكتمل",
-    headerClass: "border-[var(--tmkeen-success)] bg-[var(--tmkeen-success-bg)]",
+    headerClass: "border-[var(--zaad-success)] bg-[var(--zaad-success-bg)]",
     dropTarget: true,
   },
 ] as const;
@@ -298,7 +298,7 @@ export default function KanbanBoard() {
 
       {error && (
         <div
-          className="rounded-lg border border-[var(--tmkeen-danger)] bg-[var(--tmkeen-danger-bg)] px-4 py-3 text-sm font-semibold text-[var(--tmkeen-danger)]"
+          className="rounded-lg border border-[var(--zaad-danger)] bg-[var(--zaad-danger-bg)] px-4 py-3 text-sm font-semibold text-[var(--zaad-danger)]"
           role="alert"
         >
           {error}
@@ -308,7 +308,7 @@ export default function KanbanBoard() {
       {loading ? (
         <div className="card flex items-center justify-center gap-3 py-16">
           <div
-            className="h-8 w-8 animate-pulse rounded-full bg-[color-mix(in_srgb,var(--tmkeen-primary)_15%,transparent)]"
+            className="h-8 w-8 animate-pulse rounded-full bg-[color-mix(in_srgb,var(--zaad-primary)_15%,transparent)]"
             aria-hidden
           />
           <p className="text-sm text-brand-gray">جاري تحميل اللوحة...</p>
@@ -325,7 +325,7 @@ export default function KanbanBoard() {
                 key={column.id}
                 className={`flex min-h-[360px] flex-col rounded-xl border-2 border-surface-border bg-surface transition-colors ${
                   dropHighlight === column.id
-                    ? "border-primary bg-[color-mix(in_srgb,var(--tmkeen-primary)_8%,transparent)]"
+                    ? "border-primary bg-[color-mix(in_srgb,var(--zaad-primary)_8%,transparent)]"
                     : ""
                 }`}
                 aria-label={`${column.title} — ${columnRequests.length} بطاقة`}

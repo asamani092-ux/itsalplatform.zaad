@@ -55,7 +55,7 @@ export default function LoginForm({ nextUrl }: { nextUrl?: string | null }) {
     <div className="flex min-h-screen items-center justify-center bg-surface-muted p-6">
       <form
         onSubmit={(e) => void handleSubmit(e)}
-        className="w-full max-w-md space-y-4 rounded-lg border border-surface-border bg-surface p-6 shadow-sm"
+        className="card w-full max-w-md space-y-4"
       >
         <div className="flex flex-col items-center gap-3 text-center">
           <BrandLogo size="lg" />
@@ -84,23 +84,26 @@ export default function LoginForm({ nextUrl }: { nextUrl?: string | null }) {
         />
 
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <label className="flex items-center gap-2 text-sm text-brand-gray" htmlFor="remember">
+          <label
+            className="zad-touch inline-flex cursor-pointer items-center gap-2 text-sm text-brand-gray"
+            htmlFor="remember"
+          >
             <input
               id="remember"
               type="checkbox"
-              className="h-4 w-4 accent-[var(--tmkeen-primary)]"
+              className="h-4 w-4 accent-[var(--zaad-primary)]"
               checked={rememberMe}
               onChange={(e) => setRememberMe(e.target.checked)}
             />
             تذكرني
           </label>
-          <Link href="/forgot-password" className="text-sm text-primary underline">
+          <Link href="/forgot-password" className="zad-touch inline-flex items-center text-sm text-primary underline">
             نسيت كلمة المرور؟
           </Link>
         </div>
 
         {error && (
-          <p className="text-sm font-semibold text-[var(--tmkeen-danger)]" role="alert">
+          <p className="text-sm font-semibold text-[var(--zaad-danger)]" role="alert">
             {error}
           </p>
         )}

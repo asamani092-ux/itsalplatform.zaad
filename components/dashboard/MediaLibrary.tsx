@@ -233,7 +233,7 @@ export default function MediaLibrary() {
       </FilterBar>
 
       {error && (
-        <p className="text-sm text-[var(--tmkeen-danger)]" role="alert">
+        <p className="text-sm text-[var(--zaad-danger)]" role="alert">
           {error}
         </p>
       )}
@@ -366,7 +366,7 @@ export default function MediaLibrary() {
                 />
               </div>
               {formError && (
-                <p className="text-sm text-[var(--tmkeen-danger)]" role="alert">
+                <p className="text-sm text-[var(--zaad-danger)]" role="alert">
                   {formError}
                 </p>
               )}

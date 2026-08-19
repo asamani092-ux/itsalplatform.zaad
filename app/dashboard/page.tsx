@@ -97,7 +97,7 @@ export default function DashboardKpiPage() {
       <p className="text-sm text-brand-gray">نظرة عامة على أداء قسم الاتصال</p>
 
       {error && (
-        <p className="text-sm text-[var(--tmkeen-danger)]" role="alert">
+        <p className="text-sm text-[var(--zaad-danger)]" role="alert">
           {error}
         </p>
       )}

@@ -78,7 +78,7 @@ export default function RequestCard({
   return (
     <article
       className={`card space-y-2 p-3 shadow-sm transition-shadow hover:shadow-md focus-within:ring-2 focus-within:ring-primary/30 ${
-        slaBreached ? "border-[var(--tmkeen-danger)] bg-[var(--tmkeen-danger-bg)]" : ""
+        slaBreached ? "border-[var(--zaad-danger)] bg-[var(--zaad-danger-bg)]" : ""
       }`}
       draggable={isActive}
       tabIndex={isActive ? 0 : undefined}
@@ -133,7 +133,7 @@ export default function RequestCard({
         </div>
         <div>
           <p className="text-brand-gray">تنفيذ</p>
-          <p className={`font-semibold ${slaBreached ? "text-[var(--tmkeen-danger)]" : "text-primary"}`}>
+          <p className={`font-semibold ${slaBreached ? "text-[var(--zaad-danger)]" : "text-primary"}`}>
             {request.completedAt
               ? formatDurationMs(request.sla.assignmentToCompletionMs)
               : formatElapsedSince(request.assignedAt)}

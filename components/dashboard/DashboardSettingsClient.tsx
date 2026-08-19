@@ -97,7 +97,7 @@ export default function DashboardSettingsClient({
 
       <div className="min-w-0 flex-1 space-y-4">
         {error && (
-          <p className="text-sm text-[var(--tmkeen-danger)]" role="alert">
+          <p className="text-sm text-[var(--zaad-danger)]" role="alert">
             {error}
           </p>
         )}

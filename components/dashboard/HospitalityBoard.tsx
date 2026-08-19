@@ -5,6 +5,8 @@ import { getApiErrorMessage, parseApiResponse } from "@/components/lib/api-types
 import { timesOverlap } from "@/lib/hospitality/conflict";
 import { IconButton } from "@/components/ui/icon-button";
 import { IconPlus, IconX } from "@/components/shared/icons";
+import EmptyState from "@/components/shared/empty-state";
+import Skeleton from "@/components/ui/skeleton";
 
 interface Booking {
   id: string;
@@ -145,15 +147,20 @@ export default function HospitalityBoard() {
       </div>
 
       {error && (
-        <p className="text-sm text-[var(--tmkeen-danger)]" role="alert">
+        <p className="text-sm text-[var(--zaad-danger)]" role="alert">
           {error}
         </p>
       )}
 
       {loading ? (
-        <div className="card py-12 text-center text-sm text-brand-gray">جاري التحميل...</div>
+        <div className="card space-y-3 p-6">
+          <Skeleton lines={4} />
+        </div>
       ) : bookings.length === 0 ? (
-        <div className="card py-12 text-center text-sm text-brand-gray">لا توجد حجوزات بعد</div>
+        <EmptyState
+          title="لا توجد حجوزات بعد"
+          description="أنشئ حجزاً جديداً لقاعة الاجتماعات"
+        />
       ) : (
         <div className="space-y-6">
           {grouped.map(([day, dayBookings]) => (
@@ -166,7 +173,7 @@ export default function HospitalityBoard() {
                     <article
                       key={booking.id}
                       className={`card space-y-2 p-4 ${
-                        conflict ? "border-[var(--tmkeen-danger)]" : ""
+                        conflict ? "border-[var(--zaad-danger)]" : ""
                       }`}
                     >
                       <div className="flex items-start justify-between gap-2">
@@ -202,7 +209,7 @@ export default function HospitalityBoard() {
                         </p>
                       )}
                       {conflict && (
-                        <p className="text-xs font-semibold text-[var(--tmkeen-danger)]">
+                        <p className="text-xs font-semibold text-[var(--zaad-danger)]">
                           يوجد حجز متعارض في نفس القاعة خلال هذا الوقت
                         </p>
                       )}
@@ -366,7 +373,7 @@ export default function HospitalityBoard() {
               </div>
 
               {formError && (
-                <p className="text-sm text-[var(--tmkeen-danger)] sm:col-span-2" role="alert">
+                <p className="text-sm text-[var(--zaad-danger)] sm:col-span-2" role="alert">
                   {formError}
                 </p>
               )}

@@ -313,8 +313,8 @@ export default function UatEvaluationForm() {
                             className={`rounded-lg px-3 py-1 text-xs font-semibold ${
                               result.works === option.value
                                 ? option.value === "yes"
-                                  ? "bg-[var(--tmkeen-success)] text-white"
-                                  : "bg-[var(--tmkeen-danger)] text-white"
+                                  ? "bg-[var(--zaad-success)] text-white"
+                                  : "bg-[var(--zaad-danger)] text-white"
                                 : "border border-surface-border bg-surface text-brand-gray"
                             }`}
                             onClick={() =>
@@ -408,7 +408,7 @@ export default function UatEvaluationForm() {
             </button>
             <button
               type="button"
-              className="btn-secondary border-[var(--tmkeen-danger)] text-sm text-[var(--tmkeen-danger)]"
+              className="btn-secondary border-[var(--zaad-danger)] text-sm text-[var(--zaad-danger)]"
               onClick={resetAll}
             >
               إعادة تعيين

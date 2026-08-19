@@ -231,7 +231,7 @@
   position: fixed;
   inset: 0;
   z-index: var(--z-drawer);
-  background: var(--tmkeen-overlay);
+  background: var(--zaad-overlay);
 }
 .zad-drawer {
   position: fixed;

@@ -43,7 +43,7 @@ export default function ResetPasswordForm({ token }: { token: string | null }) {
         return;
       }
       setDone(true);
-      window.setTimeout(() => router.push("/login"), 2500);
+      window.setTimeout(() => router.push("/"), 2500);
     } catch (err) {
       setError(err instanceof Error ? err.message : "حدث خطأ في الاتصال");
     } finally {
@@ -53,7 +53,7 @@ export default function ResetPasswordForm({ token }: { token: string | null }) {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-surface-muted p-6">
-      <div className="w-full max-w-md space-y-4 rounded-lg border border-surface-border bg-surface p-6 shadow-sm">
+      <div className="card w-full max-w-md space-y-4">
         <div className="flex flex-col items-center gap-3 text-center">
           <BrandLogo size="lg" />
           <h1 className="text-xl font-bold text-primary">تعيين كلمة مرور جديدة</h1>
@@ -96,7 +96,7 @@ export default function ResetPasswordForm({ token }: { token: string | null }) {
             />
 
             {error && (
-              <p className="text-sm font-semibold text-[var(--tmkeen-danger)]" role="alert">
+              <p className="text-sm font-semibold text-[var(--zaad-danger)]" role="alert">
                 {error}
               </p>
             )}

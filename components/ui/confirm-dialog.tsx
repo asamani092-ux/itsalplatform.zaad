@@ -50,7 +50,7 @@ export default function ConfirmDialog({
             type="button"
             className={
               destructive
-                ? "btn-secondary flex-1 border-[var(--tmkeen-danger)] text-[var(--tmkeen-danger)]"
+                ? "btn-secondary flex-1 border-[var(--zaad-danger)] text-[var(--zaad-danger)]"
                 : "btn-primary flex-1"
             }
             disabled={busy}

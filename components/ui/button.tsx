@@ -15,7 +15,7 @@ export function Button({
     variant === "primary"
       ? "btn-primary zad-touch rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
       : variant === "danger"
-        ? "btn-secondary zad-touch rounded-lg border-[var(--tmkeen-danger)] text-[var(--tmkeen-danger)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+        ? "btn-secondary zad-touch rounded-lg border-[var(--zaad-danger)] text-[var(--zaad-danger)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
         : "btn-secondary zad-touch rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2";
 
   return (

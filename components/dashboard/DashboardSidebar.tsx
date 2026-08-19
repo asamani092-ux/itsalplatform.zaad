@@ -44,7 +44,7 @@ export default function DashboardSidebar({
 
   async function handleLogout() {
     await fetch("/api/auth/logout", { method: "POST" });
-    router.push("/login");
+    router.push("/");
     router.refresh();
   }
 
@@ -93,7 +93,7 @@ export default function DashboardSidebar({
       <div className="border-t border-surface-border p-3">
         <button
           type="button"
-          className="w-full bg-transparent px-3 py-2 text-sm text-[var(--tmkeen-danger)] transition-colors hover:bg-surface-muted"
+          className="w-full bg-transparent px-3 py-2 text-sm text-[var(--zaad-danger)] transition-colors hover:bg-surface-muted"
           onClick={() => void handleLogout()}
         >
           تسجيل الخروج
