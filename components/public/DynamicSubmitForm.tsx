@@ -8,6 +8,7 @@ import {
   DEFAULT_FORM_SETTINGS,
   type FormSettingsData,
 } from "@/lib/forms/schema";
+import Stepper from "@/components/ui/stepper";
 
 interface Department {
   id: string;
@@ -260,6 +261,14 @@ export default function DynamicSubmitForm({
   if (submittedId) {
     return (
       <div className="space-y-4 text-center" role="status">
+        <Stepper
+          currentId="done"
+          steps={[
+            { id: "fill", label: "تعبئة الطلب" },
+            { id: "send", label: "الإرسال" },
+            { id: "done", label: "التأكيد" },
+          ]}
+        />
         <span className="badge-success">{settings.successTitle}</span>
         <div className="card-section space-y-2 text-sm text-brand-gray">
           <p>
@@ -288,22 +297,30 @@ export default function DynamicSubmitForm({
 
   return (
     <form onSubmit={(e) => void handleSubmit(e)} className="w-full space-y-4">
+      <Stepper
+        currentId={submitting ? "send" : "fill"}
+        steps={[
+          { id: "fill", label: "تعبئة الطلب" },
+          { id: "send", label: "الإرسال" },
+          { id: "done", label: "التأكيد" },
+        ]}
+      />
       {preview && (
-        <div className="rounded-lg border border-primary bg-[color-mix(in_srgb,var(--tmkeen-primary)_8%,transparent)] px-3 py-2 text-xs text-brand-gray">
+        <div className="rounded-lg border border-primary bg-[color-mix(in_srgb,var(--zaad-primary)_8%,transparent)] px-3 py-2 text-xs text-brand-gray">
           وضع المعاينة — هذا ما يراه مقدّم الطلب. الإرسال يعمل للاختبار.
         </div>
       )}
       {loading ? (
         <div className="flex items-center justify-center gap-3 py-8">
           <div
-            className="h-8 w-8 animate-pulse rounded-full bg-[color-mix(in_srgb,var(--tmkeen-primary)_15%,transparent)]"
+            className="h-8 w-8 animate-pulse rounded-full bg-[color-mix(in_srgb,var(--zaad-primary)_15%,transparent)]"
             aria-hidden
           />
           <p className="text-sm text-brand-gray">جاري تحميل النموذج...</p>
         </div>
       ) : error && !departments.length ? (
         <div className="space-y-3">
-          <p className="text-sm text-[var(--tmkeen-danger)]" role="alert">
+          <p className="text-sm text-[var(--zaad-danger)]" role="alert">
             {error}
           </p>
           <button
@@ -341,7 +358,7 @@ export default function DynamicSubmitForm({
               ))}
             </select>
             {fieldErrors.departmentId && (
-              <p id="department-error" className="text-xs text-[var(--tmkeen-danger)]">
+              <p id="department-error" className="text-xs text-[var(--zaad-danger)]">
                 {fieldErrors.departmentId}
               </p>
             )}
@@ -373,7 +390,7 @@ export default function DynamicSubmitForm({
               ))}
             </select>
             {fieldErrors.requestTypeId && (
-              <p id="requestType-error" className="text-xs text-[var(--tmkeen-danger)]">
+              <p id="requestType-error" className="text-xs text-[var(--zaad-danger)]">
                 {fieldErrors.requestTypeId}
               </p>
             )}
@@ -398,7 +415,7 @@ export default function DynamicSubmitForm({
               required
             />
             {fieldErrors.title && (
-              <p id="title-error" className="text-xs text-[var(--tmkeen-danger)]">
+              <p id="title-error" className="text-xs text-[var(--zaad-danger)]">
                 {fieldErrors.title}
               </p>
             )}
@@ -426,7 +443,7 @@ export default function DynamicSubmitForm({
                 required={fields.description.required}
               />
               {fieldErrors.description && (
-                <p id="description-error" className="text-xs text-[var(--tmkeen-danger)]">
+                <p id="description-error" className="text-xs text-[var(--zaad-danger)]">
                   {fieldErrors.description}
                 </p>
               )}
@@ -457,7 +474,7 @@ export default function DynamicSubmitForm({
                 required={fields.requiredDate.required}
               />
               {fieldErrors.requiredDate && (
-                <p id="requiredDate-error" className="text-xs text-[var(--tmkeen-danger)]">
+                <p id="requiredDate-error" className="text-xs text-[var(--zaad-danger)]">
                   {fieldErrors.requiredDate}
                 </p>
               )}
@@ -483,7 +500,7 @@ export default function DynamicSubmitForm({
                 required
               />
               {fieldErrors.visitDate && (
-                <p id="visitDate-error" className="text-xs text-[var(--tmkeen-danger)]">
+                <p id="visitDate-error" className="text-xs text-[var(--zaad-danger)]">
                   {fieldErrors.visitDate}
                 </p>
               )}
@@ -510,7 +527,7 @@ export default function DynamicSubmitForm({
               required
             />
             {fieldErrors.contactEmail && (
-              <p id="contactEmail-error" className="text-xs text-[var(--tmkeen-danger)]">
+              <p id="contactEmail-error" className="text-xs text-[var(--zaad-danger)]">
                 {fieldErrors.contactEmail}
               </p>
             )}
@@ -542,7 +559,7 @@ export default function DynamicSubmitForm({
                 required={fields.contactPhone.required}
               />
               {fieldErrors.contactPhone && (
-                <p id="contactPhone-error" className="text-xs text-[var(--tmkeen-danger)]">
+                <p id="contactPhone-error" className="text-xs text-[var(--zaad-danger)]">
                   {fieldErrors.contactPhone}
                 </p>
               )}
@@ -550,7 +567,7 @@ export default function DynamicSubmitForm({
           )}
 
           {error && (
-            <p className="text-sm text-[var(--tmkeen-danger)]" role="alert">
+            <p className="text-sm text-[var(--zaad-danger)]" role="alert">
               {error}
             </p>
           )}

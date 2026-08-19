@@ -10,7 +10,7 @@ test("legacy manager APIs reject unauthenticated requests", async ({ request }) 
 
 test("employee session cannot access manager KPIs", async ({ request }) => {
   const login = await request.post("/api/auth/login", {
-    data: { phoneNumber: "0500000002", password: "password123" },
+    data: { email: "sara.comm@zaad.org", password: "password123" },
   });
   expect(login.ok()).toBeTruthy();
 

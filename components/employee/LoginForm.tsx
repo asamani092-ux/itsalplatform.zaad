@@ -12,7 +12,7 @@ import BrandLogo from "@/components/shared/brand-logo";
 export default function LoginForm({ nextUrl }: { nextUrl?: string | null }) {
   const router = useRouter();
 
-  const [phoneNumber, setPhoneNumber] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState("");
@@ -27,7 +27,7 @@ export default function LoginForm({ nextUrl }: { nextUrl?: string | null }) {
       const res = await fetchWithTimeout("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phoneNumber, password, rememberMe }),
+        body: JSON.stringify({ email, password, rememberMe }),
       });
       const payload = await parseApiResponse<{
         user: { role: string };
@@ -52,10 +52,10 @@ export default function LoginForm({ nextUrl }: { nextUrl?: string | null }) {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-surface-muted p-6">
+    <div className="flex min-h-[100dvh] items-center justify-center bg-surface-muted p-4 sm:p-6">
       <form
         onSubmit={(e) => void handleSubmit(e)}
-        className="w-full max-w-md space-y-4 rounded-lg border border-surface-border bg-surface p-6 shadow-sm"
+        className="card w-full max-w-md space-y-4 p-4 sm:p-6"
       >
         <div className="flex flex-col items-center gap-3 text-center">
           <BrandLogo size="lg" />
@@ -66,41 +66,47 @@ export default function LoginForm({ nextUrl }: { nextUrl?: string | null }) {
         </div>
 
         <Input
-          id="phone"
-          label="رقم الهاتف"
+          id="email"
+          label="البريد الإلكتروني"
+          type="email"
           dir="ltr"
-          value={phoneNumber}
-          onChange={(e) => setPhoneNumber(e.target.value)}
-          placeholder="05xxxxxxxx"
+          autoComplete="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="name@zaad.org"
           required
         />
         <Input
           id="password"
           label="كلمة المرور"
           type="password"
+          autoComplete="current-password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           required
         />
 
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <label className="flex items-center gap-2 text-sm text-brand-gray" htmlFor="remember">
+          <label
+            className="zad-touch inline-flex cursor-pointer items-center gap-2 text-sm text-brand-gray"
+            htmlFor="remember"
+          >
             <input
               id="remember"
               type="checkbox"
-              className="h-4 w-4 accent-[var(--tmkeen-primary)]"
+              className="h-4 w-4 accent-[var(--zaad-primary)]"
               checked={rememberMe}
               onChange={(e) => setRememberMe(e.target.checked)}
             />
             تذكرني
           </label>
-          <Link href="/forgot-password" className="text-sm text-primary underline">
+          <Link href="/forgot-password" className="zad-touch inline-flex items-center text-sm text-primary underline">
             نسيت كلمة المرور؟
           </Link>
         </div>
 
         {error && (
-          <p className="text-sm font-semibold text-[var(--tmkeen-danger)]" role="alert">
+          <p className="text-sm font-semibold text-[var(--zaad-danger)]" role="alert">
             {error}
           </p>
         )}

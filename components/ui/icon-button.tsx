@@ -13,11 +13,11 @@ interface IconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 const TONE_CLASSES: Record<IconButtonTone, string> = {
   neutral:
-    "text-brand-gray hover:bg-[color-mix(in_srgb,var(--tmkeen-primary)_8%,transparent)] hover:text-primary",
+    "text-brand-gray hover:bg-[color-mix(in_srgb,var(--zaad-primary)_8%,transparent)] hover:text-primary",
   primary:
-    "text-primary hover:bg-[color-mix(in_srgb,var(--tmkeen-primary)_8%,transparent)]",
+    "text-primary hover:bg-[color-mix(in_srgb,var(--zaad-primary)_8%,transparent)]",
   danger:
-    "text-[var(--tmkeen-danger)] hover:bg-[var(--tmkeen-danger-bg)]",
+    "text-[var(--zaad-danger)] hover:bg-[var(--zaad-danger-bg)]",
 };
 
 /**
@@ -37,7 +37,7 @@ export function IconButton({
       type={type}
       aria-label={label}
       title={label}
-      className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] border border-transparent bg-transparent transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--tmkeen-primary)] disabled:cursor-not-allowed disabled:opacity-50 ${TONE_CLASSES[tone]} ${className}`}
+      className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--radius-md)] border border-transparent bg-transparent transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--zaad-primary)] disabled:cursor-not-allowed disabled:opacity-50 ${TONE_CLASSES[tone]} ${className}`}
       {...props}
     >
       {icon}
@@ -62,7 +62,7 @@ export function IconLinkButton({
     <a
       aria-label={label}
       title={label}
-      className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] border border-transparent bg-transparent transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--tmkeen-primary)] ${TONE_CLASSES[tone]} ${className}`}
+      className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--radius-md)] border border-transparent bg-transparent transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--zaad-primary)] ${TONE_CLASSES[tone]} ${className}`}
       {...props}
     >
       {icon}

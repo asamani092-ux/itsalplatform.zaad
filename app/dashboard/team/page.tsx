@@ -10,6 +10,8 @@ import {
   IconTrash,
   IconX,
 } from "@/components/shared/icons";
+import ConfirmDialog from "@/components/ui/confirm-dialog";
+import Skeleton from "@/components/ui/skeleton";
 
 interface Employee {
   id: string;
@@ -154,7 +156,7 @@ function MemberModal({
           </div>
 
           {error && (
-            <p className="text-sm text-[var(--tmkeen-danger)] sm:col-span-2" role="alert">
+            <p className="text-sm text-[var(--zaad-danger)] sm:col-span-2" role="alert">
               {error}
             </p>
           )}
@@ -320,7 +322,7 @@ export default function DashboardTeamPage() {
       </div>
 
       {error && (
-        <p className="text-sm text-[var(--tmkeen-danger)]" role="alert">
+        <p className="text-sm text-[var(--zaad-danger)]" role="alert">
           {error}
         </p>
       )}
@@ -344,8 +346,8 @@ export default function DashboardTeamPage() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={5} className="py-8 text-center">
-                  جاري التحميل...
+                <td colSpan={5} className="py-6">
+                  <Skeleton lines={3} />
                 </td>
               </tr>
             ) : (
@@ -397,34 +399,20 @@ export default function DashboardTeamPage() {
         error={modalError}
       />
 
-      {deleteTarget && (
-        <div className="modal-overlay" role="dialog" aria-modal="true">
-          <div className="modal-panel card space-y-4">
-            <h2 className="text-lg font-bold text-primary">تأكيد الحذف</h2>
-            <p className="text-sm text-brand-gray">
-              هل أنت متأكد من حذف «{deleteTarget.name}»؟ إذا كانت له طلبات مرتبطة سيُعطَّل
-              الحساب بدل حذفه للحفاظ على سجل الطلبات.
-            </p>
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <button
-                type="button"
-                className="btn-secondary flex-1"
-                onClick={() => setDeleteTarget(null)}
-              >
-                إلغاء
-              </button>
-              <button
-                type="button"
-                className="btn-primary flex-1 border-[var(--tmkeen-danger)] bg-[var(--tmkeen-danger)]"
-                disabled={submitting}
-                onClick={() => void handleDelete()}
-              >
-                {submitting ? "جاري..." : "تأكيد"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        title="تأكيد الحذف"
+        body={
+          deleteTarget
+            ? `هل أنت متأكد من حذف «${deleteTarget.name}»؟ إذا كانت له طلبات مرتبطة سيُعطَّل الحساب بدل حذفه للحفاظ على سجل الطلبات.`
+            : undefined
+        }
+        confirmLabel="تأكيد"
+        destructive
+        busy={submitting}
+        onConfirm={() => void handleDelete()}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   );
 }

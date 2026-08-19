@@ -319,7 +319,7 @@ export default function RequestFormsManager({
       </div>
 
       {error && (
-        <p className="text-sm text-[var(--tmkeen-danger)]" role="alert">
+        <p className="text-sm text-[var(--zaad-danger)]" role="alert">
           {error}
         </p>
       )}
@@ -342,7 +342,7 @@ export default function RequestFormsManager({
                   type="button"
                   className={
                     draft.isPublished
-                      ? "btn-secondary border-[var(--tmkeen-danger)] text-sm text-[var(--tmkeen-danger)]"
+                      ? "btn-secondary border-[var(--zaad-danger)] text-sm text-[var(--zaad-danger)]"
                       : "btn-primary text-sm"
                   }
                   onClick={() => patchDraft({ isPublished: !draft.isPublished })}
@@ -551,7 +551,7 @@ export default function RequestFormsManager({
                         disabled={locked || !field.enabled}
                         className={`rounded-lg px-3 py-1 text-xs font-semibold disabled:opacity-50 ${
                           field.required
-                            ? "bg-secondary text-[var(--tmkeen-warning)]"
+                            ? "bg-secondary text-[var(--zaad-warning)]"
                             : "border border-surface-border bg-surface text-brand-gray"
                         }`}
                         onClick={() => patchField(key, { required: !field.required })}

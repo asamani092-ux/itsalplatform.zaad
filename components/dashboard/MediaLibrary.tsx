@@ -2,7 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getApiErrorMessage, parseApiResponse } from "@/components/lib/api-types";
+import EmptyState from "@/components/shared/empty-state";
 import { IconButton, IconLinkButton } from "@/components/ui/icon-button";
+import Chip from "@/components/ui/chip";
+import ConfirmDialog from "@/components/ui/confirm-dialog";
+import Dropzone from "@/components/ui/dropzone";
+import FilterBar from "@/components/ui/filter-bar";
+import Skeleton from "@/components/ui/skeleton";
+import { useToast } from "@/components/ui/toast";
 import {
   IconDownload,
   IconEye,
@@ -65,6 +72,7 @@ function inferCategoryFromUrl(url: string): string {
 }
 
 export default function MediaLibrary() {
+  const { pushToast } = useToast();
   const [documents, setDocuments] = useState<MediaDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -147,6 +155,7 @@ export default function MediaLibrary() {
 
       setModalOpen(false);
       setForm({ title: "", description: "", category: "document", file: null });
+      pushToast("تم رفع الوثيقة بنجاح", "success");
       await load();
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "خطأ");
@@ -167,6 +176,7 @@ export default function MediaLibrary() {
         throw new Error(getApiErrorMessage(payload, "فشل الحذف"));
       }
       setDeleteTarget(null);
+      pushToast("تم حذف الوثيقة", "success");
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "خطأ");
@@ -192,7 +202,12 @@ export default function MediaLibrary() {
         </button>
       </div>
 
-      <div className="flex flex-col gap-3 sm:flex-row">
+      <FilterBar
+        onClear={() => {
+          setQuery("");
+          setCategory("all");
+        }}
+      >
         <div className="relative w-full sm:max-w-sm">
           <span className="pointer-events-none absolute inset-y-0 start-3 flex items-center text-brand-gray">
             <IconSearch size={18} />
@@ -207,32 +222,40 @@ export default function MediaLibrary() {
         </div>
         <div className="flex flex-wrap gap-2">
           {CATEGORIES.map((item) => (
-            <button
+            <Chip
               key={item.id}
-              type="button"
-              className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${
-                category === item.id
-                  ? "bg-primary text-white"
-                  : "border border-surface-border bg-surface text-brand-gray"
-              }`}
+              label={item.label}
+              active={category === item.id}
               onClick={() => setCategory(item.id)}
-            >
-              {item.label}
-            </button>
+            />
           ))}
         </div>
-      </div>
+      </FilterBar>
 
       {error && (
-        <p className="text-sm text-[var(--tmkeen-danger)]" role="alert">
+        <p className="text-sm text-[var(--zaad-danger)]" role="alert">
           {error}
         </p>
       )}
 
       {loading ? (
-        <div className="card py-12 text-center text-sm text-brand-gray">جاري التحميل...</div>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="card p-4">
+              <Skeleton lines={4} />
+            </div>
+          ))}
+        </div>
       ) : filtered.length === 0 ? (
-        <div className="card py-12 text-center text-sm text-brand-gray">لا توجد وثائق مطابقة</div>
+        <EmptyState
+          title="لا توجد وثائق مطابقة"
+          description="عدّل المرشّحات أو ارفع وثيقة جديدة"
+          action={
+            <button type="button" className="btn-primary text-sm" onClick={() => setModalOpen(true)}>
+              رفع وثيقة
+            </button>
+          }
+        />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {filtered.map((doc) => (
@@ -334,22 +357,16 @@ export default function MediaLibrary() {
                 </select>
               </div>
               <div className="space-y-1">
-                <label className="label-field" htmlFor="doc-file">
-                  الملف (PDF / PNG / JPG)
-                </label>
-                <input
-                  id="doc-file"
-                  type="file"
+                <p className="label-field">الملف (PDF / PNG / JPG)</p>
+                <Dropzone
                   accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg"
-                  className="input-field w-full"
-                  onChange={(e) =>
-                    setForm({ ...form, file: e.target.files?.[0] ?? null })
-                  }
-                  required
+                  hint={form.file ? form.file.name : "الحد الأقصى حسب إعدادات الرفع"}
+                  disabled={submitting}
+                  onFiles={(files) => setForm({ ...form, file: files[0] ?? null })}
                 />
               </div>
               {formError && (
-                <p className="text-sm text-[var(--tmkeen-danger)]" role="alert">
+                <p className="text-sm text-[var(--zaad-danger)]" role="alert">
                   {formError}
                 </p>
               )}
@@ -370,32 +387,21 @@ export default function MediaLibrary() {
         </div>
       )}
 
-      {deleteTarget && (
-        <div className="modal-overlay" role="dialog" aria-modal="true">
-          <div className="modal-panel card space-y-4">
-            <h2 className="text-lg font-bold text-primary">تأكيد الحذف</h2>
-            <p className="text-sm text-brand-gray">هل أنت متأكد من حذف هذه الوثيقة؟</p>
-            <p className="font-semibold text-primary">{deleteTarget.title}</p>
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <button
-                type="button"
-                className="btn-secondary flex-1"
-                onClick={() => setDeleteTarget(null)}
-              >
-                إلغاء
-              </button>
-              <button
-                type="button"
-                className="btn-primary flex-1 border-[var(--tmkeen-danger)] bg-[var(--tmkeen-danger)]"
-                disabled={submitting}
-                onClick={() => void handleDelete()}
-              >
-                {submitting ? "جاري الحذف..." : "حذف"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        title="تأكيد الحذف"
+        body={
+          <p>
+            هل أنت متأكد من حذف الوثيقة{" "}
+            <span className="font-semibold text-primary">{deleteTarget?.title}</span>؟
+          </p>
+        }
+        confirmLabel="حذف"
+        destructive
+        busy={submitting}
+        onConfirm={() => void handleDelete()}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   );
 }

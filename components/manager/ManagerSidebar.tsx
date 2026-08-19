@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import BrandLogo from "@/components/shared/brand-logo";
 
 const NAV = [
   { href: "/manager", label: "لوحة KPI" },
@@ -18,15 +18,18 @@ export default function ManagerSidebar() {
 
   async function handleLogout() {
     await fetch("/api/auth/logout", { method: "POST" });
-    router.push("/login");
+    router.push("/");
     router.refresh();
   }
 
   return (
-    <aside className="flex w-full flex-col gap-1 border-b border-surface-border bg-surface p-4 lg:min-h-screen lg:w-56 lg:border-b-0 lg:border-l">
-      <div className="mb-4">
-        <p className="text-xs text-brand-gray">جمعية الزاد</p>
-        <p className="font-bold text-primary">مركز التحكم</p>
+    <aside className="flex w-full flex-col gap-1 border-b border-surface-border bg-surface p-4 lg:min-h-screen lg:w-56 lg:border-b-0 lg:border-inline-start">
+      <div className="mb-4 space-y-2">
+        <BrandLogo size="sm" />
+        <div>
+          <p className="text-xs text-brand-gray">جمعية الزاد</p>
+          <p className="font-bold text-primary">مركز التحكم</p>
+        </div>
       </div>
       <nav className="flex flex-wrap gap-2 lg:flex-col">
         {NAV.map((item) => {
@@ -38,7 +41,7 @@ export default function ManagerSidebar() {
             <Link
               key={item.href}
               href={item.href}
-              className={`rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
+              className={`zad-touch inline-flex items-center rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
                 active
                   ? "bg-primary text-white"
                   : "text-primary hover:bg-surface-muted"

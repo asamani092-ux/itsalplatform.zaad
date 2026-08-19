@@ -8,6 +8,8 @@ import RequestCard, {
 import { formatDurationMs } from "@/components/shared/format-sla";
 import { getApiErrorMessage, parseApiResponse } from "@/components/lib/api-types";
 import { IconButton } from "@/components/ui/icon-button";
+import FilterBar from "@/components/ui/filter-bar";
+import SlideOver from "@/components/ui/slide-over";
 import { IconRefresh, IconSend } from "@/components/shared/icons";
 
 type BoardTab = "board" | "archive";
@@ -17,21 +19,21 @@ const COLUMNS = [
     id: "approved",
     status: "Approved_Pending_Assignment",
     title: "جديد (معتمد)",
-    headerClass: "border-secondary bg-[color-mix(in_srgb,var(--tmkeen-secondary)_18%,white)]",
+    headerClass: "border-secondary bg-[color-mix(in_srgb,var(--zaad-secondary)_18%,white)]",
     dropTarget: false,
   },
   {
     id: "in_progress",
     status: "In_Progress",
     title: "قيد التنفيذ",
-    headerClass: "border-primary bg-[color-mix(in_srgb,var(--tmkeen-primary)_10%,white)]",
+    headerClass: "border-primary bg-[color-mix(in_srgb,var(--zaad-primary)_10%,white)]",
     dropTarget: false,
   },
   {
     id: "completed",
     status: "Completed",
     title: "مكتمل",
-    headerClass: "border-[var(--tmkeen-success)] bg-[var(--tmkeen-success-bg)]",
+    headerClass: "border-[var(--zaad-success)] bg-[var(--zaad-success-bg)]",
     dropTarget: true,
   },
 ] as const;
@@ -47,6 +49,8 @@ export default function KanbanBoard() {
   const [error, setError] = useState<string | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dropHighlight, setDropHighlight] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const [detailId, setDetailId] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -184,10 +188,18 @@ export default function KanbanBoard() {
 
   const boardRequests = requests.filter(
     (r) =>
-      r.status === "Approved_Pending_Assignment" ||
-      r.status === "In_Progress" ||
-      r.status === "Completed",
+      (r.status === "Approved_Pending_Assignment" ||
+        r.status === "In_Progress" ||
+        r.status === "Completed") &&
+      (!query.trim() ||
+        r.title.includes(query.trim()) ||
+        r.contactEmail.includes(query.trim())),
   );
+
+  const detailRequest =
+    requests.find((r) => r.id === detailId) ??
+    pendingRequests.find((r) => r.id === detailId) ??
+    null;
 
   return (
     <div className="space-y-6">
@@ -202,16 +214,12 @@ export default function KanbanBoard() {
         />
       </div>
 
-      <div className="flex flex-wrap gap-2" role="tablist" aria-label="عرض اللوحة">
+      <div className="tab-bar" role="tablist" aria-label="عرض اللوحة">
         <button
           type="button"
           role="tab"
           aria-selected={tab === "board"}
-          className={`rounded-lg px-4 py-2 text-sm font-semibold focus-visible:ring-2 focus-visible:ring-primary/20 ${
-            tab === "board"
-              ? "bg-primary text-white"
-              : "bg-surface border border-surface-border text-brand-gray"
-          }`}
+          data-active={tab === "board" ? "true" : "false"}
           onClick={() => setTab("board")}
         >
           اللوحة
@@ -220,16 +228,22 @@ export default function KanbanBoard() {
           type="button"
           role="tab"
           aria-selected={tab === "archive"}
-          className={`rounded-lg px-4 py-2 text-sm font-semibold focus-visible:ring-2 focus-visible:ring-primary/20 ${
-            tab === "archive"
-              ? "bg-primary text-white"
-              : "bg-surface border border-surface-border text-brand-gray"
-          }`}
+          data-active={tab === "archive" ? "true" : "false"}
           onClick={() => setTab("archive")}
         >
           الأرشيف ({archiveRequests.length})
         </button>
       </div>
+
+      <FilterBar onClear={() => setQuery("")}>
+        <input
+          className="input-field w-full sm:max-w-sm"
+          placeholder="تصفية بالعنوان أو البريد..."
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          aria-label="تصفية الطلبات"
+        />
+      </FilterBar>
 
       {tab === "board" && pendingRequests.length > 0 && (
         <section className="space-y-3">
@@ -258,15 +272,24 @@ export default function KanbanBoard() {
                 <p className="text-[10px] text-brand-gray" dir="ltr">
                   {request.contactEmail}
                 </p>
-                <button
-                  type="button"
-                  className="btn-secondary w-full text-xs"
-                  disabled={busy}
-                  onClick={() => void handleResendApproval(request.id)}
-                >
-                  <IconSend size={16} />
-                  إعادة إرسال رابط الموافقة
-                </button>
+                <div className="grid gap-2">
+                  <button
+                    type="button"
+                    className="btn-secondary w-full text-xs"
+                    onClick={() => setDetailId(request.id)}
+                  >
+                    التفاصيل
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-secondary w-full text-xs"
+                    disabled={busy}
+                    onClick={() => void handleResendApproval(request.id)}
+                  >
+                    <IconSend size={16} />
+                    إعادة إرسال رابط الموافقة
+                  </button>
+                </div>
               </article>
             ))}
           </div>
@@ -275,7 +298,7 @@ export default function KanbanBoard() {
 
       {error && (
         <div
-          className="rounded-lg border border-[var(--tmkeen-danger)] bg-[var(--tmkeen-danger-bg)] px-4 py-3 text-sm font-semibold text-[var(--tmkeen-danger)]"
+          className="rounded-lg border border-[var(--zaad-danger)] bg-[var(--zaad-danger-bg)] px-4 py-3 text-sm font-semibold text-[var(--zaad-danger)]"
           role="alert"
         >
           {error}
@@ -285,7 +308,7 @@ export default function KanbanBoard() {
       {loading ? (
         <div className="card flex items-center justify-center gap-3 py-16">
           <div
-            className="h-8 w-8 animate-pulse rounded-full bg-[color-mix(in_srgb,var(--tmkeen-primary)_15%,transparent)]"
+            className="h-8 w-8 animate-pulse rounded-full bg-[color-mix(in_srgb,var(--zaad-primary)_15%,transparent)]"
             aria-hidden
           />
           <p className="text-sm text-brand-gray">جاري تحميل اللوحة...</p>
@@ -302,7 +325,7 @@ export default function KanbanBoard() {
                 key={column.id}
                 className={`flex min-h-[360px] flex-col rounded-xl border-2 border-surface-border bg-surface transition-colors ${
                   dropHighlight === column.id
-                    ? "border-primary bg-[color-mix(in_srgb,var(--tmkeen-primary)_8%,transparent)]"
+                    ? "border-primary bg-[color-mix(in_srgb,var(--zaad-primary)_8%,transparent)]"
                     : ""
                 }`}
                 aria-label={`${column.title} — ${columnRequests.length} بطاقة`}
@@ -331,17 +354,25 @@ export default function KanbanBoard() {
                     <p className="py-12 text-center text-xs text-brand-gray">لا توجد بطاقات</p>
                   ) : (
                     columnRequests.map((request) => (
-                      <RequestCard
-                        key={request.id}
-                        request={request}
-                        employees={employees}
-                        onAssign={handleAssign}
-                        onReassign={handleReassign}
-                        onComplete={handleComplete}
-                        onArchive={handleArchive}
-                        onDragStart={setDraggingId}
-                        busy={busy}
-                      />
+                      <div key={request.id} className="space-y-1">
+                        <RequestCard
+                          request={request}
+                          employees={employees}
+                          onAssign={handleAssign}
+                          onReassign={handleReassign}
+                          onComplete={handleComplete}
+                          onArchive={handleArchive}
+                          onDragStart={setDraggingId}
+                          busy={busy}
+                        />
+                        <button
+                          type="button"
+                          className="btn-secondary w-full text-xs"
+                          onClick={() => setDetailId(request.id)}
+                        >
+                          التفاصيل
+                        </button>
+                      </div>
                     ))
                   )}
                 </div>
@@ -354,10 +385,10 @@ export default function KanbanBoard() {
           <table className="tmkeen-table">
             <thead>
               <tr>
-                <th>الطلب</th>
-                <th>الحالة</th>
-                <th>الموظف</th>
-                <th>SLA إجمالي</th>
+                <th scope="col">الطلب</th>
+                <th scope="col">الحالة</th>
+                <th scope="col">الموظف</th>
+                <th scope="col">SLA إجمالي</th>
               </tr>
             </thead>
             <tbody>
@@ -379,6 +410,40 @@ export default function KanbanBoard() {
           </table>
         </div>
       )}
+
+      <SlideOver
+        open={Boolean(detailRequest)}
+        title={detailRequest?.title ?? "تفاصيل الطلب"}
+        onClose={() => setDetailId(null)}
+      >
+        {detailRequest && (
+          <div className="zad-detail-card space-y-3">
+            <p className="text-sm text-brand-gray">{detailRequest.description}</p>
+            <dl>
+              <div>
+                <dt>الحالة</dt>
+                <dd>{detailRequest.status}</dd>
+              </div>
+              <div>
+                <dt>القسم</dt>
+                <dd>{detailRequest.department?.name ?? "—"}</dd>
+              </div>
+              <div>
+                <dt>نوع الطلب</dt>
+                <dd>{detailRequest.requestType?.name ?? "—"}</dd>
+              </div>
+              <div>
+                <dt>مقدّم الطلب</dt>
+                <dd dir="ltr">{detailRequest.contactEmail}</dd>
+              </div>
+              <div>
+                <dt>المسند إليه</dt>
+                <dd>{detailRequest.assignedEmployee?.name ?? "غير مسند"}</dd>
+              </div>
+            </dl>
+          </div>
+        )}
+      </SlideOver>
     </div>
   );
 }

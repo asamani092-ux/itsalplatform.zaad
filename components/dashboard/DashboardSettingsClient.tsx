@@ -7,6 +7,7 @@ import {
   RequestTypesManager,
 } from "@/components/dashboard/TaxonomyManager";
 import { getApiErrorMessage, parseApiResponse } from "@/components/lib/api-types";
+import Accordion from "@/components/ui/accordion";
 
 type SettingsSection =
   | "modules"
@@ -96,7 +97,7 @@ export default function DashboardSettingsClient({
 
       <div className="min-w-0 flex-1 space-y-4">
         {error && (
-          <p className="text-sm text-[var(--tmkeen-danger)]" role="alert">
+          <p className="text-sm text-[var(--zaad-danger)]" role="alert">
             {error}
           </p>
         )}
@@ -110,25 +111,37 @@ export default function DashboardSettingsClient({
         )}
 
         {section === "routing" && (
-          <div className="card overflow-x-auto p-0">
-            <table className="tmkeen-table">
-              <thead>
-                <tr>
-                  <th>نوع الطلب</th>
-                  <th>الموظف</th>
-                  <th>نشط</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rules.map((r) => (
-                  <tr key={r.id}>
-                    <td>{r.requestType.name}</td>
-                    <td>{r.employee.name}</td>
-                    <td>{r.isActive ? "نعم" : "لا"}</td>
+          <div className="space-y-4">
+            <Accordion
+              items={[
+                {
+                  id: "help",
+                  title: "كيف تعمل قواعد التوجيه؟",
+                  content:
+                    "عند موافقة المدير يُسند الطلب تلقائياً للموظف المرتبط بنوع الطلب إن وُجدت قاعدة نشطة.",
+                },
+              ]}
+            />
+            <div className="card overflow-x-auto p-0">
+              <table className="tmkeen-table">
+                <thead>
+                  <tr>
+                    <th scope="col">نوع الطلب</th>
+                    <th scope="col">الموظف</th>
+                    <th scope="col">نشط</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {rules.map((r) => (
+                    <tr key={r.id}>
+                      <td>{r.requestType.name}</td>
+                      <td>{r.employee.name}</td>
+                      <td>{r.isActive ? "نعم" : "لا"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
 

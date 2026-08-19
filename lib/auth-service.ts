@@ -15,9 +15,9 @@ export async function verifyPassword(
   return bcrypt.compare(password, passwordHash);
 }
 
-export async function verifyLogin(phoneNumber: string, password: string) {
+export async function verifyLogin(email: string, password: string) {
   const employee = await prisma.commEmployee.findUnique({
-    where: { phoneNumber },
+    where: { email: email.trim().toLowerCase() },
   });
 
   if (!employee || !employee.isActive) {

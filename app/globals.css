@@ -1,11 +1,12 @@
-@import "../Design_system_f/uploads/design-system/tokens.css";
-@import "../Design_system_f/uploads/design-system/components.css";
+@import "@zaad/design-system/tokens.css";
+@import "@zaad/design-system/components.css";
+@import "./zaad-extensions.css";
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Compatibility aliases — values sourced from Design_system_f tokens */
+/* Compatibility aliases for existing --zaad-* references in the app */
 :root {
   --zaad-primary: var(--tmkeen-primary);
   --zaad-primary-dark: var(--tmkeen-primary-dark);
@@ -32,7 +33,7 @@
   --zaad-radius-xl: var(--tmkeen-radius-xl);
 }
 
-.zaad-root,
+.zad-root,
 .tmkeen-root {
   color: var(--tmkeen-foreground);
   background: var(--tmkeen-background);
@@ -70,9 +71,24 @@ body {
   text-align: start;
 }
 
+/* Force light form controls — OS dark preference must not darken inputs */
+.input-field,
+select.input-field,
+textarea.input-field {
+  background: var(--neutral-0);
+  color: var(--neutral-800);
+  border-color: var(--border-default);
+  color-scheme: light;
+}
+.input-field::placeholder,
+textarea.input-field::placeholder {
+  color: var(--text-muted);
+}
 .input-field:focus-visible,
 select.input-field:focus-visible,
 textarea.input-field:focus-visible {
   outline: 2px solid var(--tmkeen-primary);
   outline-offset: 2px;
+  background: var(--neutral-0);
+  color: var(--neutral-800);
 }

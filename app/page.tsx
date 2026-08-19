@@ -1,30 +1,12 @@
-import Link from "next/link";
-import BrandLogo from "@/components/shared/brand-logo";
+import LoginForm from "@/components/employee/LoginForm";
 
 export const dynamic = "force-dynamic";
 
-export default function HomePage() {
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-surface-muted p-4 sm:p-6">
-      <main className="w-full max-w-md space-y-6 text-center">
-        <div className="flex flex-col items-center gap-3">
-          <BrandLogo size="lg" />
-          <h1 className="text-lg font-bold text-primary">منصة الاتصال المؤسسي</h1>
-        </div>
-
-        <div className="rounded-lg border border-surface-border bg-surface p-6 shadow-sm">
-          <p className="text-sm text-brand-gray">
-            منصة إدارية لقسم الاتصال المؤسسي — الدخول مخصص لمنسوبي الجمعية.
-          </p>
-          <Link href="/login" className="btn-primary mt-4 w-full justify-center">
-            دخول المنصة
-          </Link>
-        </div>
-
-        <p className="text-xs text-brand-gray">
-          تحت إشراف المركز الوطني لتنمية القطاع غير الربحي
-        </p>
-      </main>
-    </div>
-  );
+export default async function HomePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ next?: string }>;
+}) {
+  const { next } = await searchParams;
+  return <LoginForm nextUrl={next ?? null} />;
 }

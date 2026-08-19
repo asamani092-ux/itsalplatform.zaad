@@ -15,16 +15,16 @@ export async function POST(request: NextRequest) {
     }
 
     const body = (await request.json()) as {
-      phoneNumber?: string;
+      email?: string;
       password?: string;
       rememberMe?: boolean;
     };
 
-    if (!body.phoneNumber?.trim() || !body.password) {
-      return jsonError("رقم الهاتف وكلمة المرور مطلوبان", "VALIDATION", 400);
+    if (!body.email?.trim() || !body.password) {
+      return jsonError("البريد الإلكتروني وكلمة المرور مطلوبان", "VALIDATION", 400);
     }
 
-    const user = await verifyLogin(body.phoneNumber.trim(), body.password);
+    const user = await verifyLogin(body.email, body.password);
     if (!user) {
       return jsonError("بيانات الدخول غير صحيحة", "INVALID_CREDENTIALS", 401);
     }

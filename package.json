@@ -8,8 +8,9 @@
   "scripts": {
     "dev": "next dev -p 3001",
     "dev:remote": "npm run build && next start -p 3001",
-    "build": "next build",
-    "start": "next start -H 0.0.0.0 -p 3001",
+    "build": "next build && node scripts/prepare-standalone.mjs",
+    "start": "HOSTNAME=0.0.0.0 PORT=3001 node .next/standalone/server.js",
+    "start:3002": "HOSTNAME=0.0.0.0 PORT=3002 node .next/standalone/server.js",
     "lint": "next lint",
     "db:migrate": "prisma migrate dev",
     "db:migrate:deploy": "prisma migrate deploy",
@@ -25,6 +26,7 @@
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
+    "@zaad/design-system": "github:asamani092-ux/designSystemFinal#v1.2.0",
     "bcryptjs": "^3.0.3",
     "jose": "^6.2.3",
     "next": "15.3.9",

@@ -9,7 +9,7 @@ import { getApiErrorMessage, parseApiResponse } from "@/components/lib/api-types
 import { fetchWithTimeout } from "@/lib/client/fetch-with-timeout";
 
 export default function ForgotPasswordForm() {
-  const [phoneNumber, setPhoneNumber] = useState("");
+  const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [sent, setSent] = useState(false);
@@ -22,7 +22,7 @@ export default function ForgotPasswordForm() {
       const res = await fetchWithTimeout("/api/auth/forgot-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phoneNumber }),
+        body: JSON.stringify({ email }),
       });
       const payload = await parseApiResponse<{ message: string }>(res);
       if (!res.ok || !payload.success) {
@@ -38,14 +38,14 @@ export default function ForgotPasswordForm() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-surface-muted p-6">
-      <div className="w-full max-w-md space-y-4 rounded-lg border border-surface-border bg-surface p-6 shadow-sm">
+    <div className="flex min-h-[100dvh] items-center justify-center bg-surface-muted p-4 sm:p-6">
+      <div className="card w-full max-w-md space-y-4 p-4 sm:p-6">
         <div className="flex flex-col items-center gap-3 text-center">
           <BrandLogo size="lg" />
           <div>
             <h1 className="text-xl font-bold text-primary">استعادة كلمة المرور</h1>
             <p className="text-xs text-brand-gray">
-              أدخل رقم هاتفك وسنرسل رابط إعادة التعيين إلى بريد الحساب
+              أدخل بريد حسابك وسنرسل رابط إعادة التعيين إن وُجد
             </p>
           </div>
         </div>
@@ -54,27 +54,29 @@ export default function ForgotPasswordForm() {
           <div className="space-y-4 text-center" role="status">
             <span className="badge-success">تم الإرسال</span>
             <p className="text-sm text-brand-gray">
-              إذا كان الرقم مسجلاً، فقد أُرسل رابط إعادة التعيين إلى بريد الحساب. الرابط
-              صالح لمدة ساعة.
+              إذا كان البريد مسجلاً، فقد أُرسل رابط إعادة التعيين إليه. الرابط صالح لمدة
+              ساعة.
             </p>
-            <Link href="/login" className="btn-secondary inline-flex">
+            <Link href="/" className="btn-secondary inline-flex">
               العودة لتسجيل الدخول
             </Link>
           </div>
         ) : (
           <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
             <Input
-              id="phone"
-              label="رقم الهاتف"
+              id="email"
+              label="البريد الإلكتروني"
+              type="email"
               dir="ltr"
-              value={phoneNumber}
-              onChange={(e) => setPhoneNumber(e.target.value)}
-              placeholder="05xxxxxxxx"
+              autoComplete="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="name@zaad.org"
               required
             />
 
             {error && (
-              <p className="text-sm font-semibold text-[var(--tmkeen-danger)]" role="alert">
+              <p className="text-sm font-semibold text-[var(--zaad-danger)]" role="alert">
                 {error}
               </p>
             )}
@@ -88,7 +90,7 @@ export default function ForgotPasswordForm() {
             </Button>
 
             <p className="text-center text-xs text-brand-gray">
-              <Link href="/login" className="underline">
+              <Link href="/" className="underline">
                 العودة لتسجيل الدخول
               </Link>
             </p>

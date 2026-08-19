@@ -4,6 +4,9 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { getApiErrorMessage, parseApiResponse } from "@/components/lib/api-types";
 import { fetchWithTimeout } from "@/lib/client/fetch-with-timeout";
+import BrandLogo from "@/components/shared/brand-logo";
+import ConfirmDialog from "@/components/ui/confirm-dialog";
+import Skeleton from "@/components/ui/skeleton";
 
 interface TokenSummary {
   id: string;
@@ -162,19 +165,18 @@ export default function ManagerApprovalView({
 
   return (
     <div className="page-shell flex min-h-screen flex-col">
-      <header className="border-b border-surface-border bg-surface px-4 py-4 text-center shadow-sm">
-        <p className="text-xs font-semibold text-brand-gray">جمعية الزاد</p>
-        <h1 className="text-lg font-bold text-primary">موافقة المدير المباشر</h1>
+      <header className="flex flex-col items-center gap-2 border-b border-surface-border bg-surface px-4 py-4 text-center shadow-sm">
+        <BrandLogo size="sm" />
+        <div>
+          <p className="text-xs font-semibold text-brand-gray">جمعية الزاد</p>
+          <h1 className="text-lg font-bold text-primary">موافقة المدير المباشر</h1>
+        </div>
       </header>
 
       <main className="page-container-narrow flex flex-1 flex-col py-6">
         {viewState === "loading" && (
-          <div className="card flex flex-1 flex-col items-center justify-center gap-3 text-center">
-            <div
-              className="h-10 w-10 animate-pulse rounded-full bg-[color-mix(in_srgb,var(--zaad-primary)_15%,transparent)]"
-              aria-hidden
-            />
-            <p className="text-sm text-brand-gray">جاري تحميل الطلب...</p>
+          <div className="card flex flex-1 flex-col justify-center gap-3">
+            <Skeleton lines={5} />
           </div>
         )}
 
@@ -344,32 +346,15 @@ export default function ManagerApprovalView({
                 </div>
               )}
 
-              {showRejectConfirm && viewState === "ready" && (
-                <div className="modal-overlay">
-                  <div className="modal-panel card space-y-4">
-                    <h3 className="text-lg font-bold text-primary">تأكيد الرفض</h3>
-                    <p className="text-sm text-brand-gray">
-                      لن يُرسل الطلب لقسم الاتصال. هل تريد المتابعة؟
-                    </p>
-                    <div className="flex flex-col gap-2 sm:flex-row">
-                      <button
-                        type="button"
-                        className="btn-secondary flex-1 border-[var(--zaad-danger)] text-[var(--zaad-danger)]"
-                        onClick={handleRejectConfirm}
-                      >
-                        نعم، رفض
-                      </button>
-                      <button
-                        type="button"
-                        className="btn-primary flex-1"
-                        onClick={() => setShowRejectConfirm(false)}
-                      >
-                        إلغاء
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
+              <ConfirmDialog
+                open={showRejectConfirm && viewState === "ready"}
+                title="تأكيد الرفض"
+                body="لن يُرسل الطلب لقسم الاتصال. هل تريد المتابعة؟"
+                confirmLabel="نعم، رفض"
+                destructive
+                onConfirm={handleRejectConfirm}
+                onCancel={() => setShowRejectConfirm(false)}
+              />
             </div>
           )}
 
