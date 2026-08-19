@@ -10,15 +10,15 @@ export default function DashboardHeader() {
   const title = getModuleTitle(pathname);
 
   return (
-    <header className="flex items-center justify-between gap-4 border-b border-surface-border bg-surface px-6 py-4">
-      <div className="space-y-1">
+    <header className="flex flex-wrap items-center justify-between gap-3 border-b border-surface-border bg-surface px-4 py-3 sm:px-6 sm:py-4">
+      <div className="min-w-0 space-y-1">
         <Breadcrumb
           items={[
             { label: "المنصة", href: "/dashboard" },
             { label: title },
           ]}
         />
-        <h1 className="text-lg font-bold text-primary">{title}</h1>
+        <h1 className="truncate text-base font-bold text-primary sm:text-lg">{title}</h1>
       </div>
       <NotificationBell />
     </header>

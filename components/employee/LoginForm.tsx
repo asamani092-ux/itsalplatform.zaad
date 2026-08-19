@@ -52,10 +52,10 @@ export default function LoginForm({ nextUrl }: { nextUrl?: string | null }) {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-surface-muted p-6">
+    <div className="flex min-h-[100dvh] items-center justify-center bg-surface-muted p-4 sm:p-6">
       <form
         onSubmit={(e) => void handleSubmit(e)}
-        className="card w-full max-w-md space-y-4"
+        className="card w-full max-w-md space-y-4 p-4 sm:p-6"
       >
         <div className="flex flex-col items-center gap-3 text-center">
           <BrandLogo size="lg" />

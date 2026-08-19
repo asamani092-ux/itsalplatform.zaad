@@ -52,8 +52,8 @@ export default function ResetPasswordForm({ token }: { token: string | null }) {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-surface-muted p-6">
-      <div className="card w-full max-w-md space-y-4">
+    <div className="flex min-h-[100dvh] items-center justify-center bg-surface-muted p-4 sm:p-6">
+      <div className="card w-full max-w-md space-y-4 p-4 sm:p-6">
         <div className="flex flex-col items-center gap-3 text-center">
           <BrandLogo size="lg" />
           <h1 className="text-xl font-bold text-primary">تعيين كلمة مرور جديدة</h1>

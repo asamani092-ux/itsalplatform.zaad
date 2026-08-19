@@ -55,34 +55,46 @@ export default function DashboardSidebar({
   }
 
   return (
-    <aside className="fixed inset-y-0 inset-inline-end-0 flex w-64 flex-col border-inline-start border-surface-border bg-surface">
-      <div className="border-b border-surface-border p-4">
-        <BrandLogo size="sm" />
-        <p className="mt-2 text-xs text-brand-gray">الاتصال المؤسسي</p>
+    <aside className="sticky top-0 z-40 border-b border-surface-border bg-surface lg:fixed lg:inset-y-0 lg:end-0 lg:flex lg:w-64 lg:flex-col lg:border-b-0 lg:border-s">
+      <div className="flex items-center justify-between gap-3 border-b border-surface-border p-4 lg:block">
+        <div>
+          <BrandLogo size="sm" />
+          <p className="mt-2 hidden text-xs text-brand-gray lg:block">الاتصال المؤسسي</p>
+        </div>
+        <button
+          type="button"
+          className="zad-touch btn-secondary text-sm lg:hidden"
+          onClick={() => void handleLogout()}
+        >
+          خروج
+        </button>
       </div>
 
-      <nav className="flex-1 space-y-4 overflow-y-auto p-3">
+      <nav
+        className="flex gap-2 overflow-x-auto p-3 lg:flex-1 lg:flex-col lg:gap-4 lg:overflow-y-auto"
+        aria-label="وحدات المنصة"
+      >
         {CATEGORY_ORDER.map((category) => {
           const items = modules.filter((m) => m.category === category);
           if (items.length === 0) return null;
 
           return (
-            <div key={category} className="space-y-1">
-              <p className="px-3 text-[10px] font-bold uppercase text-brand-gray">
+            <div key={category} className="flex shrink-0 gap-2 lg:block lg:space-y-1">
+              <p className="hidden px-3 text-[10px] font-bold uppercase text-brand-gray lg:block">
                 {CATEGORY_LABELS[category]}
               </p>
               {items.map((item) => (
                 <Link
                   key={item.key}
                   href={item.href}
-                  className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors ${
+                  className={`zad-touch inline-flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors ${
                     isActive(item.href)
                       ? "bg-primary/10 font-medium text-primary"
                       : "text-brand-gray hover:bg-surface-muted"
                   }`}
                 >
                   <ModuleIcon paths={MODULE_ICON_PATHS[item.icon]} />
-                  <span className="min-w-0 truncate">{item.label}</span>
+                  <span className="min-w-0 whitespace-nowrap lg:truncate">{item.label}</span>
                 </Link>
               ))}
             </div>
@@ -90,10 +102,10 @@ export default function DashboardSidebar({
         })}
       </nav>
 
-      <div className="border-t border-surface-border p-3">
+      <div className="hidden border-t border-surface-border p-3 lg:block">
         <button
           type="button"
-          className="w-full bg-transparent px-3 py-2 text-sm text-[var(--zaad-danger)] transition-colors hover:bg-surface-muted"
+          className="zad-touch w-full bg-transparent px-3 py-2 text-sm text-[var(--zaad-danger)] transition-colors hover:bg-surface-muted"
           onClick={() => void handleLogout()}
         >
           تسجيل الخروج

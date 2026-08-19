@@ -38,8 +38,8 @@ export default function ForgotPasswordForm() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-surface-muted p-6">
-      <div className="card w-full max-w-md space-y-4">
+    <div className="flex min-h-[100dvh] items-center justify-center bg-surface-muted p-4 sm:p-6">
+      <div className="card w-full max-w-md space-y-4 p-4 sm:p-6">
         <div className="flex flex-col items-center gap-3 text-center">
           <BrandLogo size="lg" />
           <div>
