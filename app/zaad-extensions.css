@@ -371,3 +371,166 @@
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-xl);
 }
+
+/* ── Sidebar (عقد 2.5) — جهة البدء RTL = اليمين؛ مطوي 72 / موسّع 264 ── */
+.zad-shell {
+  min-height: 100dvh;
+  background: var(--surface-base);
+}
+.zad-sidebar {
+  position: fixed;
+  inset-block: 0;
+  inset-inline-start: 0;
+  z-index: var(--z-sticky);
+  display: flex;
+  flex-direction: column;
+  width: var(--sidebar);
+  border-inline-end: var(--border-hairline) solid var(--border-subtle);
+  background: var(--surface-raised);
+  transition:
+    width var(--duration-base) var(--ease-standard),
+    transform var(--duration-base) var(--ease-standard);
+}
+.zad-shell[data-sidebar-collapsed="true"] .zad-sidebar {
+  width: var(--sidebar-collapsed);
+}
+.zad-sidebar__brand {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border-block-end: var(--border-hairline) solid var(--border-subtle);
+}
+.zad-sidebar__brand-text {
+  min-width: 0;
+}
+.zad-shell[data-sidebar-collapsed="true"] .zad-sidebar__brand-text {
+  display: none;
+}
+.zad-sidebar__nav {
+  flex: 1;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.zad-sidebar__group-label {
+  padding-inline: var(--space-3);
+  margin-block-end: var(--space-1);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-bold);
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+.zad-shell[data-sidebar-collapsed="true"] .zad-sidebar__group-label {
+  display: none;
+}
+.zad-sidebar__link {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--touch-min);
+  padding-inline: var(--space-3);
+  border-radius: var(--radius-lg);
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  transition: background-color var(--duration-fast) var(--ease-standard),
+    color var(--duration-fast) var(--ease-standard);
+}
+.zad-sidebar__link:hover {
+  background: var(--surface-base);
+  color: var(--text-brand);
+}
+.zad-sidebar__link[aria-current="page"] {
+  background: var(--primary-50);
+  color: var(--text-brand);
+  font-weight: var(--weight-medium);
+}
+.zad-sidebar__link-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.zad-shell[data-sidebar-collapsed="true"] .zad-sidebar__link {
+  justify-content: center;
+  padding-inline: var(--space-2);
+}
+.zad-shell[data-sidebar-collapsed="true"] .zad-sidebar__link-label {
+  display: none;
+}
+.zad-sidebar__footer {
+  padding: var(--space-3);
+  border-block-start: var(--border-hairline) solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.zad-sidebar__collapse {
+  display: none;
+}
+.zad-shell__main {
+  margin-inline-start: var(--sidebar);
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  transition: margin-inline-start var(--duration-base) var(--ease-standard);
+}
+.zad-shell[data-sidebar-collapsed="true"] .zad-shell__main {
+  margin-inline-start: var(--sidebar-collapsed);
+}
+.zad-shell__content {
+  flex: 1;
+  overflow-x: auto;
+  padding: var(--space-4);
+}
+@media (min-width: 640px) {
+  .zad-shell__content {
+    padding: var(--space-6);
+  }
+}
+
+/* سطح المكتب: زر الطي ظاهر */
+@media (min-width: 1024px) {
+  .zad-sidebar__collapse {
+    display: inline-flex;
+  }
+  .zad-sidebar[data-open="false"] {
+    transform: none;
+  }
+}
+
+/* < 1024: الشريط يصبح درج منزلق من جهة البدء */
+@media (max-width: 1023px) {
+  .zad-sidebar {
+    z-index: calc(var(--z-drawer) + 1);
+    width: var(--sidebar);
+    box-shadow: var(--shadow-xl);
+  }
+  .zad-shell[data-sidebar-collapsed="true"] .zad-sidebar {
+    width: var(--sidebar);
+  }
+  .zad-shell[data-sidebar-collapsed="true"] .zad-sidebar__brand-text,
+  .zad-shell[data-sidebar-collapsed="true"] .zad-sidebar__group-label {
+    display: block;
+  }
+  .zad-shell[data-sidebar-collapsed="true"] .zad-sidebar__link-label {
+    display: block;
+  }
+  [dir="rtl"] .zad-sidebar[data-open="false"] {
+    transform: translateX(100%);
+  }
+  [dir="ltr"] .zad-sidebar[data-open="false"] {
+    transform: translateX(-100%);
+  }
+  .zad-sidebar[data-open="true"] {
+    transform: none;
+  }
+  .zad-shell__main,
+  .zad-shell[data-sidebar-collapsed="true"] .zad-shell__main {
+    margin-inline-start: 0;
+  }
+}

@@ -4,21 +4,35 @@ import { usePathname } from "next/navigation";
 import { getModuleTitle } from "@/lib/modules/registry";
 import NotificationBell from "@/components/notifications/NotificationBell";
 import Breadcrumb from "@/components/ui/breadcrumb";
+import { IconButton } from "@/components/ui/icon-button";
+import { IconMenu } from "@/components/shared/icons";
 
-export default function DashboardHeader() {
+export default function DashboardHeader({
+  onOpenNav,
+}: {
+  onOpenNav?: () => void;
+}) {
   const pathname = usePathname();
   const title = getModuleTitle(pathname);
 
   return (
     <header className="flex flex-wrap items-center justify-between gap-3 border-b border-surface-border bg-surface px-4 py-3 sm:px-6 sm:py-4">
-      <div className="min-w-0 space-y-1">
-        <Breadcrumb
-          items={[
-            { label: "المنصة", href: "/dashboard" },
-            { label: title },
-          ]}
+      <div className="flex min-w-0 items-center gap-2">
+        <IconButton
+          label="فتح القائمة"
+          icon={<IconMenu size={18} />}
+          className="lg:hidden"
+          onClick={onOpenNav}
         />
-        <h1 className="truncate text-base font-bold text-primary sm:text-lg">{title}</h1>
+        <div className="min-w-0 space-y-1">
+          <Breadcrumb
+            items={[
+              { label: "المنصة", href: "/dashboard" },
+              { label: title },
+            ]}
+          />
+          <h1 className="truncate text-base font-bold text-primary sm:text-lg">{title}</h1>
+        </div>
       </div>
       <NotificationBell />
     </header>
