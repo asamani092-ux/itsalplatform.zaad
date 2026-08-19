@@ -10,16 +10,16 @@ export async function POST(request: NextRequest) {
       return jsonError("تم تجاوز عدد المحاولات المسموح. حاول لاحقاً.", "RATE_LIMITED", 429);
     }
 
-    const body = (await request.json()) as { phoneNumber?: string };
-    if (!body.phoneNumber?.trim()) {
-      return jsonError("رقم الهاتف مطلوب", "VALIDATION", 400);
+    const body = (await request.json()) as { email?: string };
+    if (!body.email?.trim()) {
+      return jsonError("البريد الإلكتروني مطلوب", "VALIDATION", 400);
     }
 
-    await requestPasswordReset(body.phoneNumber);
+    await requestPasswordReset(body.email);
 
     // Same response whether or not the account exists.
     return jsonOk({
-      message: "إذا كان الرقم مسجلاً، فقد أُرسل رابط إعادة التعيين إلى بريد الحساب.",
+      message: "إذا كان البريد مسجلاً، فقد أُرسل رابط إعادة التعيين إليه.",
     });
   } catch (error) {
     return handleApiError(error);

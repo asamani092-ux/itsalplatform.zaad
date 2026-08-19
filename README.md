@@ -101,10 +101,10 @@ npx tsc --noEmit     # فحص TypeScript
 
 ## حسابات تجريبية (بعد seed)
 
-| الدور | الهاتف | كلمة المرور |
+| الدور | البريد | كلمة المرور |
 |-------|--------|-------------|
-| مدير | `0500000001` | `password123` |
-| موظف | `0500000002` | `password123` |
+| مدير | `manager@zaad.org` | `password123` |
+| موظف | `sara.comm@zaad.org` | `password123` |
 
 رمز الاستقبال: `reception-demo-token` → `/reception/reception-demo-token`
 
@@ -112,10 +112,9 @@ npx tsc --noEmit     # فحص TypeScript
 
 | المسار | الوصف |
 |--------|-------|
-| `/` | نموذج تقديم (مركّز) |
-| `/submit/[slug]` | نموذج عميق حسب slug |
+| `/` | تسجيل الدخول |
 | `/approve?token=` | موافقة المدير |
-| `/login` | تسجيل الدخول |
+| `/login` | إعادة توجيه إلى `/` |
 | `/dashboard` | KPIs (مدير) |
 | `/dashboard/kanban` | Kanban |
 | `/dashboard/team` | الفريق |

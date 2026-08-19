@@ -175,8 +175,8 @@ async function main() {
   });
 
   console.log("Seed complete:");
-  console.log(`  Manager: ${manager.phoneNumber} / password123`);
-  console.log(`  Employees: password123 for all`);
+  console.log(`  Manager: ${manager.email} / password123`);
+  console.log(`  Employees: password123 for all (email login)`);
   console.log(`  Reception token: reception-demo-token`);
 }
 

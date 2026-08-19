@@ -37,11 +37,11 @@ function resetEmailHtml(name: string, url: string): string {
 
 /**
  * Always resolves successfully so the endpoint cannot be used to discover
- * which phone numbers exist.
+ * which emails exist.
  */
-export async function requestPasswordReset(phoneNumber: string): Promise<void> {
+export async function requestPasswordReset(email: string): Promise<void> {
   const employee = await prisma.commEmployee.findUnique({
-    where: { phoneNumber: phoneNumber.trim() },
+    where: { email: email.trim().toLowerCase() },
   });
   if (!employee || !employee.isActive) return;
 

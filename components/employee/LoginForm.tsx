@@ -12,7 +12,7 @@ import BrandLogo from "@/components/shared/brand-logo";
 export default function LoginForm({ nextUrl }: { nextUrl?: string | null }) {
   const router = useRouter();
 
-  const [phoneNumber, setPhoneNumber] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState("");
@@ -27,7 +27,7 @@ export default function LoginForm({ nextUrl }: { nextUrl?: string | null }) {
       const res = await fetchWithTimeout("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phoneNumber, password, rememberMe }),
+        body: JSON.stringify({ email, password, rememberMe }),
       });
       const payload = await parseApiResponse<{
         user: { role: string };
@@ -66,18 +66,21 @@ export default function LoginForm({ nextUrl }: { nextUrl?: string | null }) {
         </div>
 
         <Input
-          id="phone"
-          label="رقم الهاتف"
+          id="email"
+          label="البريد الإلكتروني"
+          type="email"
           dir="ltr"
-          value={phoneNumber}
-          onChange={(e) => setPhoneNumber(e.target.value)}
-          placeholder="05xxxxxxxx"
+          autoComplete="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="name@zaad.org"
           required
         />
         <Input
           id="password"
           label="كلمة المرور"
           type="password"
+          autoComplete="current-password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           required
