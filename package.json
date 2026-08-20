@@ -11,6 +11,7 @@
     "build": "next build && node scripts/prepare-standalone.mjs",
     "start": "HOSTNAME=0.0.0.0 PORT=3001 node .next/standalone/server.js",
     "start:3002": "HOSTNAME=0.0.0.0 PORT=3002 node .next/standalone/server.js",
+    "preview:3002": "node scripts/restart-preview.mjs",
     "lint": "next lint",
     "db:migrate": "prisma migrate dev",
     "db:migrate:deploy": "prisma migrate deploy",
