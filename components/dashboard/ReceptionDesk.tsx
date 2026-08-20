@@ -1029,7 +1029,7 @@ export default function ReceptionDesk() {
                     </td>
                     <td>{log.organization || "—"}</td>
                     <td>
-                      <span className="badge-info">{log.visitType}</span>
+                      <span className="badge-primary">{log.visitType}</span>
                     </td>
                     <td>{log.visitTarget}</td>
                     <td className="whitespace-nowrap text-xs">
