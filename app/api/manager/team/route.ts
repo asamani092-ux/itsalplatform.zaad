@@ -5,6 +5,18 @@ import { createEmployee, updateEmployee } from "@/lib/auth-service";
 import { handleApiError, jsonError, jsonOk } from "@/lib/api-utils";
 import { EmployeeRole } from "@/generated/prisma/client";
 
+const employeeSelect = {
+  id: true,
+  name: true,
+  email: true,
+  phoneNumber: true,
+  role: true,
+  isActive: true,
+  departmentId: true,
+  department: { select: { id: true, name: true } },
+  createdAt: true,
+} as const;
+
 export async function GET() {
   try {
     const auth = await requireManagerSession();
@@ -12,15 +24,7 @@ export async function GET() {
 
     const employees = await prisma.commEmployee.findMany({
       orderBy: { name: "asc" },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        phoneNumber: true,
-        role: true,
-        isActive: true,
-        createdAt: true,
-      },
+      select: employeeSelect,
     });
 
     return jsonOk({ employees, count: employees.length });
@@ -40,6 +44,7 @@ export async function POST(request: NextRequest) {
       phoneNumber?: string;
       password?: string;
       role?: EmployeeRole;
+      departmentId?: string | null;
     };
 
     if (!body.name?.trim() || !body.email?.trim() || !body.password) {
@@ -52,6 +57,7 @@ export async function POST(request: NextRequest) {
       phoneNumber: body.phoneNumber?.trim() || null,
       password: body.password,
       role: body.role ?? EmployeeRole.EMPLOYEE,
+      departmentId: body.departmentId ?? null,
     });
 
     return jsonOk(employee, 201);
@@ -73,6 +79,7 @@ export async function PATCH(request: NextRequest) {
       password?: string;
       role?: EmployeeRole;
       isActive?: boolean;
+      departmentId?: string | null;
     };
 
     if (!body.id) {

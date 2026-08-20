@@ -44,9 +44,11 @@ export async function createEmployee(params: {
   phoneNumber?: string | null;
   password: string;
   role?: EmployeeRole;
+  departmentId?: string | null;
 }) {
   const passwordHash = await hashPassword(params.password);
   const phone = params.phoneNumber?.trim() || null;
+  const departmentId = params.departmentId?.trim() || null;
   return prisma.commEmployee.create({
     data: {
       name: params.name.trim(),
@@ -54,6 +56,7 @@ export async function createEmployee(params: {
       phoneNumber: phone,
       passwordHash,
       role: params.role ?? EmployeeRole.EMPLOYEE,
+      departmentId,
     },
     select: {
       id: true,
@@ -62,6 +65,8 @@ export async function createEmployee(params: {
       phoneNumber: true,
       role: true,
       isActive: true,
+      departmentId: true,
+      department: { select: { id: true, name: true } },
       createdAt: true,
     },
   });
@@ -76,6 +81,7 @@ export async function updateEmployee(
     password?: string;
     role?: EmployeeRole;
     isActive?: boolean;
+    departmentId?: string | null;
   },
 ) {
   const data: {
@@ -85,6 +91,7 @@ export async function updateEmployee(
     passwordHash?: string;
     role?: EmployeeRole;
     isActive?: boolean;
+    departmentId?: string | null;
   } = {};
 
   if (params.name !== undefined) data.name = params.name.trim();
@@ -94,6 +101,9 @@ export async function updateEmployee(
   }
   if (params.role !== undefined) data.role = params.role;
   if (params.isActive !== undefined) data.isActive = params.isActive;
+  if (params.departmentId !== undefined) {
+    data.departmentId = params.departmentId?.trim() || null;
+  }
   if (params.password) data.passwordHash = await hashPassword(params.password);
 
   return prisma.commEmployee.update({
@@ -106,6 +116,8 @@ export async function updateEmployee(
       phoneNumber: true,
       role: true,
       isActive: true,
+      departmentId: true,
+      department: { select: { id: true, name: true } },
       updatedAt: true,
     },
   });

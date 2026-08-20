@@ -20,6 +20,7 @@ interface Booking {
   endTime: string;
   attendeesCount: number;
   notes: string;
+  cateringRequests?: string;
   requestId?: string | null;
   request?: {
     id: string;
@@ -36,7 +37,12 @@ const STATUS_LABELS: Record<string, string> = {
   Archived: "مؤرشف",
 };
 
-const ROOMS = ["قاعة الاجتماعات الكبرى", "قاعة التدريب", "قاعة الاستقبال", "قاعة الوسائط"];
+const FALLBACK_ROOMS = [
+  "قاعة الاجتماعات الكبرى",
+  "قاعة التدريب",
+  "قاعة الاستقبال",
+  "قاعة الوسائط",
+];
 
 const WEEKDAY_SHORT = ["أحد", "إثن", "ثلا", "أرب", "خمي", "جمع", "سبت"];
 const WEEKDAY_FULL = [
@@ -133,28 +139,49 @@ function buildMonthGrid(viewMonth: Date): CalendarDay[] {
 export default function HospitalityBoard() {
   const [viewMonth, setViewMonth] = useState(() => startOfMonth(new Date()));
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [rooms, setRooms] = useState<string[]>(FALLBACK_ROOMS);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [selectedDay, setSelectedDay] = useState<string | null>(() => toLocalISODate(new Date()));
   const [modalOpen, setModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
+  const todayIso = toLocalISODate(new Date());
   const [form, setForm] = useState({
-    roomName: ROOMS[0],
+    roomName: FALLBACK_ROOMS[0],
     meetingDate: "",
     startTime: "09:00",
     endTime: "10:00",
     notes: "",
     requesterName: "",
     requesterEmail: "",
-    requesterPhone: "",
     attendeesCount: 2,
+    cateringRequests: "",
   });
 
   const calendarDays = useMemo(() => buildMonthGrid(viewMonth), [viewMonth]);
 
   const rangeFrom = calendarDays[0]?.key ?? toLocalISODate(viewMonth);
   const rangeTo = calendarDays[calendarDays.length - 1]?.key ?? toLocalISODate(viewMonth);
+
+  const loadRooms = useCallback(async () => {
+    try {
+      const res = await fetch("/api/manager/settings/app");
+      const payload = await parseApiResponse<{ rooms?: string[] }>(res);
+      if (!res.ok || !payload.success) return;
+      const next = Array.isArray(payload.data.rooms)
+        ? payload.data.rooms.map(String).filter(Boolean)
+        : [];
+      if (next.length > 0) {
+        setRooms(next);
+        setForm((prev) =>
+          next.includes(prev.roomName) ? prev : { ...prev, roomName: next[0] },
+        );
+      }
+    } catch {
+      // keep FALLBACK_ROOMS
+    }
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -173,6 +200,10 @@ export default function HospitalityBoard() {
       setLoading(false);
     }
   }, [rangeFrom, rangeTo]);
+
+  useEffect(() => {
+    void loadRooms();
+  }, [loadRooms]);
 
   useEffect(() => {
     void load();
@@ -211,7 +242,11 @@ export default function HospitalityBoard() {
       const res = await fetch("/api/hospitality/bookings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          ...form,
+          requesterPhone: "",
+          cateringRequests: form.cateringRequests,
+        }),
       });
       const payload = await parseApiResponse<Booking>(res);
       if (!res.ok || !payload.success) {
@@ -484,7 +519,7 @@ export default function HospitalityBoard() {
                   onChange={(e) => setForm({ ...form, roomName: e.target.value })}
                   required
                 >
-                  {ROOMS.map((room) => (
+                  {rooms.map((room) => (
                     <option key={room} value={room}>
                       {room}
                     </option>
@@ -499,6 +534,7 @@ export default function HospitalityBoard() {
                   id="meetingDate"
                   type="date"
                   className="input-field w-full"
+                  min={todayIso}
                   value={form.meetingDate}
                   onChange={(e) => setForm({ ...form, meetingDate: e.target.value })}
                   required
@@ -506,7 +542,7 @@ export default function HospitalityBoard() {
               </div>
               <div className="space-y-1">
                 <label className="label-field" htmlFor="attendeesCount">
-                  عدد الحضور
+                  عدد الحضور (تقريبي)
                 </label>
                 <input
                   id="attendeesCount"
@@ -561,6 +597,21 @@ export default function HospitalityBoard() {
                   required
                 />
               </div>
+              <div className="space-y-1 sm:col-span-2">
+                <label className="label-field" htmlFor="cateringRequests">
+                  طلبات الضيافة
+                </label>
+                <textarea
+                  id="cateringRequests"
+                  className="input-field w-full min-h-[4.5rem]"
+                  value={form.cateringRequests}
+                  onChange={(e) => setForm({ ...form, cateringRequests: e.target.value })}
+                  aria-describedby="cateringRequests-help"
+                />
+                <p id="cateringRequests-help" className="text-xs text-brand-gray">
+                  تنفيذ الطلبات حسب القدرة والاستطاعة
+                </p>
+              </div>
               <div className="space-y-1">
                 <label className="label-field" htmlFor="requesterName">
                   اسم مقدّم الطلب
@@ -574,19 +625,6 @@ export default function HospitalityBoard() {
                 />
               </div>
               <div className="space-y-1">
-                <label className="label-field" htmlFor="requesterPhone">
-                  الجوال
-                </label>
-                <input
-                  id="requesterPhone"
-                  className="input-field w-full"
-                  dir="ltr"
-                  value={form.requesterPhone}
-                  onChange={(e) => setForm({ ...form, requesterPhone: e.target.value })}
-                  required
-                />
-              </div>
-              <div className="space-y-1 sm:col-span-2">
                 <label className="label-field" htmlFor="requesterEmail">
                   البريد
                 </label>

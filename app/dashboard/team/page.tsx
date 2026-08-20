@@ -7,11 +7,17 @@ import {
   IconEdit,
   IconPlus,
   IconPower,
+  IconSend,
   IconTrash,
   IconX,
 } from "@/components/shared/icons";
 import ConfirmDialog from "@/components/ui/confirm-dialog";
 import Skeleton from "@/components/ui/skeleton";
+
+interface DepartmentOption {
+  id: string;
+  name: string;
+}
 
 interface Employee {
   id: string;
@@ -20,6 +26,8 @@ interface Employee {
   phoneNumber: string | null;
   role: string;
   isActive: boolean;
+  departmentId?: string | null;
+  department?: { id: string; name: string } | null;
 }
 
 interface MemberForm {
@@ -28,6 +36,7 @@ interface MemberForm {
   phoneNumber: string;
   password: string;
   role: string;
+  departmentId: string;
 }
 
 const EMPTY_FORM: MemberForm = {
@@ -36,12 +45,22 @@ const EMPTY_FORM: MemberForm = {
   phoneNumber: "",
   password: "",
   role: "EMPLOYEE",
+  departmentId: "",
 };
+
+function mergeEmployee(employees: Employee[], next: Employee): Employee[] {
+  const idx = employees.findIndex((e) => e.id === next.id);
+  if (idx === -1) return [...employees, next].sort((a, b) => a.name.localeCompare(b.name, "ar"));
+  const copy = [...employees];
+  copy[idx] = { ...copy[idx], ...next };
+  return copy;
+}
 
 function MemberModal({
   open,
   mode,
   initial,
+  departments,
   onClose,
   onSubmit,
   submitting,
@@ -50,6 +69,7 @@ function MemberModal({
   open: boolean;
   mode: "create" | "edit";
   initial: MemberForm;
+  departments: DepartmentOption[];
   onClose: () => void;
   onSubmit: (form: MemberForm) => Promise<void>;
   submitting: boolean;
@@ -141,7 +161,7 @@ function MemberModal({
               required={mode === "create"}
             />
           </div>
-          <div className="space-y-1 sm:col-span-2">
+          <div className="space-y-1">
             <label className="label-field" htmlFor="member-role">
               الدور
             </label>
@@ -154,6 +174,24 @@ function MemberModal({
               <option value="EMPLOYEE">موظف</option>
               <option value="RECEPTION">استقبال</option>
               <option value="MANAGER">مدير</option>
+            </select>
+          </div>
+          <div className="space-y-1">
+            <label className="label-field" htmlFor="member-department">
+              القسم (اختياري)
+            </label>
+            <select
+              id="member-department"
+              className="input-field w-full"
+              value={form.departmentId}
+              onChange={(e) => setForm({ ...form, departmentId: e.target.value })}
+            >
+              <option value="">— بدون قسم —</option>
+              {departments.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name}
+                </option>
+              ))}
             </select>
           </div>
 
@@ -179,6 +217,7 @@ function MemberModal({
 
 export default function DashboardTeamPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [departments, setDepartments] = useState<DepartmentOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
@@ -189,6 +228,7 @@ export default function DashboardTeamPage() {
   const [submitting, setSubmitting] = useState(false);
   const [modalError, setModalError] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<Employee | null>(null);
+  const [resettingId, setResettingId] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -206,9 +246,23 @@ export default function DashboardTeamPage() {
     }
   }, []);
 
+  const loadDepartments = useCallback(async () => {
+    try {
+      const res = await fetch("/api/manager/settings/departments");
+      const payload = await parseApiResponse<{ departments: DepartmentOption[] }>(res);
+      if (!res.ok || !payload.success) return;
+      setDepartments(
+        (payload.data.departments ?? []).map((d) => ({ id: d.id, name: d.name })),
+      );
+    } catch {
+      // optional field
+    }
+  }, []);
+
   useEffect(() => {
     void load();
-  }, [load]);
+    void loadDepartments();
+  }, [load, loadDepartments]);
 
   function openCreate() {
     setModalMode("create");
@@ -226,6 +280,7 @@ export default function DashboardTeamPage() {
       phoneNumber: employee.phoneNumber ?? "",
       password: "",
       role: employee.role,
+      departmentId: employee.departmentId ?? "",
     });
     setEditingId(employee.id);
     setModalError("");
@@ -237,6 +292,7 @@ export default function DashboardTeamPage() {
     setModalError("");
     try {
       const isEdit = modalMode === "edit";
+      const departmentId = form.departmentId || null;
       const body = isEdit
         ? {
             id: editingId,
@@ -244,22 +300,34 @@ export default function DashboardTeamPage() {
             email: form.email,
             phoneNumber: form.phoneNumber,
             role: form.role,
+            departmentId,
             ...(form.password ? { password: form.password } : {}),
           }
-        : form;
+        : {
+            name: form.name,
+            email: form.email,
+            phoneNumber: form.phoneNumber,
+            password: form.password,
+            role: form.role,
+            departmentId,
+          };
 
       const res = await fetch("/api/manager/team", {
         method: isEdit ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      const payload = await parseApiResponse<unknown>(res);
+      const payload = await parseApiResponse<Employee>(res);
       if (!res.ok || !payload.success) {
         setModalError(getApiErrorMessage(payload, "فشل الحفظ"));
         return;
       }
       setModalOpen(false);
-      await load();
+      if (payload.data?.id) {
+        setEmployees((prev) => mergeEmployee(prev, payload.data));
+      } else {
+        await load();
+      }
       setStatus(isEdit ? "تم تحديث بيانات العضو" : "تمت إضافة العضو");
       window.setTimeout(() => setStatus(""), 4000);
     } finally {
@@ -274,12 +342,37 @@ export default function DashboardTeamPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id: employee.id, isActive: !employee.isActive }),
     });
-    const payload = await parseApiResponse<unknown>(res);
+    const payload = await parseApiResponse<Employee>(res);
     if (!res.ok || !payload.success) {
       setError(getApiErrorMessage(payload, "فشل التحديث"));
       return;
     }
-    await load();
+    if (payload.data?.id) {
+      setEmployees((prev) => mergeEmployee(prev, payload.data));
+    } else {
+      await load();
+    }
+  }
+
+  async function sendResetLink(emp: Employee) {
+    setError("");
+    setResettingId(emp.id);
+    try {
+      const res = await fetch("/api/auth/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: emp.email }),
+      });
+      const payload = await parseApiResponse<{ message?: string }>(res);
+      if (!res.ok || !payload.success) {
+        setError(getApiErrorMessage(payload, "تعذّر إرسال رابط الاستعادة"));
+        return;
+      }
+      setStatus(payload.data.message ?? "تم إرسال رابط الاستعادة إن وُجد الحساب");
+      window.setTimeout(() => setStatus(""), 5000);
+    } finally {
+      setResettingId("");
+    }
   }
 
   async function handleDelete() {
@@ -295,6 +388,7 @@ export default function DashboardTeamPage() {
         deleted: boolean;
         deactivated: boolean;
         message?: string;
+        employee?: Employee;
       }>(res);
       if (!res.ok || !payload.success) {
         setError(getApiErrorMessage(payload, "فشل الحذف"));
@@ -306,8 +400,15 @@ export default function DashboardTeamPage() {
           : "تم حذف العضو",
       );
       window.setTimeout(() => setStatus(""), 5000);
+      const deletedId = deleteTarget.id;
       setDeleteTarget(null);
-      await load();
+      if (payload.data.deactivated && payload.data.employee) {
+        setEmployees((prev) => mergeEmployee(prev, payload.data.employee as Employee));
+      } else if (payload.data.deleted) {
+        setEmployees((prev) => prev.filter((e) => e.id !== deletedId));
+      } else {
+        await load();
+      }
     } finally {
       setSubmitting(false);
     }
@@ -339,6 +440,7 @@ export default function DashboardTeamPage() {
           <thead>
             <tr>
               <th>الاسم</th>
+              <th>البريد</th>
               <th>الهاتف</th>
               <th>الدور</th>
               <th>الحالة</th>
@@ -348,7 +450,7 @@ export default function DashboardTeamPage() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={5} className="py-6">
+                <td colSpan={6} className="py-6">
                   <Skeleton lines={3} />
                 </td>
               </tr>
@@ -356,6 +458,9 @@ export default function DashboardTeamPage() {
               employees.map((emp) => (
                 <tr key={emp.id}>
                   <td className="font-semibold">{emp.name}</td>
+                  <td dir="ltr" className="text-sm">
+                    {emp.email}
+                  </td>
                   <td dir="ltr">{emp.phoneNumber || "—"}</td>
                   <td>
                     {emp.role === "MANAGER"
@@ -375,6 +480,12 @@ export default function DashboardTeamPage() {
                         label="تعديل"
                         icon={<IconEdit size={18} />}
                         onClick={() => openEdit(emp)}
+                      />
+                      <IconButton
+                        label="إرسال رابط الاستعادة"
+                        icon={<IconSend size={18} />}
+                        disabled={resettingId === emp.id}
+                        onClick={() => void sendResetLink(emp)}
                       />
                       <IconButton
                         label={emp.isActive ? "تعطيل الحساب" : "تفعيل الحساب"}
@@ -401,6 +512,7 @@ export default function DashboardTeamPage() {
         open={modalOpen}
         mode={modalMode}
         initial={modalInitial}
+        departments={departments}
         onClose={() => setModalOpen(false)}
         onSubmit={handleSubmit}
         submitting={submitting}
