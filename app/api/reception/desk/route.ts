@@ -4,32 +4,45 @@ import { requireReceptionDeskSession } from "@/lib/auth/route-guard";
 import {
   checkInScheduledVisit,
   createVisitorLog,
+  getVisitorDashboardStats,
   listTodayScheduledVisits,
-  listTodayVisitorLogs,
+  listVisitorLogs,
+  searchVisitorSuggestions,
   undoScheduledAttendance,
 } from "@/lib/reception-service";
-import { prisma } from "@/lib/prisma";
+import {
+  VISIT_TARGETS,
+  VISIT_TIME_SLOTS,
+  VISIT_TYPES,
+} from "@/lib/reception/constants";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const auth = await requireReceptionDeskSession();
     if (auth.error) return auth.error;
 
-    const [scheduled, attendance, departments] = await Promise.all([
+    const q = request.nextUrl.searchParams.get("q");
+    if (q !== null) {
+      const suggestions = await searchVisitorSuggestions(q);
+      return jsonOk({ suggestions });
+    }
+
+    const [scheduled, logs, stats] = await Promise.all([
       listTodayScheduledVisits(),
-      listTodayVisitorLogs(),
-      prisma.department.findMany({
-        where: { isActive: true },
-        select: { id: true, name: true },
-        orderBy: { name: "asc" },
-      }),
+      listVisitorLogs({ limit: 300 }),
+      getVisitorDashboardStats(),
     ]);
 
     return jsonOk({
       day: scheduled.day,
       visits: scheduled.visits,
-      attendanceLogs: attendance.logs,
-      departments,
+      attendanceLogs: logs.logs,
+      stats,
+      meta: {
+        visitTargets: VISIT_TARGETS,
+        visitTypes: VISIT_TYPES,
+        visitTimeSlots: VISIT_TIME_SLOTS,
+      },
     });
   } catch (error) {
     return handleApiError(error);
@@ -44,23 +57,35 @@ export async function POST(request: NextRequest) {
     const body = (await request.json()) as {
       visitorName?: string;
       visitorPhone?: string;
+      organization?: string;
+      visitType?: string;
+      visitTarget?: string;
       reason?: string;
-      organization?: string | null;
-      visitAt?: string;
-      departmentId?: string | null;
+      visitDate?: string;
+      visitTimeSlot?: string;
     };
 
-    if (!body.visitorName?.trim() || !body.visitorPhone?.trim() || !body.reason?.trim()) {
-      return jsonError("الاسم والجوال والسبب مطلوبة", "VALIDATION", 400);
+    if (
+      !body.visitorName?.trim() ||
+      !body.visitorPhone?.trim() ||
+      !body.organization?.trim() ||
+      !body.visitType?.trim() ||
+      !body.visitTarget?.trim() ||
+      !body.visitDate ||
+      !body.visitTimeSlot?.trim()
+    ) {
+      return jsonError("أكمل حقول تسجيل الزائر", "VALIDATION", 400);
     }
 
     const log = await createVisitorLog({
       visitorName: body.visitorName,
       visitorPhone: body.visitorPhone,
-      reason: body.reason,
       organization: body.organization,
-      visitAt: body.visitAt ? new Date(body.visitAt) : undefined,
-      departmentId: body.departmentId,
+      visitType: body.visitType,
+      visitTarget: body.visitTarget,
+      reason: body.reason,
+      visitDate: body.visitDate,
+      visitTimeSlot: body.visitTimeSlot,
       markedById: auth.session.sub,
     });
 
@@ -80,9 +105,12 @@ export async function PATCH(request: NextRequest) {
       requestId?: string;
       visitorName?: string;
       visitorPhone?: string;
+      organization?: string;
+      visitType?: string;
+      visitTarget?: string;
       reason?: string;
-      organization?: string | null;
-      visitAt?: string;
+      visitDate?: string;
+      visitTimeSlot?: string;
     };
 
     if (!body.requestId) {
@@ -97,18 +125,25 @@ export async function PATCH(request: NextRequest) {
     if (
       !body.visitorName?.trim() ||
       !body.visitorPhone?.trim() ||
-      !body.reason?.trim()
+      !body.organization?.trim() ||
+      !body.visitType?.trim() ||
+      !body.visitTarget?.trim() ||
+      !body.visitDate ||
+      !body.visitTimeSlot?.trim()
     ) {
-      return jsonError("الاسم والجوال والسبب مطلوبة لتسجيل الحضور", "VALIDATION", 400);
+      return jsonError("أكمل بيانات تأكيد الحضور", "VALIDATION", 400);
     }
 
     const result = await checkInScheduledVisit({
       requestId: body.requestId,
       visitorName: body.visitorName,
       visitorPhone: body.visitorPhone,
-      reason: body.reason,
       organization: body.organization,
-      visitAt: body.visitAt ? new Date(body.visitAt) : undefined,
+      visitType: body.visitType,
+      visitTarget: body.visitTarget,
+      reason: body.reason,
+      visitDate: body.visitDate,
+      visitTimeSlot: body.visitTimeSlot,
       markedById: auth.session.sub,
     });
 

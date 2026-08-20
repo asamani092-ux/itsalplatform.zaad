@@ -7,12 +7,13 @@ import {
   RequestTypesManager,
 } from "@/components/dashboard/TaxonomyManager";
 import { getApiErrorMessage, parseApiResponse } from "@/components/lib/api-types";
-import Accordion from "@/components/ui/accordion";
 
 type SettingsSection =
   | "modules"
+  | "workflow"
   | "departments"
   | "requestTypes"
+  | "rooms"
   | "routing";
 
 interface Department {
@@ -32,8 +33,10 @@ interface RoutingRule {
 
 const NAV: { id: SettingsSection; label: string }[] = [
   { id: "modules", label: "الخدمات والأدوات" },
-  { id: "departments", label: "الأقسام" },
+  { id: "workflow", label: "مسار الطلبات" },
+  { id: "departments", label: "جهات استقبال الطلبات" },
   { id: "requestTypes", label: "أنواع الطلبات" },
+  { id: "rooms", label: "قاعات الضيافة" },
   { id: "routing", label: "قواعد التوجيه" },
 ];
 
@@ -48,21 +51,34 @@ export default function DashboardSettingsClient({
   const [departments, setDepartments] = useState<Department[]>([]);
   const [rules, setRules] = useState<RoutingRule[]>([]);
   const [error, setError] = useState("");
+  const [skipApproval, setSkipApproval] = useState(false);
+  const [roomsText, setRoomsText] = useState("");
+  const [appSaving, setAppSaving] = useState(false);
+  const [appStatus, setAppStatus] = useState("");
 
   const load = useCallback(async () => {
     try {
-      const [deptRes, rulesRes] = await Promise.all([
+      const [deptRes, rulesRes, appRes] = await Promise.all([
         fetch("/api/manager/settings/departments"),
         fetch("/api/manager/settings/routing-rules"),
+        fetch("/api/manager/settings/app"),
       ]);
 
       const deptPayload = await parseApiResponse<{ departments: Department[] }>(deptRes);
       const rulesPayload = await parseApiResponse<{ rules: RoutingRule[] }>(rulesRes);
+      const appPayload = await parseApiResponse<{
+        workflow: { skipDepartmentApproval: boolean };
+        rooms: string[];
+      }>(appRes);
 
       if (deptPayload.success) {
         setDepartments(deptPayload.data.departments);
       }
       if (rulesPayload.success) setRules(rulesPayload.data.rules);
+      if (appPayload.success) {
+        setSkipApproval(appPayload.data.workflow.skipDepartmentApproval);
+        setRoomsText(appPayload.data.rooms.join("\n"));
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "خطأ");
     }
@@ -71,6 +87,53 @@ export default function DashboardSettingsClient({
   useEffect(() => {
     void load();
   }, [load]);
+
+  async function saveWorkflow() {
+    setAppSaving(true);
+    setAppStatus("");
+    try {
+      const res = await fetch("/api/manager/settings/app", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ skipDepartmentApproval: skipApproval }),
+      });
+      const payload = await parseApiResponse<unknown>(res);
+      if (!res.ok || !payload.success) {
+        throw new Error(getApiErrorMessage(payload, "فشل الحفظ"));
+      }
+      setAppStatus("تم حفظ مسار الطلبات");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "خطأ");
+    } finally {
+      setAppSaving(false);
+    }
+  }
+
+  async function saveRooms() {
+    setAppSaving(true);
+    setAppStatus("");
+    try {
+      const rooms = roomsText
+        .split("\n")
+        .map((r) => r.trim())
+        .filter(Boolean);
+      const res = await fetch("/api/manager/settings/app", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rooms }),
+      });
+      const payload = await parseApiResponse<{ rooms: string[] }>(res);
+      if (!res.ok || !payload.success) {
+        throw new Error(getApiErrorMessage(payload, "فشل حفظ القاعات"));
+      }
+      setRoomsText(payload.data.rooms.join("\n"));
+      setAppStatus("تم حفظ قاعات الضيافة");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "خطأ");
+    } finally {
+      setAppSaving(false);
+    }
+  }
 
   return (
     <div className="flex flex-col gap-6 lg:flex-row">
@@ -101,8 +164,42 @@ export default function DashboardSettingsClient({
             {error}
           </p>
         )}
+        {appStatus && (
+          <p className="text-sm font-semibold text-primary" role="status">
+            {appStatus}
+          </p>
+        )}
 
         {section === "modules" && <ModuleManager />}
+
+        {section === "workflow" && (
+          <div className="card space-y-4 p-4">
+            <h2 className="text-lg font-bold text-primary">مسار الطلبات</h2>
+            <label className="flex cursor-pointer items-start gap-3 text-sm">
+              <input
+                type="checkbox"
+                className="mt-1 h-4 w-4 accent-[var(--zaad-primary)]"
+                checked={skipApproval}
+                onChange={(e) => setSkipApproval(e.target.checked)}
+              />
+              <span>
+                <strong className="text-primary">إظهار الطلبات مباشرة في لوحة المدير</strong>
+                <br />
+                <span className="text-brand-gray">
+                  عند التفعيل تُتجاوز موافقة مدير الجهة المستقبِلة ويصل الطلب فوراً للوحة العمل.
+                </span>
+              </span>
+            </label>
+            <button
+              type="button"
+              className="btn-primary text-sm"
+              disabled={appSaving}
+              onClick={() => void saveWorkflow()}
+            >
+              حفظ
+            </button>
+          </div>
+        )}
 
         {section === "departments" && <DepartmentsManager />}
 
@@ -110,41 +207,52 @@ export default function DashboardSettingsClient({
           <RequestTypesManager departments={departments} />
         )}
 
-        {section === "routing" && (
-          <div className="space-y-4">
-            <Accordion
-              items={[
-                {
-                  id: "help",
-                  title: "كيف تعمل قواعد التوجيه؟",
-                  content:
-                    "عند موافقة المدير يُسند الطلب تلقائياً للموظف المرتبط بنوع الطلب إن وُجدت قاعدة نشطة.",
-                },
-              ]}
+        {section === "rooms" && (
+          <div className="card space-y-3 p-4">
+            <h2 className="text-lg font-bold text-primary">قاعات الضيافة</h2>
+            <p className="text-sm text-brand-gray">قاعة في كل سطر — تُستخدم في الحجوزات والنموذج العام.</p>
+            <textarea
+              className="input-field min-h-40 w-full"
+              value={roomsText}
+              onChange={(e) => setRoomsText(e.target.value)}
             />
-            <div className="card overflow-x-auto p-0">
-              <table className="tmkeen-table">
-                <thead>
-                  <tr>
-                    <th scope="col">نوع الطلب</th>
-                    <th scope="col">الموظف</th>
-                    <th scope="col">نشط</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rules.map((r) => (
-                    <tr key={r.id}>
-                      <td>{r.requestType.name}</td>
-                      <td>{r.employee.name}</td>
-                      <td>{r.isActive ? "نعم" : "لا"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <button
+              type="button"
+              className="btn-primary text-sm"
+              disabled={appSaving}
+              onClick={() => void saveRooms()}
+            >
+              حفظ القاعات
+            </button>
           </div>
         )}
 
+        {section === "routing" && (
+          <div className="card space-y-3 p-4">
+            <h2 className="text-lg font-bold text-primary">
+              قواعد التوجيه ({rules.length})
+            </h2>
+            {rules.length === 0 ? (
+              <p className="text-sm text-brand-gray">لا توجد قواعد توجيه بعد.</p>
+            ) : (
+              <ul className="space-y-2 text-sm">
+                {rules.map((rule) => (
+                  <li
+                    key={rule.id}
+                    className="flex flex-wrap gap-2 border-b border-surface-border py-2"
+                  >
+                    <span className="font-semibold text-primary">
+                      {rule.requestType.name}
+                    </span>
+                    <span className="text-brand-gray">←</span>
+                    <span>{rule.employee.name}</span>
+                    {!rule.isActive && <span className="badge-warning">معطّل</span>}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

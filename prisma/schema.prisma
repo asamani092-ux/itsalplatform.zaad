@@ -32,6 +32,7 @@ model Department {
   requests      CommunicationRequest[]
   requestForms  RequestForm[]
   visitorLogs   ReceptionVisitorLog[]
+  employees     CommEmployee[]         @relation("EmployeeDepartment")
   createdAt     DateTime               @default(now())
   updatedAt     DateTime               @updatedAt
 
@@ -80,17 +81,21 @@ model CommEmployee {
   passwordHash      String
   role              EmployeeRole          @default(EMPLOYEE)
   isActive          Boolean               @default(true)
+  departmentId      String?
+  department        Department?           @relation("EmployeeDepartment", fields: [departmentId], references: [id])
   assignedRequests  CommunicationRequest[] @relation("AssignedEmployee")
   assignmentHistory AssignmentHistory[]
   routingRules      RoutingRule[]
   notifications     Notification[]
   passwordResets    PasswordResetToken[]
   visitorLogs       ReceptionVisitorLog[] @relation("MarkedByReception")
+  attendanceEvents  AttendanceEvent[]     @relation("AttendanceEventCreator")
   createdAt         DateTime              @default(now())
   updatedAt         DateTime              @updatedAt
 
   @@index([isActive])
   @@index([role])
+  @@index([departmentId])
 }
 
 model Notification {
@@ -149,13 +154,16 @@ model CommunicationRequest {
   @@index([visitDate])
 }
 
-/** Cumulative visitor attendance log for central reception reports. */
+/** Cumulative visitor log — aligned with approved Apps Script visitor sheet. */
 model ReceptionVisitorLog {
   id             String                @id @default(cuid())
   visitorName    String
   visitorPhone   String
-  reason         String
-  organization   String?
+  organization   String
+  visitType      String
+  visitTarget    String
+  reason         String                @default("")
+  visitTimeSlot  String
   visitAt        DateTime
   departmentId   String?
   department     Department?           @relation(fields: [departmentId], references: [id])
@@ -169,7 +177,40 @@ model ReceptionVisitorLog {
   @@index([departmentId])
   @@index([requestId])
   @@index([visitorPhone])
+  @@index([visitType])
+  @@index([visitTimeSlot])
   @@index([createdAt])
+}
+
+/** Meeting / job-interview attendance lists for high headcount check-in. */
+model AttendanceEvent {
+  id          String               @id @default(cuid())
+  title       String
+  kind        String
+  scheduledAt DateTime
+  notes       String               @default("")
+  createdById String?
+  createdBy   CommEmployee?        @relation("AttendanceEventCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  attendees   AttendanceAttendee[]
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  @@index([scheduledAt])
+  @@index([kind])
+}
+
+model AttendanceAttendee {
+  id          String          @id @default(cuid())
+  eventId     String
+  event       AttendanceEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name        String
+  phone       String          @default("")
+  attended    Boolean         @default(false)
+  checkedInAt DateTime?
+  createdAt   DateTime        @default(now())
+
+  @@index([eventId])
+  @@index([attended])
 }
 
 model AssignmentHistory {
@@ -206,13 +247,14 @@ model HospitalityBooking {
   id             String                @id @default(cuid())
   requesterName  String
   requesterEmail String
-  requesterPhone String
+  requesterPhone String                @default("")
   roomName       String
   meetingDate    DateTime
   startTime      String
   endTime        String
   attendeesCount Int
   notes          String                @default("")
+  cateringRequests String              @default("")
   requestId      String?               @unique
   request        CommunicationRequest? @relation(fields: [requestId], references: [id], onDelete: SetNull)
   createdAt      DateTime              @default(now())

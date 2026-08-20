@@ -99,7 +99,8 @@ export async function DELETE(request: NextRequest) {
     if (!id) return jsonError("معرّف نوع الطلب مطلوب", "VALIDATION", 400);
 
     const used = await prisma.communicationRequest.count({ where: { requestTypeId: id } });
-    if (used > 0) {
+    const forms = await prisma.requestForm.count({ where: { requestTypeId: id } });
+    if (used > 0 || forms > 0) {
       const deactivated = await prisma.requestType.update({
         where: { id },
         data: { isActive: false },
@@ -109,11 +110,15 @@ export async function DELETE(request: NextRequest) {
         deleted: false,
         deactivated: true,
         requestType: deactivated,
-        message: "النوع مستخدم في طلبات قائمة — تم تعطيله بدل حذفه",
+        message: "النوع مستخدم في طلبات أو نماذج — تم تعطيله بدل حذفه",
       });
     }
 
     await prisma.routingRule.deleteMany({ where: { requestTypeId: id } });
+    await prisma.requestForm.updateMany({
+      where: { requestTypeId: id },
+      data: { requestTypeId: null },
+    });
     await prisma.requestType.delete({ where: { id } });
     return jsonOk({ id, deleted: true, deactivated: false });
   } catch (error) {

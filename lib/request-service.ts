@@ -181,6 +181,14 @@ export async function submitRequest(params: {
   }
 
   const approvalToken = generateApprovalToken();
+  const { skipDepartmentApproval } = await import("./app-settings").then((m) =>
+    m.getWorkflowSettings(),
+  );
+
+  const initialStatus = skipDepartmentApproval
+    ? RequestStatus.Approved_Pending_Assignment
+    : RequestStatus.Pending_Manager;
+
   const created = await prisma.communicationRequest.create({
     data: {
       title: params.title,
@@ -194,7 +202,8 @@ export async function submitRequest(params: {
       visitDate: params.visitDate ?? null,
       approvalToken,
       approvalTokenExpiresAt: approvalTokenExpiresAtFromNow(),
-      status: RequestStatus.Pending_Manager,
+      status: initialStatus,
+      approvedAt: skipDepartmentApproval ? new Date() : null,
     },
     include: requestInclude,
   });
@@ -202,9 +211,55 @@ export async function submitRequest(params: {
   await recordStatusChange({
     requestId: created.id,
     fromStatus: null,
-    toStatus: RequestStatus.Pending_Manager,
-    note: "تم تقديم الطلب",
+    toStatus: initialStatus,
+    note: skipDepartmentApproval
+      ? "تقديم مباشر للوحة العمل (تجاوز موافقة مدير الإدارة)"
+      : "تم تقديم الطلب",
   });
+
+  if (skipDepartmentApproval) {
+    const assignee = await resolveAssignee(params.requestTypeId);
+    if (assignee) {
+      assertTransition(
+        RequestStatus.Approved_Pending_Assignment,
+        RequestStatus.In_Progress,
+      );
+      const assigned = await prisma.communicationRequest.update({
+        where: { id: created.id },
+        data: {
+          status: RequestStatus.In_Progress,
+          assignedEmployeeId: assignee.id,
+          assignedAt: new Date(),
+        },
+        include: requestInclude,
+      });
+      await recordStatusChange({
+        requestId: created.id,
+        fromStatus: RequestStatus.Approved_Pending_Assignment,
+        toStatus: RequestStatus.In_Progress,
+        changedBy: "routing-service",
+        note: "إسناد تلقائي عبر قاعدة التوجيه",
+      });
+      await recordAssignment({
+        requestId: created.id,
+        employeeId: assignee.id,
+        assignedBy: "routing-service",
+        note: "إسناد تلقائي",
+      });
+      await notify({
+        recipientId: assignee.id,
+        recipientEmail: assignee.email,
+        type: "assignment",
+        title: "تم إسناد تذكرة جديدة إليك",
+        body: `الطلب: ${assigned.title}`,
+        link: `/employee/tickets/${assigned.id}`,
+        channel: "both",
+        emailKind: "assigned",
+      });
+      return { request: withSla(assigned), approvalUrl: null as string | null };
+    }
+    return { request: withSla(created), approvalUrl: null as string | null };
+  }
 
   const approvalUrl = `${getAppUrl()}/approve?token=${approvalToken}`;
   await notifyManager({

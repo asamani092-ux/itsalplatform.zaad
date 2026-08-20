@@ -112,11 +112,42 @@ export default function KanbanBoard() {
     setError(null);
     try {
       const response = await action();
-      const payload = await parseApiResponse<unknown>(response);
+      const payload = await parseApiResponse<
+        DashboardRequest & { request?: DashboardRequest }
+      >(response);
       if (!response.ok || !payload.success) {
         throw new Error(getApiErrorMessage(payload, "فشلت العملية"));
       }
-      await loadData();
+      const updated =
+        payload.data?.request ??
+        (payload.data?.id && payload.data?.status ? payload.data : null);
+      if (updated) {
+        setRequests((prev) => {
+          const next = prev.filter((r) => r.id !== updated.id);
+          if (
+            updated.status === "Approved_Pending_Assignment" ||
+            updated.status === "In_Progress" ||
+            updated.status === "Completed"
+          ) {
+            if (updated.status !== "Completed" || tab === "board") {
+              // keep completed on board until archived view refresh
+            }
+            next.push(updated);
+          }
+          return next;
+        });
+        setArchiveRequests((prev) => {
+          if (updated.status === "Archived" || updated.status === "Completed") {
+            const without = prev.filter((r) => r.id !== updated.id);
+            if (updated.status === "Archived") return [...without, updated];
+            return without;
+          }
+          return prev.filter((r) => r.id !== updated.id);
+        });
+        setPendingRequests((prev) => prev.filter((r) => r.id !== updated.id));
+      } else {
+        await loadData();
+      }
     } catch (actionError) {
       setError(
         actionError instanceof Error ? actionError.message : "فشلت العملية",

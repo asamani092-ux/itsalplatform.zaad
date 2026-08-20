@@ -90,6 +90,7 @@ export default function RequestCard({
       }
       onDragStart={() => onDragStart(request.id)}
       onKeyDown={handleCardKeyDown}
+      style={isActive ? { touchAction: "manipulation" } : undefined}
     >
       <div className="flex items-start justify-between gap-2">
         <h3 className="text-sm font-bold text-primary">{request.title}</h3>
