@@ -31,6 +31,7 @@ model Department {
   requestTypes  RequestType[]
   requests      CommunicationRequest[]
   requestForms  RequestForm[]
+  visitorLogs   ReceptionVisitorLog[]
   createdAt     DateTime               @default(now())
   updatedAt     DateTime               @updatedAt
 
@@ -84,6 +85,7 @@ model CommEmployee {
   routingRules      RoutingRule[]
   notifications     Notification[]
   passwordResets    PasswordResetToken[]
+  visitorLogs       ReceptionVisitorLog[] @relation("MarkedByReception")
   createdAt         DateTime              @default(now())
   updatedAt         DateTime              @updatedAt
 
@@ -134,6 +136,7 @@ model CommunicationRequest {
   assignmentHistory  AssignmentHistory[]
   statusHistory      StatusHistory[]
   hospitalityBooking HospitalityBooking?
+  visitorLogs        ReceptionVisitorLog[]
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
 
@@ -144,6 +147,29 @@ model CommunicationRequest {
   @@index([requestTypeId])
   @@index([createdAt])
   @@index([visitDate])
+}
+
+/** Cumulative visitor attendance log for central reception reports. */
+model ReceptionVisitorLog {
+  id             String                @id @default(cuid())
+  visitorName    String
+  visitorPhone   String
+  reason         String
+  organization   String?
+  visitAt        DateTime
+  departmentId   String?
+  department     Department?           @relation(fields: [departmentId], references: [id])
+  requestId      String?
+  request        CommunicationRequest? @relation(fields: [requestId], references: [id], onDelete: SetNull)
+  markedById     String?
+  markedBy       CommEmployee?         @relation("MarkedByReception", fields: [markedById], references: [id], onDelete: SetNull)
+  createdAt      DateTime              @default(now())
+
+  @@index([visitAt])
+  @@index([departmentId])
+  @@index([requestId])
+  @@index([visitorPhone])
+  @@index([createdAt])
 }
 
 model AssignmentHistory {
