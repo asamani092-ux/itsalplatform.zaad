@@ -43,3 +43,28 @@ export async function requireEmployeeSession() {
   }
   return { session };
 }
+
+/** Central reception desk: RECEPTION role or MANAGER. */
+export async function requireReceptionDeskSession() {
+  const session = await getRouteSession();
+  if (!session) {
+    return {
+      error: NextResponse.json(
+        { success: false, error: { message: "يجب تسجيل الدخول", code: "UNAUTHORIZED" } },
+        { status: 401 },
+      ),
+    };
+  }
+  if (
+    session.role !== EmployeeRole.RECEPTION &&
+    session.role !== EmployeeRole.MANAGER
+  ) {
+    return {
+      error: NextResponse.json(
+        { success: false, error: { message: "صلاحيات الاستقبال مطلوبة", code: "FORBIDDEN" } },
+        { status: 403 },
+      ),
+    };
+  }
+  return { session };
+}

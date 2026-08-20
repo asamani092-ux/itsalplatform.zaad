@@ -18,6 +18,7 @@ enum RequestStatus {
 enum EmployeeRole {
   EMPLOYEE
   MANAGER
+  RECEPTION
 }
 
 model Department {

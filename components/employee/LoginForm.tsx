@@ -41,7 +41,11 @@ export default function LoginForm({ nextUrl }: { nextUrl?: string | null }) {
       const role = payload.data.user.role;
       const dest =
         nextUrl ??
-        (role === "MANAGER" ? "/dashboard" : "/employee");
+        (role === "MANAGER"
+          ? "/dashboard"
+          : role === "RECEPTION"
+            ? "/dashboard/reception"
+            : "/employee");
       router.push(dest);
       router.refresh();
     } catch (err) {

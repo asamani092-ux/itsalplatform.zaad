@@ -115,6 +115,23 @@ async function main() {
     createdEmployees.push(row);
   }
 
+  const receptionist = await prisma.commEmployee.upsert({
+    where: { email: "reception@zaad.org" },
+    update: {
+      phoneNumber: "0500000005",
+      passwordHash,
+      role: EmployeeRole.RECEPTION,
+      isActive: true,
+    },
+    create: {
+      name: "موظف الاستقبال",
+      email: "reception@zaad.org",
+      phoneNumber: "0500000005",
+      passwordHash,
+      role: EmployeeRole.RECEPTION,
+    },
+  });
+
   const pressType = await prisma.requestType.findUnique({
     where: { slug: "press-release" },
   });
@@ -177,7 +194,8 @@ async function main() {
   console.log("Seed complete:");
   console.log(`  Manager: ${manager.email} / password123`);
   console.log(`  Employees: password123 for all (email login)`);
-  console.log(`  Reception token: reception-demo-token`);
+  console.log(`  Reception desk: ${receptionist.email} / password123`);
+  console.log(`  Reception token (legacy kiosk): reception-demo-token`);
 }
 
 main()

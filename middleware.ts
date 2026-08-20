@@ -29,6 +29,10 @@ function managerToDashboard(pathname: string): string {
   return pathname.replace(/^\/manager/, "/dashboard");
 }
 
+function isReceptionDeskPath(pathname: string): boolean {
+  return pathname === "/dashboard/reception" || pathname.startsWith("/dashboard/reception/");
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -43,6 +47,16 @@ export async function middleware(request: NextRequest) {
       const login = new URL("/login", request.url);
       login.searchParams.set("next", pathname);
       return NextResponse.redirect(login);
+    }
+
+    if (session.role === "RECEPTION") {
+      if (pathname.startsWith("/employee")) {
+        return NextResponse.redirect(new URL("/dashboard/reception", request.url));
+      }
+      if (!isReceptionDeskPath(pathname)) {
+        return NextResponse.redirect(new URL("/dashboard/reception", request.url));
+      }
+      return NextResponse.next();
     }
 
     if (pathname.startsWith("/dashboard") && session.role !== "MANAGER") {

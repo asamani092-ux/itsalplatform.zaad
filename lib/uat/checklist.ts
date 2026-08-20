@@ -184,13 +184,13 @@ export const UAT_SECTIONS: UatSection[] = [
   },
   {
     id: "reception",
-    title: "شاشة الاستقبال",
-    path: "/reception/[token]",
+    title: "الاستقبال المركزي",
+    path: "/dashboard/reception",
     items: [
-      { id: "12.1", label: "فتح الشاشة بالرمز الصحيح" },
-      { id: "12.2", label: "رفض رمز غير صالح" },
-      { id: "12.3", label: "عرض زيارات اليوم فقط" },
-      { id: "12.4", label: "تسجيل الحضور" },
+      { id: "12.1", label: "دخول بحساب دور RECEPTION" },
+      { id: "12.2", label: "عرض زيارات جميع الأقسام" },
+      { id: "12.3", label: "تسجيل / إلغاء الحضور من المكتب المركزي" },
+      { id: "12.4", label: "رمز القسم العام /reception/[token] ما زال يعمل" },
     ],
   },
   {

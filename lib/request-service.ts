@@ -768,6 +768,72 @@ export async function markVisitAttendance(params: {
   return { department, request: withSla(updated) };
 }
 
+/** Central desk: all departments' visit requests from today onward. Time O(n), Space O(n). */
+export async function listCentralReceptionVisits() {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const requests = await prisma.communicationRequest.findMany({
+    where: {
+      approvedAt: { not: null },
+      requestType: { requiresVisitDate: true },
+      visitDate: { gte: today },
+      status: {
+        in: [
+          RequestStatus.Approved_Pending_Assignment,
+          RequestStatus.In_Progress,
+          RequestStatus.Completed,
+        ],
+      },
+    },
+    include: requestInclude,
+    orderBy: [{ visitDate: "asc" }, { title: "asc" }],
+  });
+
+  return { requests: requests.map(withSla) };
+}
+
+/** Mark attendance by request id (central desk). Time O(1), Space O(1). */
+export async function markCentralVisitAttendance(params: {
+  requestId: string;
+  attended: boolean;
+}) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const existing = await prisma.communicationRequest.findFirst({
+    where: {
+      id: params.requestId,
+      approvedAt: { not: null },
+      requestType: { requiresVisitDate: true },
+      visitDate: { gte: today },
+      status: {
+        in: [
+          RequestStatus.Approved_Pending_Assignment,
+          RequestStatus.In_Progress,
+          RequestStatus.Completed,
+        ],
+      },
+    },
+    select: { id: true },
+  });
+
+  if (!existing) {
+    throw new Error("NOT_FOUND: الطلب غير موجود في قائمة الاستقبال المركزي");
+  }
+
+  const updated = await prisma.communicationRequest.update({
+    where: { id: params.requestId },
+    data: {
+      visitAttended: params.attended,
+      visitMarkedAt: new Date(),
+    },
+    include: requestInclude,
+  });
+
+  return { request: withSla(updated) };
+}
+
 export async function regenerateApprovalLink(requestId: string) {
   const request = await prisma.communicationRequest.findUnique({
     where: { id: requestId },

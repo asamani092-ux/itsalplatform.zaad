@@ -133,8 +133,8 @@ export const PLATFORM_MODULES: PlatformModuleDef[] = [
   },
   {
     key: "reception",
-    label: "شاشة الاستقبال",
-    description: "زيارات اليوم وتسجيل الحضور عبر رمز القسم",
+    label: "الاستقبال المركزي",
+    description: "مكتب استقبال واحد لجميع الأقسام وتسجيل الحضور",
     href: "/dashboard/reception",
     category: "services",
     icon: "desk",
