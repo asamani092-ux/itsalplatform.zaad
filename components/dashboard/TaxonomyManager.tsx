@@ -406,7 +406,7 @@ export function RequestTypesManager({
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-brand-gray">
-          أنواع الطلبات المتاحة (بيان صحفي، تغطية إعلامية، ...)
+          أنواع الطلبات المتاحة للمستقبلين (حجز قاعات، تصاميم، زيارات، ...)
         </p>
         <button
           type="button"
@@ -449,7 +449,7 @@ export function RequestTypesManager({
             <input
               id="rt-name"
               className="input-field w-full"
-              placeholder="مثال: بيان صحفي"
+              placeholder="مثال: طلب تصميم"
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
               required
@@ -463,7 +463,7 @@ export function RequestTypesManager({
               id="rt-slug"
               className="input-field w-full"
               dir="ltr"
-              placeholder="press-release"
+              placeholder="design-request"
               value={form.slug}
               onChange={(e) => setForm({ ...form, slug: e.target.value })}
               required

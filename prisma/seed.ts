@@ -65,9 +65,30 @@ async function main() {
 
   const requestTypes = [
     {
-      slug: "press-release",
-      name: "بيان صحفي",
-      description: "طلب إصدار بيان صحفي",
+      slug: "hospitality-booking",
+      name: "حجز القاعات",
+      description: "طلب حجز قاعة اجتماعات أو تدريب",
+      requiresVisitDate: true,
+      departmentId: bySlug.communications?.id,
+    },
+    {
+      slug: "visit-coordination",
+      name: "تنسيق الزيارات",
+      description: "تنسيق زيارة رسمية أو استقبال ضيف",
+      requiresVisitDate: true,
+      departmentId: bySlug.communications?.id,
+    },
+    {
+      slug: "satisfaction-survey",
+      name: "قياس الرضا",
+      description: "طلب قياس رضا أو استبيان",
+      requiresVisitDate: false,
+      departmentId: bySlug.communications?.id,
+    },
+    {
+      slug: "design-request",
+      name: "استقبال طلبات التصاميم",
+      description: "طلب تصميم إعلامي أو منشور",
       requiresVisitDate: false,
       departmentId: bySlug.communications?.id,
     },
@@ -98,6 +119,8 @@ async function main() {
     await prisma.requestType.upsert({
       where: { slug: rt.slug },
       update: {
+        name: rt.name,
+        description: rt.description,
         requiresVisitDate: rt.requiresVisitDate,
         departmentId: rt.departmentId,
         isActive: true,
@@ -105,6 +128,32 @@ async function main() {
       create: rt,
     });
   }
+
+  // Remove legacy «بيان صحفي» completely
+  const legacyPress = await prisma.requestType.findUnique({
+    where: { slug: "press-release" },
+  });
+  if (legacyPress) {
+    await prisma.routingRule.deleteMany({ where: { requestTypeId: legacyPress.id } });
+    await prisma.requestForm.deleteMany({
+      where: {
+        OR: [{ slug: "press-public" }, { requestTypeId: legacyPress.id }],
+      },
+    });
+    await prisma.communicationRequest.deleteMany({
+      where: { requestTypeId: legacyPress.id },
+    });
+    await prisma.requestType.delete({ where: { id: legacyPress.id } });
+  }
+  await prisma.requestForm.deleteMany({ where: { slug: "press-public" } });
+  await prisma.mediaDocument.deleteMany({
+    where: {
+      OR: [
+        { title: { contains: "بيان صحفي" } },
+        { fileUrl: { contains: "press-template" } },
+      ],
+    },
+  });
 
   const types = await prisma.requestType.findMany();
   const typeBySlug = Object.fromEntries(types.map((t) => [t.slug, t]));
@@ -170,17 +219,17 @@ async function main() {
     },
   });
 
-  if (typeBySlug["press-release"] && createdEmployees[0]) {
+  if (typeBySlug["design-request"] && createdEmployees[0]) {
     await prisma.routingRule.upsert({
       where: {
         requestTypeId_employeeId: {
-          requestTypeId: typeBySlug["press-release"].id,
+          requestTypeId: typeBySlug["design-request"].id,
           employeeId: createdEmployees[0].id,
         },
       },
       update: { isActive: true },
       create: {
-        requestTypeId: typeBySlug["press-release"].id,
+        requestTypeId: typeBySlug["design-request"].id,
         employeeId: createdEmployees[0].id,
       },
     });
@@ -231,12 +280,12 @@ async function main() {
 
   const demoRequests = [
     {
-      title: "بيان إطلاق حملة التطوع",
-      description: "صياغة بيان صحفي لحملة التطوع الربيعية",
+      title: "تصميم منشور توعوي للحملة",
+      description: "طلب تصميم منشور لوسائل التواصل ضمن حملة التطوع",
       contactEmail: "fatima@demo.zaad.org",
       contactPhone: "0551000001",
       departmentId: bySlug.communications!.id,
-      requestTypeId: typeBySlug["press-release"]!.id,
+      requestTypeId: typeBySlug["design-request"]!.id,
       status: RequestStatus.Pending_Manager,
       requiredDate: daysFromNow(5),
       visitDate: null as Date | null,
@@ -435,25 +484,25 @@ async function main() {
     ],
   });
 
-  if (bySlug.communications && typeBySlug["press-release"]) {
+  if (bySlug.communications && typeBySlug["design-request"]) {
     await prisma.requestForm.upsert({
-      where: { slug: "press-public" },
+      where: { slug: "design-public" },
       update: {
         isPublished: true,
-        name: "نموذج بيان صحفي",
+        name: "نموذج طلب تصميم",
         departmentId: bySlug.communications.id,
-        requestTypeId: typeBySlug["press-release"].id,
+        requestTypeId: typeBySlug["design-request"].id,
       },
       create: {
-        slug: "press-public",
-        name: "نموذج بيان صحفي",
+        slug: "design-public",
+        name: "نموذج طلب تصميم",
         isPublished: true,
         isDefault: false,
         departmentId: bySlug.communications.id,
-        requestTypeId: typeBySlug["press-release"].id,
-        pageTitle: "طلب بيان صحفي",
+        requestTypeId: typeBySlug["design-request"].id,
+        pageTitle: "طلب تصميم",
         pageSubtitle: "جمعية الزاد",
-        introText: "عبّئ النموذج لطلب إصدار بيان صحفي.",
+        introText: "عبّئ النموذج لطلب تصميم إعلامي.",
         submitLabel: "إرسال الطلب",
       },
     });
@@ -498,10 +547,10 @@ async function main() {
         sortOrder: 2,
       },
       {
-        title: "قالب بيان صحفي",
-        description: "نموذج Word للبيانات الصحفية",
+        title: "قالب منشور توعوي",
+        description: "نموذج أساسي للمنشورات التوعوية",
         category: "templates",
-        fileUrl: "https://example.com/docs/press-template.docx",
+        fileUrl: "https://example.com/docs/design-template.pdf",
         sortOrder: 3,
       },
     ],
