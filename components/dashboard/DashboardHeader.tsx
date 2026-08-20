@@ -25,7 +25,7 @@ export default function DashboardHeader({
           className="lg:hidden"
           onClick={onOpenNav}
         />
-        <BrandLogo size="sm" className="hidden sm:block" />
+        <BrandLogo size="sm" />
         <div className="min-w-0 space-y-1">
           <Breadcrumb
             items={[
