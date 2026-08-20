@@ -1,13 +1,57 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getApiErrorMessage, parseApiResponse } from "@/components/lib/api-types";
 
-type TabId = "today" | "register" | "reports";
+type TabId =
+  | "dashboard"
+  | "register"
+  | "logs"
+  | "scheduled"
+  | "attendance"
+  | "reports";
 
-interface DeptOption {
+interface StatBar {
+  label: string;
+  count: number;
+}
+
+interface DeskStats {
+  totals: {
+    loggedVisits: number;
+    personal: number;
+    official: number;
+    morning: number;
+  };
+  byTarget: StatBar[];
+  bySlot: StatBar[];
+}
+
+interface DeskMeta {
+  visitTargets: string[];
+  visitTypes: string[];
+  visitTimeSlots: string[];
+}
+
+interface VisitorSuggestion {
+  visitorName: string;
+  visitorPhone: string;
+  organization: string;
+  visitTarget: string;
+}
+
+interface VisitorLog {
   id: string;
-  name: string;
+  visitorName: string;
+  visitorPhone: string;
+  organization: string;
+  visitType: string;
+  visitTarget: string;
+  reason: string;
+  visitTimeSlot: string;
+  visitAt: string;
+  department?: { id: string; name: string } | null;
+  markedBy?: { id: string; name: string } | null;
 }
 
 interface ScheduledVisit {
@@ -18,18 +62,41 @@ interface ScheduledVisit {
   contactEmail: string;
   visitDate: string | null;
   visitAttended: boolean | null;
+  visitMarkedAt?: string | null;
   department?: { id: string; name: string };
-  requestType?: { name: string };
+  requestType?: { id: string; name: string };
 }
 
-interface AttendanceLog {
+interface AttendanceEventSummary {
   id: string;
-  visitorName: string;
-  visitorPhone: string;
-  reason: string;
-  organization: string | null;
-  visitAt: string;
-  department?: { name: string } | null;
+  title: string;
+  kind: string;
+  scheduledAt: string;
+  notes: string;
+  total: number;
+  attended: number;
+}
+
+interface AttendanceAttendee {
+  id: string;
+  name: string;
+  phone: string;
+  attended: boolean;
+  checkedInAt: string | null;
+}
+
+interface AttendanceEventDetail {
+  id: string;
+  title: string;
+  kind: string;
+  scheduledAt: string;
+  notes: string;
+  attendees: AttendanceAttendee[];
+}
+
+interface DeptOption {
+  id: string;
+  name: string;
 }
 
 interface DeptKpi {
@@ -45,13 +112,79 @@ interface ReportVisit {
   id: string;
   visitorName: string;
   visitorPhone: string;
+  organization: string;
+  visitType: string;
+  visitTarget: string;
   reason: string;
-  organization: string | null;
+  visitTimeSlot: string;
   visitAt: string;
   departmentName: string | null;
+  markedByName: string | null;
 }
 
-function formatVisitTime(iso: string | null) {
+interface VisitorFormState {
+  visitorName: string;
+  visitorPhone: string;
+  organization: string;
+  visitType: string;
+  visitTarget: string;
+  reason: string;
+  visitDate: string;
+  visitTimeSlot: string;
+}
+
+const TABS: { id: TabId; label: string }[] = [
+  { id: "dashboard", label: "لوحة التحكم" },
+  { id: "register", label: "تسجيل زائر" },
+  { id: "logs", label: "سجل الزوار" },
+  { id: "scheduled", label: "مجدولة اليوم" },
+  { id: "attendance", label: "قوائم الحضور" },
+  { id: "reports", label: "التقارير" },
+];
+
+const DEFAULT_TARGETS = [
+  "الإدارة التنفيذية",
+  "إدارة الآداء والنمو",
+  "إدارة الإتصال المؤسسي",
+  "إدارة التكافل المجتمعي",
+  "إدارة الرعاية والتمكين",
+  "إدارة الشؤون المالية والإدارية",
+  "زائر",
+];
+const DEFAULT_TYPES = ["شخصي", "تابع لجهة"];
+const DEFAULT_SLOTS = ["الصباح", "الظهر", "المساء"];
+
+function pad2(n: number) {
+  return String(n).padStart(2, "0");
+}
+
+function toDateInput(d: Date) {
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+
+function toLocalDateTimeInput(d: Date) {
+  return `${toDateInput(d)}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+}
+
+function emptyVisitorForm(meta?: DeskMeta | null): VisitorFormState {
+  return {
+    visitorName: "",
+    visitorPhone: "",
+    organization: "",
+    visitType: meta?.visitTypes?.[0] ?? DEFAULT_TYPES[0],
+    visitTarget: meta?.visitTargets?.[0] ?? DEFAULT_TARGETS[0],
+    reason: "",
+    visitDate: toDateInput(new Date()),
+    visitTimeSlot: meta?.visitTimeSlots?.[0] ?? DEFAULT_SLOTS[0],
+  };
+}
+
+function formatDate(iso: string | null | undefined) {
+  if (!iso) return "—";
+  return new Intl.DateTimeFormat("ar-SA", { dateStyle: "medium" }).format(new Date(iso));
+}
+
+function formatDateTime(iso: string | null | undefined) {
   if (!iso) return "—";
   return new Intl.DateTimeFormat("ar-SA", {
     dateStyle: "medium",
@@ -59,45 +192,82 @@ function formatVisitTime(iso: string | null) {
   }).format(new Date(iso));
 }
 
-function toLocalInputValue(d: Date) {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
-function toDateInput(d: Date) {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
-
 function csvEscape(value: string) {
   if (/[",\n]/.test(value)) return `"${value.replace(/"/g, '""')}"`;
   return value;
 }
 
+function barPercent(count: number, max: number) {
+  if (max <= 0) return 0;
+  return Math.max(4, Math.round((count / max) * 100));
+}
+
+function SimpleBars({
+  items,
+  emptyLabel,
+}: {
+  items: StatBar[];
+  emptyLabel: string;
+}) {
+  const max = Math.max(0, ...items.map((i) => i.count));
+  if (items.length === 0) {
+    return <p className="text-sm text-brand-gray">{emptyLabel}</p>;
+  }
+  return (
+    <div className="space-y-2">
+      {items.map((item) => (
+        <div key={item.label} className="space-y-1">
+          <div className="flex items-center justify-between gap-2 text-xs">
+            <span className="font-medium text-primary">{item.label}</span>
+            <span className="text-brand-gray">{item.count}</span>
+          </div>
+          <div className="h-2.5 overflow-hidden rounded bg-[color-mix(in_srgb,#8B1538_12%,white)]">
+            <div
+              className="h-full rounded bg-[#8B1538] transition-[width] duration-500"
+              style={{ width: `${barPercent(item.count, max)}%` }}
+            />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function ReceptionDesk() {
-  const [tab, setTab] = useState<TabId>("today");
-  const [visits, setVisits] = useState<ScheduledVisit[]>([]);
-  const [logs, setLogs] = useState<AttendanceLog[]>([]);
-  const [departments, setDepartments] = useState<DeptOption[]>([]);
+  const [tab, setTab] = useState<TabId>("dashboard");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  const [visits, setVisits] = useState<ScheduledVisit[]>([]);
+  const [logs, setLogs] = useState<VisitorLog[]>([]);
+  const [stats, setStats] = useState<DeskStats | null>(null);
+  const [meta, setMeta] = useState<DeskMeta | null>(null);
+
+  const [form, setForm] = useState<VisitorFormState>(() => emptyVisitorForm());
+  const [suggestions, setSuggestions] = useState<VisitorSuggestion[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const suggestTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [checkInFor, setCheckInFor] = useState<ScheduledVisit | null>(null);
-  const [formName, setFormName] = useState("");
-  const [formPhone, setFormPhone] = useState("");
-  const [formReason, setFormReason] = useState("");
-  const [formOrg, setFormOrg] = useState("");
-  const [formVisitAt, setFormVisitAt] = useState(toLocalInputValue(new Date()));
-  const [formDeptId, setFormDeptId] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+  const [checkInForm, setCheckInForm] = useState<VisitorFormState>(() => emptyVisitorForm());
+
+  const [attendanceEvents, setAttendanceEvents] = useState<AttendanceEventSummary[]>([]);
+  const [attendanceLoading, setAttendanceLoading] = useState(false);
+  const [activeEvent, setActiveEvent] = useState<AttendanceEventDetail | null>(null);
+  const [attForm, setAttForm] = useState({
+    title: "",
+    kind: "MEETING",
+    scheduledAt: toLocalDateTimeInput(new Date()),
+    namesText: "",
+  });
 
   const today = useMemo(() => new Date(), []);
   const [reportFrom, setReportFrom] = useState(
     toDateInput(new Date(today.getFullYear(), today.getMonth(), 1)),
   );
   const [reportTo, setReportTo] = useState(toDateInput(today));
-  const [reportDept, setReportDept] = useState("");
   const [reportLoading, setReportLoading] = useState(false);
   const [kpis, setKpis] = useState<DeptKpi[]>([]);
   const [reportVisits, setReportVisits] = useState<ReportVisit[]>([]);
@@ -107,6 +277,13 @@ export default function ReceptionDesk() {
     attendedScheduled: 0,
     departmentsWithVisits: 0,
   });
+  const [departments, setDepartments] = useState<DeptOption[]>([]);
+
+  const visitTargets = meta?.visitTargets?.length ? meta.visitTargets : DEFAULT_TARGETS;
+  const visitTypes = meta?.visitTypes?.length ? meta.visitTypes : DEFAULT_TYPES;
+  const visitTimeSlots = meta?.visitTimeSlots?.length
+    ? meta.visitTimeSlots
+    : DEFAULT_SLOTS;
 
   const loadDesk = useCallback(async () => {
     setLoading(true);
@@ -115,19 +292,48 @@ export default function ReceptionDesk() {
       const res = await fetch("/api/reception/desk");
       const payload = await parseApiResponse<{
         visits: ScheduledVisit[];
-        attendanceLogs: AttendanceLog[];
-        departments: DeptOption[];
+        attendanceLogs: VisitorLog[];
+        stats: DeskStats;
+        meta: DeskMeta;
       }>(res);
       if (!res.ok || !payload.success) {
-        throw new Error(getApiErrorMessage(payload, "تعذّر تحميل الزيارات"));
+        throw new Error(getApiErrorMessage(payload, "تعذّر تحميل بيانات الاستقبال"));
       }
       setVisits(payload.data.visits);
       setLogs(payload.data.attendanceLogs);
-      setDepartments(payload.data.departments);
+      setStats(payload.data.stats);
+      setMeta(payload.data.meta);
+      setForm((prev) => ({
+        ...prev,
+        visitType: prev.visitType || payload.data.meta.visitTypes[0] || DEFAULT_TYPES[0],
+        visitTarget:
+          prev.visitTarget || payload.data.meta.visitTargets[0] || DEFAULT_TARGETS[0],
+        visitTimeSlot:
+          prev.visitTimeSlot ||
+          payload.data.meta.visitTimeSlots[0] ||
+          DEFAULT_SLOTS[0],
+      }));
     } catch (e) {
       setError(e instanceof Error ? e.message : "خطأ");
     } finally {
       setLoading(false);
+    }
+  }, []);
+
+  const loadAttendance = useCallback(async () => {
+    setAttendanceLoading(true);
+    setError("");
+    try {
+      const res = await fetch("/api/reception/attendance");
+      const payload = await parseApiResponse<{ events: AttendanceEventSummary[] }>(res);
+      if (!res.ok || !payload.success) {
+        throw new Error(getApiErrorMessage(payload, "تعذّر تحميل قوائم الحضور"));
+      }
+      setAttendanceEvents(payload.data.events);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "خطأ");
+    } finally {
+      setAttendanceLoading(false);
     }
   }, []);
 
@@ -136,7 +342,6 @@ export default function ReceptionDesk() {
     setError("");
     try {
       const qs = new URLSearchParams({ from: reportFrom, to: reportTo });
-      if (reportDept) qs.set("departmentId", reportDept);
       const res = await fetch(`/api/reception/reports?${qs}`);
       const payload = await parseApiResponse<{
         departmentKpis: DeptKpi[];
@@ -163,23 +368,125 @@ export default function ReceptionDesk() {
     } finally {
       setReportLoading(false);
     }
-  }, [reportFrom, reportTo, reportDept]);
+  }, [reportFrom, reportTo]);
 
   useEffect(() => {
     void loadDesk();
   }, [loadDesk]);
 
   useEffect(() => {
+    if (tab === "attendance") void loadAttendance();
+  }, [tab, loadAttendance]);
+
+  useEffect(() => {
     if (tab === "reports") void loadReports();
   }, [tab, loadReports]);
 
+  useEffect(() => {
+    return () => {
+      if (suggestTimer.current) clearTimeout(suggestTimer.current);
+    };
+  }, []);
+
+  function updateForm<K extends keyof VisitorFormState>(key: K, value: VisitorFormState[K]) {
+    setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function updateCheckIn<K extends keyof VisitorFormState>(
+    key: K,
+    value: VisitorFormState[K],
+  ) {
+    setCheckInForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function scheduleNameSuggest(name: string) {
+    updateForm("visitorName", name);
+    setShowSuggestions(true);
+    if (suggestTimer.current) clearTimeout(suggestTimer.current);
+    if (name.trim().length < 2) {
+      setSuggestions([]);
+      return;
+    }
+    suggestTimer.current = setTimeout(() => {
+      void (async () => {
+        try {
+          const res = await fetch(
+            `/api/reception/desk?q=${encodeURIComponent(name.trim())}`,
+          );
+          const payload = await parseApiResponse<{ suggestions: VisitorSuggestion[] }>(
+            res,
+          );
+          if (res.ok && payload.success) {
+            setSuggestions(payload.data.suggestions);
+          }
+        } catch {
+          /* ignore autocomplete errors */
+        }
+      })();
+    }, 280);
+  }
+
+  function applySuggestion(s: VisitorSuggestion) {
+    const baseTarget = s.visitTarget.replace(/^زائر\s*-\s*.+$/, "زائر");
+    const reasonMatch = s.visitTarget.match(/^زائر\s*-\s*(.+)$/);
+    setForm((prev) => ({
+      ...prev,
+      visitorName: s.visitorName,
+      visitorPhone: s.visitorPhone,
+      organization: s.organization,
+      visitTarget: visitTargets.includes(baseTarget) ? baseTarget : prev.visitTarget,
+      reason: reasonMatch?.[1] ?? prev.reason,
+    }));
+    setSuggestions([]);
+    setShowSuggestions(false);
+  }
+
+  async function submitRegister(e: React.FormEvent) {
+    e.preventDefault();
+    setSubmitting(true);
+    setError("");
+    try {
+      const res = await fetch("/api/reception/desk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          visitorName: form.visitorName,
+          visitorPhone: form.visitorPhone,
+          organization: form.organization,
+          visitType: form.visitType,
+          visitTarget: form.visitTarget,
+          reason: form.visitTarget === "زائر" ? form.reason : undefined,
+          visitDate: form.visitDate,
+          visitTimeSlot: form.visitTimeSlot,
+        }),
+      });
+      const payload = await parseApiResponse<unknown>(res);
+      if (!res.ok || !payload.success) {
+        throw new Error(getApiErrorMessage(payload, "فشل تسجيل الزائر"));
+      }
+      setForm(emptyVisitorForm(meta));
+      setSuggestions([]);
+      setTab("logs");
+      await loadDesk();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "خطأ");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   function openCheckIn(visit: ScheduledVisit) {
     setCheckInFor(visit);
-    setFormName(visit.title);
-    setFormPhone(visit.contactPhone);
-    setFormReason(visit.requestType?.name || visit.description || visit.title);
-    setFormOrg("");
-    setFormVisitAt(toLocalInputValue(visit.visitDate ? new Date(visit.visitDate) : new Date()));
+    setCheckInForm({
+      visitorName: visit.title,
+      visitorPhone: visit.contactPhone || "",
+      organization: "",
+      visitType: visitTypes[0],
+      visitTarget: visitTargets[0],
+      reason: "",
+      visitDate: visit.visitDate ? toDateInput(new Date(visit.visitDate)) : toDateInput(new Date()),
+      visitTimeSlot: visitTimeSlots[0],
+    });
   }
 
   async function submitCheckIn() {
@@ -193,11 +500,14 @@ export default function ReceptionDesk() {
         body: JSON.stringify({
           action: "check_in",
           requestId: checkInFor.id,
-          visitorName: formName,
-          visitorPhone: formPhone,
-          reason: formReason,
-          organization: formOrg || null,
-          visitAt: new Date(formVisitAt).toISOString(),
+          visitorName: checkInForm.visitorName,
+          visitorPhone: checkInForm.visitorPhone,
+          organization: checkInForm.organization,
+          visitType: checkInForm.visitType,
+          visitTarget: checkInForm.visitTarget,
+          reason: checkInForm.visitTarget === "زائر" ? checkInForm.reason : undefined,
+          visitDate: checkInForm.visitDate,
+          visitTimeSlot: checkInForm.visitTimeSlot,
         }),
       });
       const payload = await parseApiResponse<unknown>(res);
@@ -234,35 +544,33 @@ export default function ReceptionDesk() {
     }
   }
 
-  async function submitWalkIn(e: React.FormEvent) {
+  async function createAttendanceList(e: React.FormEvent) {
     e.preventDefault();
     setSubmitting(true);
     setError("");
     try {
-      const res = await fetch("/api/reception/desk", {
+      const res = await fetch("/api/reception/attendance", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          visitorName: formName,
-          visitorPhone: formPhone,
-          reason: formReason,
-          organization: formOrg || null,
-          visitAt: new Date(formVisitAt).toISOString(),
-          departmentId: formDeptId || null,
+          title: attForm.title,
+          kind: attForm.kind,
+          scheduledAt: new Date(attForm.scheduledAt).toISOString(),
+          namesText: attForm.namesText,
         }),
       });
-      const payload = await parseApiResponse<unknown>(res);
+      const payload = await parseApiResponse<{ event: AttendanceEventDetail }>(res);
       if (!res.ok || !payload.success) {
-        throw new Error(getApiErrorMessage(payload, "فشل تسجيل الزائر"));
+        throw new Error(getApiErrorMessage(payload, "فشل إنشاء قائمة الحضور"));
       }
-      setFormName("");
-      setFormPhone("");
-      setFormReason("");
-      setFormOrg("");
-      setFormDeptId("");
-      setFormVisitAt(toLocalInputValue(new Date()));
-      setTab("today");
-      await loadDesk();
+      setAttForm({
+        title: "",
+        kind: "MEETING",
+        scheduledAt: toLocalDateTimeInput(new Date()),
+        namesText: "",
+      });
+      setActiveEvent(payload.data.event);
+      await loadAttendance();
     } catch (err) {
       setError(err instanceof Error ? err.message : "خطأ");
     } finally {
@@ -270,17 +578,80 @@ export default function ReceptionDesk() {
     }
   }
 
+  async function openAttendanceEvent(id: string) {
+    setBusyId(id);
+    setError("");
+    try {
+      const res = await fetch(`/api/reception/attendance?id=${encodeURIComponent(id)}`);
+      const payload = await parseApiResponse<{ event: AttendanceEventDetail }>(res);
+      if (!res.ok || !payload.success) {
+        throw new Error(getApiErrorMessage(payload, "تعذّر فتح القائمة"));
+      }
+      setActiveEvent(payload.data.event);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "خطأ");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function toggleAttendee(attendee: AttendanceAttendee) {
+    setBusyId(attendee.id);
+    setError("");
+    try {
+      const res = await fetch("/api/reception/attendance", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "toggle",
+          attendeeId: attendee.id,
+          attended: !attendee.attended,
+        }),
+      });
+      const payload = await parseApiResponse<{ attendee: AttendanceAttendee }>(res);
+      if (!res.ok || !payload.success) {
+        throw new Error(getApiErrorMessage(payload, "فشل تحديث الحضور"));
+      }
+      setActiveEvent((prev) =>
+        prev
+          ? {
+              ...prev,
+              attendees: prev.attendees.map((a) =>
+                a.id === payload.data.attendee.id ? payload.data.attendee : a,
+              ),
+            }
+          : prev,
+      );
+      void loadAttendance();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "خطأ");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   function downloadCsv() {
-    const header = ["الاسم", "الجوال", "السبب", "الجهة", "وقت الزيارة", "الإدارة"];
+    const header = [
+      "الاسم",
+      "الجوال",
+      "الجهة",
+      "النوع",
+      "الوجهة",
+      "الفترة",
+      "التاريخ",
+      "الإدارة",
+    ];
     const lines = [
       header.join(","),
       ...reportVisits.map((v) =>
         [
           csvEscape(v.visitorName),
           csvEscape(v.visitorPhone),
-          csvEscape(v.reason),
           csvEscape(v.organization ?? ""),
-          csvEscape(formatVisitTime(v.visitAt)),
+          csvEscape(v.visitType),
+          csvEscape(v.visitTarget),
+          csvEscape(v.visitTimeSlot),
+          csvEscape(formatDateTime(v.visitAt)),
           csvEscape(v.departmentName ?? ""),
         ].join(","),
       ),
@@ -296,16 +667,219 @@ export default function ReceptionDesk() {
     URL.revokeObjectURL(url);
   }
 
-  const pending = visits.filter((v) => !v.visitAttended).length;
-  const attended = visits.length - pending;
+  const totals = stats?.totals;
+  const pendingScheduled = visits.filter((v) => !v.visitAttended).length;
+
+  function renderVisitorFields(
+    state: VisitorFormState,
+    onChange: <K extends keyof VisitorFormState>(key: K, value: VisitorFormState[K]) => void,
+    opts?: { nameAutocomplete?: boolean; idPrefix?: string },
+  ) {
+    const prefix = opts?.idPrefix ?? "v";
+    return (
+      <>
+        <div className="relative space-y-1">
+          <label className="label-field" htmlFor={`${prefix}-name`}>
+            اسم الزائر
+          </label>
+          <input
+            id={`${prefix}-name`}
+            className="input-field w-full"
+            required
+            autoComplete="off"
+            value={state.visitorName}
+            onChange={(e) => {
+              if (opts?.nameAutocomplete) scheduleNameSuggest(e.target.value);
+              else onChange("visitorName", e.target.value);
+            }}
+            onFocus={() => opts?.nameAutocomplete && setShowSuggestions(true)}
+            onBlur={() => {
+              window.setTimeout(() => setShowSuggestions(false), 160);
+            }}
+          />
+          {opts?.nameAutocomplete && showSuggestions && suggestions.length > 0 && (
+            <ul className="absolute z-20 mt-1 max-h-48 w-full overflow-auto rounded border border-[color-mix(in_srgb,#8B1538_25%,white)] bg-white shadow-md">
+              {suggestions.map((s) => (
+                <li key={`${s.visitorName}-${s.visitorPhone}`}>
+                  <button
+                    type="button"
+                    className="block w-full px-3 py-2 text-right text-sm hover:bg-[color-mix(in_srgb,#8B1538_8%,white)]"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => applySuggestion(s)}
+                  >
+                    <span className="font-semibold text-primary">{s.visitorName}</span>
+                    <span className="mt-0.5 block text-xs text-brand-gray">
+                      {s.organization} · {s.visitorPhone}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <div className="space-y-1">
+          <label className="label-field" htmlFor={`${prefix}-phone`}>
+            رقم الجوال
+          </label>
+          <input
+            id={`${prefix}-phone`}
+            className="input-field w-full"
+            dir="ltr"
+            required
+            value={state.visitorPhone}
+            onChange={(e) => onChange("visitorPhone", e.target.value)}
+            placeholder="05xxxxxxxx"
+          />
+        </div>
+
+        <div className="space-y-1">
+          <label className="label-field" htmlFor={`${prefix}-org`}>
+            الجهة / المؤسسة
+          </label>
+          <input
+            id={`${prefix}-org`}
+            className="input-field w-full"
+            required
+            value={state.organization}
+            onChange={(e) => onChange("organization", e.target.value)}
+          />
+        </div>
+
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="space-y-1">
+            <label className="label-field" htmlFor={`${prefix}-type`}>
+              نوع الزيارة
+            </label>
+            <select
+              id={`${prefix}-type`}
+              className="input-field w-full"
+              required
+              value={state.visitType}
+              onChange={(e) => onChange("visitType", e.target.value)}
+            >
+              {visitTypes.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-1">
+            <label className="label-field" htmlFor={`${prefix}-target`}>
+              جهة الزيارة
+            </label>
+            <select
+              id={`${prefix}-target`}
+              className="input-field w-full"
+              required
+              value={state.visitTarget}
+              onChange={(e) => onChange("visitTarget", e.target.value)}
+            >
+              {visitTargets.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {state.visitTarget === "زائر" && (
+          <div className="space-y-1">
+            <label className="label-field" htmlFor={`${prefix}-reason`}>
+              سبب الزيارة
+            </label>
+            <input
+              id={`${prefix}-reason`}
+              className="input-field w-full"
+              required
+              value={state.reason}
+              onChange={(e) => onChange("reason", e.target.value)}
+            />
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="space-y-1">
+            <label className="label-field" htmlFor={`${prefix}-date`}>
+              تاريخ الزيارة
+            </label>
+            <input
+              id={`${prefix}-date`}
+              type="date"
+              className="input-field w-full"
+              dir="ltr"
+              required
+              value={state.visitDate}
+              onChange={(e) => onChange("visitDate", e.target.value)}
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="label-field" htmlFor={`${prefix}-slot`}>
+              فترة الزيارة
+            </label>
+            <select
+              id={`${prefix}-slot`}
+              className="input-field w-full"
+              required
+              value={state.visitTimeSlot}
+              onChange={(e) => onChange("visitTimeSlot", e.target.value)}
+            >
+              {visitTimeSlots.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </>
+    );
+  }
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-end justify-between gap-3">
+    <div className="reception-desk space-y-4">
+      <style>{`
+        @media print {
+          body * { visibility: hidden !important; }
+          .reception-print, .reception-print * { visibility: visible !important; }
+          .reception-print {
+            position: absolute;
+            inset: 0;
+            padding: 1.5rem;
+            background: white;
+            color: #1a1a1a;
+            font-family: Tajawal, "Noto Naskh Arabic", sans-serif;
+          }
+          .no-print { display: none !important; }
+          .reception-print h2, .reception-print h3 {
+            color: #8B1538 !important;
+          }
+          .reception-print table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11px;
+          }
+          .reception-print th, .reception-print td {
+            border: 1px solid #ccc;
+            padding: 6px 8px;
+            text-align: right;
+          }
+          .reception-print th {
+            background: #8B1538 !important;
+            color: white !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+        }
+      `}</style>
+
+      <div className="no-print flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="text-lg font-bold text-primary">مكتب الاستقبال المركزي</h2>
           <p className="mt-1 text-sm text-brand-gray">
-            تسجيل الحضور وقائمة الزوار مع الوقت وتقارير الإدارات
+            تسجيل الزوار والمواعيد وقوائم الحضور وفق نظام الزوار المعتمد
           </p>
         </div>
         <button type="button" className="btn-secondary text-sm" onClick={() => void loadDesk()}>
@@ -313,31 +887,15 @@ export default function ReceptionDesk() {
         </button>
       </div>
 
-      <div className="tab-bar" role="tablist" aria-label="أقسام الاستقبال">
-        {(
-          [
-            ["today", "قائمة اليوم"],
-            ["register", "تسجيل زائر"],
-            ["reports", "التقارير"],
-          ] as const
-        ).map(([id, label]) => (
+      <div className="tab-bar no-print" role="tablist" aria-label="أقسام الاستقبال">
+        {TABS.map(({ id, label }) => (
           <button
             key={id}
             type="button"
             role="tab"
             aria-selected={tab === id}
             data-active={tab === id ? "true" : "false"}
-            onClick={() => {
-              setTab(id);
-              if (id === "register") {
-                setFormName("");
-                setFormPhone("");
-                setFormReason("");
-                setFormOrg("");
-                setFormDeptId("");
-                setFormVisitAt(toLocalInputValue(new Date()));
-              }
-            }}
+            onClick={() => setTab(id)}
           >
             {label}
           </button>
@@ -345,91 +903,337 @@ export default function ReceptionDesk() {
       </div>
 
       {error && (
-        <p className="text-sm text-[var(--zaad-danger)]" role="alert">
+        <p className="no-print text-sm text-[var(--zaad-danger)]" role="alert">
           {error}
         </p>
       )}
 
-      {tab === "today" && (
-        <div className="space-y-6">
-          <div className="flex flex-wrap gap-4 text-sm text-brand-gray">
-            <span>
-              المجدولة: <strong className="text-primary">{visits.length}</strong>
-            </span>
-            <span>
-              بانتظار: <strong className="text-primary">{pending}</strong>
-            </span>
-            <span>
-              حضر: <strong className="text-primary">{attended}</strong>
-            </span>
-            <span>
-              سجل الحضور: <strong className="text-primary">{logs.length}</strong>
-            </span>
-          </div>
+      {tab === "dashboard" && (
+        <div className="space-y-4">
+          {loading && !stats ? (
+            <p className="text-sm text-brand-gray">جاري التحميل…</p>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="card p-4">
+                  <p className="text-xs text-brand-gray">إجمالي الزيارات</p>
+                  <p className="mt-1 text-2xl font-bold text-primary">
+                    {totals?.loggedVisits ?? 0}
+                  </p>
+                </div>
+                <div className="card p-4">
+                  <p className="text-xs text-brand-gray">زيارات شخصية</p>
+                  <p className="mt-1 text-2xl font-bold text-primary">
+                    {totals?.personal ?? 0}
+                  </p>
+                </div>
+                <div className="card p-4">
+                  <p className="text-xs text-brand-gray">تابع لجهة</p>
+                  <p className="mt-1 text-2xl font-bold text-primary">
+                    {totals?.official ?? 0}
+                  </p>
+                </div>
+                <div className="card p-4">
+                  <p className="text-xs text-brand-gray">فترة الصباح</p>
+                  <p className="mt-1 text-2xl font-bold text-primary">
+                    {totals?.morning ?? 0}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <section className="card space-y-3 p-4">
+                  <h3 className="text-sm font-bold text-primary">حسب جهة الزيارة</h3>
+                  <SimpleBars
+                    items={stats?.byTarget ?? []}
+                    emptyLabel="لا توجد بيانات بعد"
+                  />
+                </section>
+                <section className="card space-y-3 p-4">
+                  <h3 className="text-sm font-bold text-primary">حسب الفترة</h3>
+                  <SimpleBars
+                    items={stats?.bySlot ?? []}
+                    emptyLabel="لا توجد بيانات بعد"
+                  />
+                </section>
+              </div>
+
+              <div className="flex flex-wrap gap-4 text-sm text-brand-gray">
+                <span>
+                  مجدولة اليوم:{" "}
+                  <strong className="text-primary">{visits.length}</strong>
+                </span>
+                <span>
+                  بانتظار الحضور:{" "}
+                  <strong className="text-primary">{pendingScheduled}</strong>
+                </span>
+                <span>
+                  سجلات ظاهرة:{" "}
+                  <strong className="text-primary">{logs.length}</strong>
+                </span>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {tab === "register" && (
+        <form
+          onSubmit={(e) => void submitRegister(e)}
+          className="card max-w-2xl space-y-3 p-4"
+        >
+          <h3 className="font-bold text-primary">تسجيل زائر جديد</h3>
+          {renderVisitorFields(form, updateForm, {
+            nameAutocomplete: true,
+            idPrefix: "reg",
+          })}
+          <button type="submit" className="btn-primary" disabled={submitting}>
+            {submitting ? "جاري الحفظ…" : "حفظ الزيارة"}
+          </button>
+        </form>
+      )}
+
+      {tab === "logs" && (
+        <div className="card overflow-x-auto p-0">
+          <table className="tmkeen-table">
+            <thead>
+              <tr>
+                <th>الاسم</th>
+                <th>الجوال</th>
+                <th>الجهة</th>
+                <th>النوع</th>
+                <th>الوجهة</th>
+                <th>التاريخ</th>
+                <th>الفترة</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td colSpan={7} className="py-8 text-center text-sm text-brand-gray">
+                    جاري التحميل…
+                  </td>
+                </tr>
+              ) : logs.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="py-8 text-center text-sm text-brand-gray">
+                    لا توجد سجلات زوار بعد
+                  </td>
+                </tr>
+              ) : (
+                logs.map((log) => (
+                  <tr key={log.id}>
+                    <td className="font-semibold">{log.visitorName}</td>
+                    <td dir="ltr" className="text-xs">
+                      {log.visitorPhone}
+                    </td>
+                    <td>{log.organization || "—"}</td>
+                    <td>
+                      <span className="badge-info">{log.visitType}</span>
+                    </td>
+                    <td>{log.visitTarget}</td>
+                    <td className="whitespace-nowrap text-xs">
+                      {formatDate(log.visitAt)}
+                    </td>
+                    <td>{log.visitTimeSlot}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {tab === "scheduled" && (
+        <div className="card overflow-x-auto p-0">
+          <table className="tmkeen-table">
+            <thead>
+              <tr>
+                <th>الوقت</th>
+                <th>الزيارة</th>
+                <th>القسم</th>
+                <th>الجوال</th>
+                <th>الحضور</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td colSpan={5} className="py-8 text-center text-sm text-brand-gray">
+                    جاري التحميل…
+                  </td>
+                </tr>
+              ) : visits.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="py-8 text-center text-sm text-brand-gray">
+                    لا توجد زيارات مجدولة اليوم
+                  </td>
+                </tr>
+              ) : (
+                visits.map((v) => (
+                  <tr key={v.id}>
+                    <td className="whitespace-nowrap text-xs">
+                      {formatDateTime(v.visitDate)}
+                    </td>
+                    <td className="font-semibold">{v.title}</td>
+                    <td>{v.department?.name ?? "—"}</td>
+                    <td dir="ltr" className="text-xs">
+                      {v.contactPhone || "—"}
+                    </td>
+                    <td>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span
+                          className={v.visitAttended ? "badge-success" : "badge-warning"}
+                        >
+                          {v.visitAttended ? "حاضر" : "بانتظار"}
+                        </span>
+                        {v.visitAttended ? (
+                          <button
+                            type="button"
+                            className="btn-secondary text-xs"
+                            disabled={busyId === v.id}
+                            onClick={() => void undoAttendance(v.id)}
+                          >
+                            إلغاء الحضور
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            className="btn-primary text-xs"
+                            onClick={() => openCheckIn(v)}
+                          >
+                            تسجيل حضور
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {tab === "attendance" && (
+        <div className="space-y-4">
+          <form
+            onSubmit={(e) => void createAttendanceList(e)}
+            className="card max-w-2xl space-y-3 p-4"
+          >
+            <h3 className="font-bold text-primary">إنشاء قائمة حضور</h3>
+            <div className="space-y-1">
+              <label className="label-field" htmlFor="att-title">
+                عنوان القائمة
+              </label>
+              <input
+                id="att-title"
+                className="input-field w-full"
+                required
+                value={attForm.title}
+                onChange={(e) => setAttForm((p) => ({ ...p, title: e.target.value }))}
+              />
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="space-y-1">
+                <label className="label-field" htmlFor="att-kind">
+                  النوع
+                </label>
+                <select
+                  id="att-kind"
+                  className="input-field w-full"
+                  value={attForm.kind}
+                  onChange={(e) => setAttForm((p) => ({ ...p, kind: e.target.value }))}
+                >
+                  <option value="MEETING">اجتماع</option>
+                  <option value="JOB_INTERVIEW">مقابلة وظيفية</option>
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="label-field" htmlFor="att-at">
+                  التاريخ والوقت
+                </label>
+                <input
+                  id="att-at"
+                  type="datetime-local"
+                  className="input-field w-full"
+                  dir="ltr"
+                  required
+                  value={attForm.scheduledAt}
+                  onChange={(e) =>
+                    setAttForm((p) => ({ ...p, scheduledAt: e.target.value }))
+                  }
+                />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <label className="label-field" htmlFor="att-names">
+                الأسماء (سطر لكل اسم)
+              </label>
+              <textarea
+                id="att-names"
+                className="input-field min-h-[120px] w-full"
+                required
+                value={attForm.namesText}
+                onChange={(e) =>
+                  setAttForm((p) => ({ ...p, namesText: e.target.value }))
+                }
+                placeholder={"أحمد محمد\nسارة علي"}
+              />
+            </div>
+            <button type="submit" className="btn-primary" disabled={submitting}>
+              {submitting ? "جاري الإنشاء…" : "إنشاء القائمة"}
+            </button>
+          </form>
 
           <section className="space-y-2">
-            <h3 className="text-sm font-bold text-primary">الزيارات المجدولة اليوم</h3>
+            <h3 className="text-sm font-bold text-primary">القوائم السابقة</h3>
             <div className="card overflow-x-auto p-0">
               <table className="tmkeen-table">
                 <thead>
                   <tr>
-                    <th>الوقت</th>
-                    <th>الزيارة</th>
-                    <th>القسم</th>
-                    <th>الجوال</th>
+                    <th>العنوان</th>
+                    <th>النوع</th>
+                    <th>الموعد</th>
                     <th>الحضور</th>
+                    <th></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {loading ? (
+                  {attendanceLoading ? (
                     <tr>
                       <td colSpan={5} className="py-8 text-center text-sm text-brand-gray">
                         جاري التحميل…
                       </td>
                     </tr>
-                  ) : visits.length === 0 ? (
+                  ) : attendanceEvents.length === 0 ? (
                     <tr>
                       <td colSpan={5} className="py-8 text-center text-sm text-brand-gray">
-                        لا توجد زيارات مجدولة اليوم
+                        لا توجد قوائم بعد
                       </td>
                     </tr>
                   ) : (
-                    visits.map((v) => (
-                      <tr key={v.id}>
-                        <td className="whitespace-nowrap text-xs">
-                          {formatVisitTime(v.visitDate)}
+                    attendanceEvents.map((ev) => (
+                      <tr key={ev.id}>
+                        <td className="font-semibold">{ev.title}</td>
+                        <td>
+                          {ev.kind === "JOB_INTERVIEW" ? "مقابلة وظيفية" : "اجتماع"}
                         </td>
-                        <td className="font-semibold">{v.title}</td>
-                        <td>{v.department?.name ?? "—"}</td>
-                        <td dir="ltr" className="text-xs">
-                          {v.contactPhone}
+                        <td className="whitespace-nowrap text-xs">
+                          {formatDateTime(ev.scheduledAt)}
                         </td>
                         <td>
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span
-                              className={v.visitAttended ? "badge-success" : "badge-warning"}
-                            >
-                              {v.visitAttended ? "حاضر" : "بانتظار"}
-                            </span>
-                            {v.visitAttended ? (
-                              <button
-                                type="button"
-                                className="btn-secondary text-xs"
-                                disabled={busyId === v.id}
-                                onClick={() => void undoAttendance(v.id)}
-                              >
-                                إلغاء الحضور
-                              </button>
-                            ) : (
-                              <button
-                                type="button"
-                                className="btn-primary text-xs"
-                                onClick={() => openCheckIn(v)}
-                              >
-                                تسجيل حضور
-                              </button>
-                            )}
-                          </div>
+                          {ev.attended}/{ev.total}
+                        </td>
+                        <td>
+                          <button
+                            type="button"
+                            className="btn-secondary text-xs"
+                            disabled={busyId === ev.id}
+                            onClick={() => void openAttendanceEvent(ev.id)}
+                          >
+                            فتح
+                          </button>
                         </td>
                       </tr>
                     ))
@@ -439,143 +1243,56 @@ export default function ReceptionDesk() {
             </div>
           </section>
 
-          <section className="space-y-2">
-            <h3 className="text-sm font-bold text-primary">سجل الزوار اليوم (مع الوقت)</h3>
-            <div className="card overflow-x-auto p-0">
-              <table className="tmkeen-table">
-                <thead>
-                  <tr>
-                    <th>وقت الزيارة</th>
-                    <th>الاسم</th>
-                    <th>الجوال</th>
-                    <th>السبب</th>
-                    <th>الجهة</th>
-                    <th>الإدارة</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {logs.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="py-8 text-center text-sm text-brand-gray">
-                        لم يُسجَّل حضور بعد اليوم
-                      </td>
-                    </tr>
-                  ) : (
-                    logs.map((log) => (
-                      <tr key={log.id}>
-                        <td className="whitespace-nowrap text-xs">
-                          {formatVisitTime(log.visitAt)}
-                        </td>
-                        <td className="font-semibold">{log.visitorName}</td>
-                        <td dir="ltr" className="text-xs">
-                          {log.visitorPhone}
-                        </td>
-                        <td>{log.reason}</td>
-                        <td>{log.organization || "—"}</td>
-                        <td>{log.department?.name ?? "—"}</td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+          {activeEvent && (
+            <div className="modal-overlay" role="dialog" aria-modal="true">
+              <div className="card mx-auto max-h-[90vh] w-full max-w-lg space-y-3 overflow-y-auto p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="font-bold text-primary">{activeEvent.title}</h3>
+                    <p className="mt-1 text-xs text-brand-gray">
+                      {activeEvent.kind === "JOB_INTERVIEW"
+                        ? "مقابلة وظيفية"
+                        : "اجتماع"}{" "}
+                      · {formatDateTime(activeEvent.scheduledAt)}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn-secondary text-xs"
+                    onClick={() => setActiveEvent(null)}
+                  >
+                    إغلاق
+                  </button>
+                </div>
+                <ul className="divide-y divide-[color-mix(in_srgb,#8B1538_12%,white)]">
+                  {activeEvent.attendees.map((a) => (
+                    <li
+                      key={a.id}
+                      className="flex items-center justify-between gap-3 py-2"
+                    >
+                      <span className="font-medium text-primary">{a.name}</span>
+                      <button
+                        type="button"
+                        className={
+                          a.attended ? "btn-secondary text-xs" : "btn-primary text-xs"
+                        }
+                        disabled={busyId === a.id}
+                        onClick={() => void toggleAttendee(a)}
+                      >
+                        {a.attended ? "إلغاء الحضور" : "حاضر"}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             </div>
-          </section>
+          )}
         </div>
       )}
 
-      {tab === "register" && (
-        <form onSubmit={(e) => void submitWalkIn(e)} className="card max-w-xl space-y-3 p-4">
-          <h3 className="font-bold text-primary">تسجيل زائر (حضور مباشر)</h3>
-          <div className="space-y-1">
-            <label className="label-field" htmlFor="v-name">
-              الاسم
-            </label>
-            <input
-              id="v-name"
-              className="input-field w-full"
-              required
-              value={formName}
-              onChange={(e) => setFormName(e.target.value)}
-            />
-          </div>
-          <div className="space-y-1">
-            <label className="label-field" htmlFor="v-phone">
-              الجوال
-            </label>
-            <input
-              id="v-phone"
-              className="input-field w-full"
-              dir="ltr"
-              required
-              value={formPhone}
-              onChange={(e) => setFormPhone(e.target.value)}
-              placeholder="05xxxxxxxx"
-            />
-          </div>
-          <div className="space-y-1">
-            <label className="label-field" htmlFor="v-reason">
-              السبب
-            </label>
-            <input
-              id="v-reason"
-              className="input-field w-full"
-              required
-              value={formReason}
-              onChange={(e) => setFormReason(e.target.value)}
-            />
-          </div>
-          <div className="space-y-1">
-            <label className="label-field" htmlFor="v-org">
-              الجهة (اختياري)
-            </label>
-            <input
-              id="v-org"
-              className="input-field w-full"
-              value={formOrg}
-              onChange={(e) => setFormOrg(e.target.value)}
-            />
-          </div>
-          <div className="space-y-1">
-            <label className="label-field" htmlFor="v-dept">
-              الإدارة
-            </label>
-            <select
-              id="v-dept"
-              className="input-field w-full"
-              value={formDeptId}
-              onChange={(e) => setFormDeptId(e.target.value)}
-            >
-              <option value="">—</option>
-              {departments.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="space-y-1">
-            <label className="label-field" htmlFor="v-at">
-              وقت الزيارة
-            </label>
-            <input
-              id="v-at"
-              type="datetime-local"
-              className="input-field w-full"
-              dir="ltr"
-              required
-              value={formVisitAt}
-              onChange={(e) => setFormVisitAt(e.target.value)}
-            />
-          </div>
-          <button type="submit" className="btn-primary" disabled={submitting}>
-            {submitting ? "جاري الحفظ…" : "حفظ في سجل الحضور"}
-          </button>
-        </form>
-      )}
-
       {tab === "reports" && (
-        <div className="space-y-4">
-          <div className="flex flex-wrap items-end gap-3">
+        <div className="reception-print space-y-4">
+          <div className="no-print flex flex-wrap items-end gap-3">
             <div className="space-y-1">
               <label className="label-field" htmlFor="r-from">
                 من
@@ -602,24 +1319,6 @@ export default function ReceptionDesk() {
                 onChange={(e) => setReportTo(e.target.value)}
               />
             </div>
-            <div className="space-y-1">
-              <label className="label-field" htmlFor="r-dept">
-                الإدارة
-              </label>
-              <select
-                id="r-dept"
-                className="input-field"
-                value={reportDept}
-                onChange={(e) => setReportDept(e.target.value)}
-              >
-                <option value="">الكل</option>
-                {departments.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.name}
-                  </option>
-                ))}
-              </select>
-            </div>
             <button
               type="button"
               className="btn-primary text-sm"
@@ -636,16 +1335,34 @@ export default function ReceptionDesk() {
             >
               تنزيل CSV
             </button>
+            <button
+              type="button"
+              className="btn-secondary text-sm"
+              disabled={reportVisits.length === 0 && kpis.length === 0}
+              onClick={() => window.print()}
+            >
+              طباعة / PDF
+            </button>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="mb-2">
+            <h2 className="text-lg font-bold text-primary">تقرير الاستقبال</h2>
+            <p className="text-sm text-brand-gray">
+              الفترة: {reportFrom} — {reportTo}
+              {departments.length > 0 ? ` · ${departments.length} إدارة` : ""}
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <div className="card p-4">
               <p className="text-xs text-brand-gray">زيارات مسجّلة</p>
               <p className="text-2xl font-bold text-primary">{reportTotals.loggedVisits}</p>
             </div>
             <div className="card p-4">
               <p className="text-xs text-brand-gray">زيارات مجدولة</p>
-              <p className="text-2xl font-bold text-primary">{reportTotals.scheduledVisits}</p>
+              <p className="text-2xl font-bold text-primary">
+                {reportTotals.scheduledVisits}
+              </p>
             </div>
             <div className="card p-4">
               <p className="text-xs text-brand-gray">حضر من المجدول</p>
@@ -662,7 +1379,7 @@ export default function ReceptionDesk() {
           </div>
 
           <section className="space-y-2">
-            <h3 className="text-sm font-bold text-primary">مؤشرات زوار الإدارات</h3>
+            <h3 className="text-sm font-bold text-primary">مؤشرات الإدارات</h3>
             <div className="card overflow-x-auto p-0">
               <table className="tmkeen-table">
                 <thead>
@@ -681,6 +1398,12 @@ export default function ReceptionDesk() {
                         جاري التحميل…
                       </td>
                     </tr>
+                  ) : kpis.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="py-6 text-center text-sm text-brand-gray">
+                        لا توجد بيانات
+                      </td>
+                    </tr>
                   ) : (
                     kpis.map((k) => (
                       <tr key={k.departmentId ?? "none"}>
@@ -688,7 +1411,9 @@ export default function ReceptionDesk() {
                         <td>{k.loggedVisits}</td>
                         <td>{k.scheduledVisits}</td>
                         <td>{k.attendedScheduled}</td>
-                        <td>{k.attendanceRate == null ? "—" : `${k.attendanceRate}%`}</td>
+                        <td>
+                          {k.attendanceRate == null ? "—" : `${k.attendanceRate}%`}
+                        </td>
                       </tr>
                     ))
                   )}
@@ -698,23 +1423,25 @@ export default function ReceptionDesk() {
           </section>
 
           <section className="space-y-2">
-            <h3 className="text-sm font-bold text-primary">تقرير الزيارات (بيانات رسمية)</h3>
+            <h3 className="text-sm font-bold text-primary">سجل الزيارات</h3>
             <div className="card overflow-x-auto p-0">
               <table className="tmkeen-table">
                 <thead>
                   <tr>
                     <th>الاسم</th>
                     <th>الجوال</th>
-                    <th>السبب</th>
                     <th>الجهة</th>
-                    <th>وقت الزيارة</th>
+                    <th>النوع</th>
+                    <th>الوجهة</th>
+                    <th>الفترة</th>
+                    <th>التاريخ</th>
                     <th>الإدارة</th>
                   </tr>
                 </thead>
                 <tbody>
                   {reportVisits.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="py-8 text-center text-sm text-brand-gray">
+                      <td colSpan={8} className="py-8 text-center text-sm text-brand-gray">
                         لا توجد سجلات في الفترة المحددة
                       </td>
                     </tr>
@@ -725,10 +1452,12 @@ export default function ReceptionDesk() {
                         <td dir="ltr" className="text-xs">
                           {v.visitorPhone}
                         </td>
-                        <td>{v.reason}</td>
                         <td>{v.organization || "—"}</td>
+                        <td>{v.visitType}</td>
+                        <td>{v.visitTarget}</td>
+                        <td>{v.visitTimeSlot}</td>
                         <td className="whitespace-nowrap text-xs">
-                          {formatVisitTime(v.visitAt)}
+                          {formatDateTime(v.visitAt)}
                         </td>
                         <td>{v.departmentName || "—"}</td>
                       </tr>
@@ -742,68 +1471,11 @@ export default function ReceptionDesk() {
       )}
 
       {checkInFor && (
-        <div className="modal-overlay" role="dialog" aria-modal="true">
-          <div className="card mx-auto w-full max-w-md space-y-3 p-4">
+        <div className="modal-overlay no-print" role="dialog" aria-modal="true">
+          <div className="card mx-auto max-h-[90vh] w-full max-w-md space-y-3 overflow-y-auto p-4">
             <h3 className="font-bold text-primary">تأكيد تسجيل الحضور</h3>
             <p className="text-sm text-brand-gray">{checkInFor.title}</p>
-            <div className="space-y-1">
-              <label className="label-field" htmlFor="c-name">
-                الاسم
-              </label>
-              <input
-                id="c-name"
-                className="input-field w-full"
-                value={formName}
-                onChange={(e) => setFormName(e.target.value)}
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="label-field" htmlFor="c-phone">
-                الجوال
-              </label>
-              <input
-                id="c-phone"
-                className="input-field w-full"
-                dir="ltr"
-                value={formPhone}
-                onChange={(e) => setFormPhone(e.target.value)}
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="label-field" htmlFor="c-reason">
-                السبب
-              </label>
-              <input
-                id="c-reason"
-                className="input-field w-full"
-                value={formReason}
-                onChange={(e) => setFormReason(e.target.value)}
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="label-field" htmlFor="c-org">
-                الجهة (اختياري)
-              </label>
-              <input
-                id="c-org"
-                className="input-field w-full"
-                value={formOrg}
-                onChange={(e) => setFormOrg(e.target.value)}
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="label-field" htmlFor="c-at">
-                وقت الزيارة
-              </label>
-              <input
-                id="c-at"
-                type="datetime-local"
-                className="input-field w-full"
-                dir="ltr"
-                value={formVisitAt}
-                onChange={(e) => setFormVisitAt(e.target.value)}
-              />
-            </div>
+            {renderVisitorFields(checkInForm, updateCheckIn, { idPrefix: "cin" })}
             <div className="flex gap-2">
               <button
                 type="button"
