@@ -7,7 +7,6 @@ test("manager assigns approved request on kanban", async ({ page, request }) => 
   await page.getByRole("button", { name: "دخول" }).click();
   await page.waitForURL(/\/dashboard/);
 
-  // Ensure there is an assignable ticket
   const depts = await request.get("/api/public/departments");
   const deptJson = (await depts.json()) as {
     data: { departments: { id: string }[] };
@@ -27,14 +26,7 @@ test("manager assigns approved request on kanban", async ({ page, request }) => 
       requestTypeId: typeJson.data.requestTypes[0]?.id,
     },
   });
-  const createdJson = (await created.json()) as {
-    data: { approvalUrl: string };
-  };
-  const token = new URL(
-    createdJson.data.approvalUrl,
-    "http://localhost:3001",
-  ).searchParams.get("token");
-  await request.post(`/api/approve?token=${token}`);
+  expect(created.ok()).toBeTruthy();
 
   await page.goto("/dashboard/kanban");
   await expect(page.getByText("طلب إسناد Kanban E2E")).toBeVisible({ timeout: 15_000 });

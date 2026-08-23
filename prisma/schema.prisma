@@ -128,7 +128,7 @@ model CommunicationRequest {
   requestType        RequestType         @relation(fields: [requestTypeId], references: [id])
   approvalToken      String              @unique
   approvalTokenExpiresAt DateTime?
-  status             RequestStatus       @default(Pending_Manager)
+  status             RequestStatus       @default(Approved_Pending_Assignment)
   assignedEmployeeId String?
   assignedEmployee   CommEmployee?       @relation("AssignedEmployee", fields: [assignedEmployeeId], references: [id])
   approvedAt         DateTime?

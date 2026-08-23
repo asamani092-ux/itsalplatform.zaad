@@ -10,7 +10,7 @@ import { getApiErrorMessage, parseApiResponse } from "@/components/lib/api-types
 import { IconButton } from "@/components/ui/icon-button";
 import FilterBar from "@/components/ui/filter-bar";
 import SlideOver from "@/components/ui/slide-over";
-import { IconRefresh, IconSend } from "@/components/shared/icons";
+import { IconRefresh } from "@/components/shared/icons";
 
 type BoardTab = "board" | "archive";
 
@@ -18,7 +18,7 @@ const COLUMNS = [
   {
     id: "approved",
     status: "Approved_Pending_Assignment",
-    title: "جديد (معتمد)",
+    title: "جديد",
     headerClass: "border-secondary bg-[color-mix(in_srgb,var(--zaad-secondary)_18%,white)]",
     dropTarget: false,
   },
@@ -42,7 +42,6 @@ export default function KanbanBoard() {
   const [tab, setTab] = useState<BoardTab>("board");
   const [requests, setRequests] = useState<DashboardRequest[]>([]);
   const [archiveRequests, setArchiveRequests] = useState<DashboardRequest[]>([]);
-  const [pendingRequests, setPendingRequests] = useState<DashboardRequest[]>([]);
   const [employees, setEmployees] = useState<CommEmployee[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -57,10 +56,9 @@ export default function KanbanBoard() {
     setError(null);
 
     try {
-      const [allRes, archiveRes, pendingRes, empRes] = await Promise.all([
+      const [allRes, archiveRes, empRes] = await Promise.all([
         fetch("/api/manager/tickets?view=all"),
         fetch("/api/manager/tickets?view=archive"),
-        fetch("/api/manager/tickets?status=Pending_Manager"),
         fetch("/api/manager/team"),
       ]);
 
@@ -70,9 +68,6 @@ export default function KanbanBoard() {
       const archivePayload = await parseApiResponse<{
         requests: DashboardRequest[];
       }>(archiveRes);
-      const pendingPayload = await parseApiResponse<{
-        requests: DashboardRequest[];
-      }>(pendingRes);
       const empPayload = await parseApiResponse<{ employees: CommEmployee[] }>(
         empRes,
       );
@@ -87,9 +82,6 @@ export default function KanbanBoard() {
       setRequests(allPayload.data.requests);
       setArchiveRequests(
         archivePayload.success ? archivePayload.data.requests : [],
-      );
-      setPendingRequests(
-        pendingPayload.success ? pendingPayload.data.requests : [],
       );
       setEmployees(
         empPayload.data.employees.filter((e: CommEmployee) => e.role === "EMPLOYEE"),
@@ -144,7 +136,6 @@ export default function KanbanBoard() {
           }
           return prev.filter((r) => r.id !== updated.id);
         });
-        setPendingRequests((prev) => prev.filter((r) => r.id !== updated.id));
       } else {
         await loadData();
       }
@@ -197,12 +188,6 @@ export default function KanbanBoard() {
     );
   }
 
-  function handleResendApproval(requestId: string) {
-    return runAction(() =>
-      fetch(`/api/manager/tickets/${requestId}/resend-approval`, { method: "POST" }),
-    );
-  }
-
   function handleDropOnCompleted() {
     if (!draggingId) return;
     const dragged = requests.find((r) => r.id === draggingId);
@@ -227,10 +212,7 @@ export default function KanbanBoard() {
         r.contactEmail.includes(query.trim())),
   );
 
-  const detailRequest =
-    requests.find((r) => r.id === detailId) ??
-    pendingRequests.find((r) => r.id === detailId) ??
-    null;
+  const detailRequest = requests.find((r) => r.id === detailId) ?? null;
 
   return (
     <div className="space-y-6">
@@ -275,57 +257,6 @@ export default function KanbanBoard() {
           aria-label="تصفية الطلبات"
         />
       </FilterBar>
-
-      {tab === "board" && pendingRequests.length > 0 && (
-        <section className="space-y-3">
-          <div className="card-section">
-            <p className="text-sm font-bold text-primary">
-              بانتظار موافقة المدير ({pendingRequests.length})
-            </p>
-            <p className="mt-1 text-xs text-brand-gray">
-              لم تصل هذه الطلبات للوحة بعد — تنتظر ضغط المدير على رابط الموافقة.
-            </p>
-          </div>
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {pendingRequests.map((request) => (
-              <article key={request.id} className="card space-y-2 p-3">
-                <div className="flex items-start justify-between gap-2">
-                  <h3 className="text-sm font-bold text-primary">{request.title}</h3>
-                  <span className="badge-warning shrink-0 text-[10px]">بانتظار الموافقة</span>
-                </div>
-                <p className="line-clamp-2 text-xs text-brand-gray">
-                  {request.description}
-                </p>
-                <p className="text-[10px] text-brand-gray">
-                  {request.department?.name ?? "—"}
-                  {request.requestType ? ` — ${request.requestType.name}` : ""}
-                </p>
-                <p className="text-[10px] text-brand-gray" dir="ltr">
-                  {request.contactEmail}
-                </p>
-                <div className="grid gap-2">
-                  <button
-                    type="button"
-                    className="btn-secondary w-full text-xs"
-                    onClick={() => setDetailId(request.id)}
-                  >
-                    التفاصيل
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-secondary w-full text-xs"
-                    disabled={busy}
-                    onClick={() => void handleResendApproval(request.id)}
-                  >
-                    <IconSend size={16} />
-                    إعادة إرسال رابط الموافقة
-                  </button>
-                </div>
-              </article>
-            ))}
-          </div>
-        </section>
-      )}
 
       {error && (
         <div
