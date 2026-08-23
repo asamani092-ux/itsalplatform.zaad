@@ -95,7 +95,7 @@ export default function RequestCard({
       <div className="flex items-start justify-between gap-2">
         <h3 className="text-sm font-bold text-primary">{request.title}</h3>
         {slaBreached && (
-          <span className="badge-danger shrink-0 text-[10px]">تجاوز SLA</span>
+          <span className="badge-danger shrink-0 text-[10px]">متأخر</span>
         )}
         {isActive && !slaBreached && (
           <span className="badge-primary shrink-0 text-[10px]">اسحب →</span>
