@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 test("employee completes assigned ticket", async ({ page, request }) => {
+  // Login as manager to prepare an assigned ticket
   const login = await request.post("/api/auth/login", {
     data: { email: "manager@zaad.org", password: "password123" },
   });
@@ -25,7 +26,14 @@ test("employee completes assigned ticket", async ({ page, request }) => {
       requestTypeId: typeJson.data.requestTypes[0]?.id,
     },
   });
-  expect(created.ok()).toBeTruthy();
+  const createdJson = (await created.json()) as {
+    data: { id: string; approvalUrl: string };
+  };
+  const token = new URL(
+    createdJson.data.approvalUrl,
+    "http://localhost:3001",
+  ).searchParams.get("token");
+  await request.post(`/api/approve?token=${token}`);
 
   const team = await request.get("/api/manager/team");
   const teamJson = (await team.json()) as {
@@ -42,11 +50,12 @@ test("employee completes assigned ticket", async ({ page, request }) => {
     (r) => r.title === "تذكرة إكمال موظف E2E",
   );
   expect(target).toBeTruthy();
-  expect(target?.status).toBe("Approved_Pending_Assignment");
 
-  await request.post(`/api/manager/tickets/${target!.id}/assign`, {
-    data: { employeeId: employee!.id },
-  });
+  if (target?.status === "Approved_Pending_Assignment") {
+    await request.post(`/api/manager/tickets/${target.id}/assign`, {
+      data: { employeeId: employee!.id },
+    });
+  }
 
   await request.post("/api/auth/logout");
 

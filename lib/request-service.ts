@@ -4,7 +4,8 @@ import { ARCHIVE_STATUSES, ACTIVE_STATUSES, assertTransition } from "./workflow"
 import { resolveAssignee } from "./routing-service";
 import { RequestStatus } from "../generated/prisma/client";
 import { generateApprovalToken } from "./tokens";
-import { notify } from "./notifications";
+import { notify, notifyManager } from "./notifications";
+import { getAppUrl } from "./api-utils";
 
 type DashboardView = "active" | "archive" | "all";
 
@@ -12,6 +13,16 @@ const APPROVAL_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 function approvalTokenExpiresAtFromNow(): Date {
   return new Date(Date.now() + APPROVAL_TOKEN_TTL_MS);
+}
+
+function assertApprovalTokenNotExpired(request: {
+  approvalTokenExpiresAt: Date | null;
+}): void {
+  if (request.approvalTokenExpiresAt && request.approvalTokenExpiresAt < new Date()) {
+    throw new Error(
+      "TOKEN_EXPIRED: انتهت صلاحية رابط الموافقة. اطلب رابطاً جديداً من قسم الاتصال.",
+    );
+  }
 }
 
 const requestInclude = {
@@ -58,9 +69,14 @@ export async function listRequests(options: {
     statusFilter = ARCHIVE_STATUSES;
   }
 
+  const hidePendingManager = view === "all" && !status;
+
   const requests = await prisma.communicationRequest.findMany({
     where: {
       ...(statusFilter ? { status: { in: statusFilter } } : {}),
+      ...(hidePendingManager
+        ? { status: { not: RequestStatus.Pending_Manager } }
+        : {}),
       ...(departmentId ? { departmentId } : {}),
       ...(requestTypeId ? { requestTypeId } : {}),
       ...(assignedEmployeeId ? { assignedEmployeeId } : {}),
@@ -88,6 +104,21 @@ export async function getRequestById(id: string) {
   if (!request) {
     throw new Error("NOT_FOUND: الطلب غير موجود");
   }
+
+  return withSla(request);
+}
+
+export async function getRequestByToken(token: string) {
+  const request = await prisma.communicationRequest.findUnique({
+    where: { approvalToken: token },
+    include: requestInclude,
+  });
+
+  if (!request) {
+    throw new Error("NOT_FOUND: رمز الموافقة غير صالح");
+  }
+
+  assertApprovalTokenNotExpired(request);
 
   return withSla(request);
 }
@@ -155,8 +186,13 @@ export async function submitRequest(params: {
   }
 
   const approvalToken = generateApprovalToken();
-  const initialStatus = RequestStatus.Approved_Pending_Assignment;
-  const now = new Date();
+  const { skipDepartmentApproval } = await import("./app-settings").then((m) =>
+    m.getWorkflowSettings(),
+  );
+
+  const initialStatus = skipDepartmentApproval
+    ? RequestStatus.Approved_Pending_Assignment
+    : RequestStatus.Pending_Manager;
 
   const created = await prisma.communicationRequest.create({
     data: {
@@ -172,7 +208,7 @@ export async function submitRequest(params: {
       approvalToken,
       approvalTokenExpiresAt: approvalTokenExpiresAtFromNow(),
       status: initialStatus,
-      approvedAt: now,
+      approvedAt: skipDepartmentApproval ? new Date() : null,
     },
     include: requestInclude,
   });
@@ -181,51 +217,193 @@ export async function submitRequest(params: {
     requestId: created.id,
     fromStatus: null,
     toStatus: initialStatus,
-    note: "تم تقديم الطلب",
+    note: skipDepartmentApproval
+      ? "تقديم مباشر للوحة العمل (تجاوز موافقة مدير الإدارة)"
+      : "تم تقديم الطلب",
   });
 
-  const assignee = await resolveAssignee(params.requestTypeId);
+  if (skipDepartmentApproval) {
+    const assignee = await resolveAssignee(params.requestTypeId);
+    if (assignee) {
+      assertTransition(
+        RequestStatus.Approved_Pending_Assignment,
+        RequestStatus.In_Progress,
+      );
+      const assigned = await prisma.communicationRequest.update({
+        where: { id: created.id },
+        data: {
+          status: RequestStatus.In_Progress,
+          assignedEmployeeId: assignee.id,
+          assignedAt: new Date(),
+        },
+        include: requestInclude,
+      });
+      await recordStatusChange({
+        requestId: created.id,
+        fromStatus: RequestStatus.Approved_Pending_Assignment,
+        toStatus: RequestStatus.In_Progress,
+        changedBy: "routing-service",
+        note: "إسناد تلقائي عبر قاعدة التوجيه",
+      });
+      await recordAssignment({
+        requestId: created.id,
+        employeeId: assignee.id,
+        assignedBy: "routing-service",
+        note: "إسناد تلقائي",
+      });
+      await notify({
+        recipientId: assignee.id,
+        recipientEmail: assignee.email,
+        type: "assignment",
+        title: "تم إسناد تذكرة جديدة إليك",
+        body: `الطلب: ${assigned.title}`,
+        link: `/employee/tickets/${assigned.id}`,
+        channel: "both",
+        emailKind: "assigned",
+      });
+      return { request: withSla(assigned), approvalUrl: null as string | null };
+    }
+    return { request: withSla(created), approvalUrl: null as string | null };
+  }
+
+  const approvalUrl = `${getAppUrl()}/approve?token=${approvalToken}`;
+  await notifyManager({
+    managerEmail: department.managerEmail,
+    requestTitle: params.title,
+    approvalUrl,
+  });
+
+  return { request: withSla(created), approvalUrl };
+}
+
+export async function approveRequest(token: string) {
+  const request = await prisma.communicationRequest.findUnique({
+    where: { approvalToken: token },
+  });
+
+  if (!request) {
+    throw new Error("NOT_FOUND: رمز الموافقة غير صالح");
+  }
+
+  if (request.status !== RequestStatus.Pending_Manager) {
+    throw new Error("ALREADY_PROCESSED: تمت معالجة هذا الطلب مسبقاً");
+  }
+
+  assertApprovalTokenNotExpired(request);
+
+  const assignee = await resolveAssignee(request.requestTypeId);
+  const now = new Date();
+
   if (assignee) {
-    assertTransition(
-      RequestStatus.Approved_Pending_Assignment,
-      RequestStatus.In_Progress,
-    );
-    const assigned = await prisma.communicationRequest.update({
-      where: { id: created.id },
+    assertTransition(request.status, RequestStatus.Approved_Pending_Assignment);
+    assertTransition(RequestStatus.Approved_Pending_Assignment, RequestStatus.In_Progress);
+
+    const updated = await prisma.communicationRequest.update({
+      where: { id: request.id },
       data: {
         status: RequestStatus.In_Progress,
+        approvedAt: now,
         assignedEmployeeId: assignee.id,
         assignedAt: now,
       },
       include: requestInclude,
     });
+
     await recordStatusChange({
-      requestId: created.id,
+      requestId: request.id,
+      fromStatus: RequestStatus.Pending_Manager,
+      toStatus: RequestStatus.Approved_Pending_Assignment,
+      changedBy: request.managerEmail,
+      note: "موافقة المدير المباشر",
+    });
+
+    await recordStatusChange({
+      requestId: request.id,
       fromStatus: RequestStatus.Approved_Pending_Assignment,
       toStatus: RequestStatus.In_Progress,
       changedBy: "routing-service",
       note: "إسناد تلقائي عبر قاعدة التوجيه",
     });
+
     await recordAssignment({
-      requestId: created.id,
+      requestId: request.id,
       employeeId: assignee.id,
       assignedBy: "routing-service",
       note: "إسناد تلقائي",
     });
+
     await notify({
       recipientId: assignee.id,
       recipientEmail: assignee.email,
       type: "assignment",
       title: "تم إسناد تذكرة جديدة إليك",
-      body: `الطلب: ${assigned.title}`,
-      link: `/employee/tickets/${assigned.id}`,
+      body: `الطلب: ${updated.title}`,
+      link: `/employee/tickets/${updated.id}`,
       channel: "both",
       emailKind: "assigned",
     });
-    return { request: withSla(assigned), approvalUrl: null as string | null };
+
+    await notifyManagersInApp(
+      request.managerEmail,
+      "new_request",
+      "طلب معتمد جديد",
+      `تمت الموافقة على: ${updated.title}`,
+      "/dashboard/kanban",
+    );
+
+    return withSla(updated);
   }
 
-  return { request: withSla(created), approvalUrl: null as string | null };
+  assertTransition(request.status, RequestStatus.Approved_Pending_Assignment);
+
+  const updated = await prisma.communicationRequest.update({
+    where: { id: request.id },
+    data: {
+      status: RequestStatus.Approved_Pending_Assignment,
+      approvedAt: now,
+    },
+    include: requestInclude,
+  });
+
+  await recordStatusChange({
+    requestId: request.id,
+    fromStatus: RequestStatus.Pending_Manager,
+    toStatus: RequestStatus.Approved_Pending_Assignment,
+    changedBy: request.managerEmail,
+    note: "موافقة المدير المباشر",
+  });
+
+  await notifyManagersInApp(
+    request.managerEmail,
+    "new_request",
+    "طلب معتمد جديد",
+    `تمت الموافقة على: ${updated.title}`,
+    "/dashboard/kanban",
+  );
+
+  return withSla(updated);
+}
+
+async function notifyManagersInApp(
+  managerEmail: string,
+  type: string,
+  title: string,
+  body: string,
+  link: string,
+): Promise<void> {
+  const manager = await prisma.commEmployee.findFirst({
+    where: { email: managerEmail, isActive: true },
+  });
+  if (!manager) return;
+  await notify({
+    recipientId: manager.id,
+    recipientEmail: manager.email,
+    type,
+    title,
+    body,
+    link,
+    channel: "inapp",
+  });
 }
 
 export async function assignRequest(params: {
@@ -559,6 +737,7 @@ export async function getManagerKpis() {
   return {
     totalRequests: total,
     completionRate: total > 0 ? completed / total : 0,
+    pendingManager: countOf(RequestStatus.Pending_Manager),
     pendingAssignment: countOf(RequestStatus.Approved_Pending_Assignment),
     inProgress: countOf(RequestStatus.In_Progress),
     completed,
@@ -713,4 +892,41 @@ export async function markCentralVisitAttendance(params: {
   });
 
   return { request: withSla(updated) };
+}
+
+export async function regenerateApprovalLink(requestId: string) {
+  const request = await prisma.communicationRequest.findUnique({
+    where: { id: requestId },
+    include: requestInclude,
+  });
+
+  if (!request) {
+    throw new Error("NOT_FOUND: الطلب غير موجود");
+  }
+
+  if (request.status !== RequestStatus.Pending_Manager) {
+    throw new Error("INVALID_STATE: يمكن إعادة إرسال الرابط فقط للطلبات بانتظار موافقة المدير");
+  }
+
+  const approvalToken = generateApprovalToken();
+  const approvalTokenExpiresAt = approvalTokenExpiresAtFromNow();
+
+  const updated = await prisma.communicationRequest.update({
+    where: { id: requestId },
+    data: { approvalToken, approvalTokenExpiresAt },
+    include: requestInclude,
+  });
+
+  const approvalUrl = `${getAppUrl()}/approve?token=${approvalToken}`;
+  await notifyManager({
+    managerEmail: updated.managerEmail,
+    requestTitle: updated.title,
+    approvalUrl,
+  });
+
+  return {
+    id: updated.id,
+    approvalUrl,
+    approvalTokenExpiresAt,
+  };
 }

@@ -10,6 +10,7 @@ import { getApiErrorMessage, parseApiResponse } from "@/components/lib/api-types
 
 type SettingsSection =
   | "modules"
+  | "workflow"
   | "departments"
   | "requestTypes"
   | "rooms"
@@ -32,6 +33,7 @@ interface RoutingRule {
 
 const NAV: { id: SettingsSection; label: string }[] = [
   { id: "modules", label: "الخدمات والأدوات" },
+  { id: "workflow", label: "مسار الطلبات" },
   { id: "departments", label: "جهات استقبال الطلبات" },
   { id: "requestTypes", label: "أنواع الطلبات" },
   { id: "rooms", label: "قاعات الضيافة" },
@@ -49,6 +51,7 @@ export default function DashboardSettingsClient({
   const [departments, setDepartments] = useState<Department[]>([]);
   const [rules, setRules] = useState<RoutingRule[]>([]);
   const [error, setError] = useState("");
+  const [skipApproval, setSkipApproval] = useState(false);
   const [roomsText, setRoomsText] = useState("");
   const [appSaving, setAppSaving] = useState(false);
   const [appStatus, setAppStatus] = useState("");
@@ -63,13 +66,17 @@ export default function DashboardSettingsClient({
 
       const deptPayload = await parseApiResponse<{ departments: Department[] }>(deptRes);
       const rulesPayload = await parseApiResponse<{ rules: RoutingRule[] }>(rulesRes);
-      const appPayload = await parseApiResponse<{ rooms: string[] }>(appRes);
+      const appPayload = await parseApiResponse<{
+        workflow: { skipDepartmentApproval: boolean };
+        rooms: string[];
+      }>(appRes);
 
       if (deptPayload.success) {
         setDepartments(deptPayload.data.departments);
       }
       if (rulesPayload.success) setRules(rulesPayload.data.rules);
       if (appPayload.success) {
+        setSkipApproval(appPayload.data.workflow.skipDepartmentApproval);
         setRoomsText(appPayload.data.rooms.join("\n"));
       }
     } catch (e) {
@@ -80,6 +87,27 @@ export default function DashboardSettingsClient({
   useEffect(() => {
     void load();
   }, [load]);
+
+  async function saveWorkflow() {
+    setAppSaving(true);
+    setAppStatus("");
+    try {
+      const res = await fetch("/api/manager/settings/app", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ skipDepartmentApproval: skipApproval }),
+      });
+      const payload = await parseApiResponse<unknown>(res);
+      if (!res.ok || !payload.success) {
+        throw new Error(getApiErrorMessage(payload, "فشل الحفظ"));
+      }
+      setAppStatus("تم حفظ مسار الطلبات");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "خطأ");
+    } finally {
+      setAppSaving(false);
+    }
+  }
 
   async function saveRooms() {
     setAppSaving(true);
@@ -143,6 +171,35 @@ export default function DashboardSettingsClient({
         )}
 
         {section === "modules" && <ModuleManager />}
+
+        {section === "workflow" && (
+          <div className="card space-y-4 p-4">
+            <h2 className="text-lg font-bold text-primary">مسار الطلبات</h2>
+            <label className="flex cursor-pointer items-start gap-3 text-sm">
+              <input
+                type="checkbox"
+                className="mt-1 h-4 w-4 accent-[var(--zaad-primary)]"
+                checked={skipApproval}
+                onChange={(e) => setSkipApproval(e.target.checked)}
+              />
+              <span>
+                <strong className="text-primary">إظهار الطلبات مباشرة في لوحة المدير</strong>
+                <br />
+                <span className="text-brand-gray">
+                  عند التفعيل تُتجاوز موافقة مدير الجهة المستقبِلة ويصل الطلب فوراً للوحة العمل.
+                </span>
+              </span>
+            </label>
+            <button
+              type="button"
+              className="btn-primary text-sm"
+              disabled={appSaving}
+              onClick={() => void saveWorkflow()}
+            >
+              حفظ
+            </button>
+          </div>
+        )}
 
         {section === "departments" && <DepartmentsManager />}
 

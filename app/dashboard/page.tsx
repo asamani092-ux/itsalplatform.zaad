@@ -9,6 +9,7 @@ import Skeleton from "@/components/ui/skeleton";
 interface Kpis {
   totalRequests: number;
   completionRate: number;
+  pendingManager: number;
   pendingAssignment: number;
   inProgress: number;
   completed: number;
@@ -121,9 +122,14 @@ export default function DashboardKpiPage() {
               tone={kpis.completionRate >= 0.5 ? "good" : "warn"}
             />
             <KpiCard
+              label="بانتظار موافقة المدير"
+              value={kpis.pendingManager}
+              hint="يتطلب إجراء"
+              tone={kpis.pendingManager > 0 ? "warn" : "good"}
+            />
+            <KpiCard
               label="بانتظار الإسناد"
               value={kpis.pendingAssignment}
-              hint="جاهز للمدير"
               tone={kpis.pendingAssignment > 3 ? "warn" : "neutral"}
             />
             <KpiCard

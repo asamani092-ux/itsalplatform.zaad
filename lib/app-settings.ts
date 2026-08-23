@@ -2,7 +2,36 @@ import "server-only";
 
 import { prisma } from "@/lib/prisma";
 
+const WORKFLOW_KEY = "workflow";
 const HOSPITALITY_KEY = "hospitality";
+
+export async function getWorkflowSettings(): Promise<{
+  skipDepartmentApproval: boolean;
+}> {
+  const row = await prisma.platformModule.findUnique({ where: { key: WORKFLOW_KEY } });
+  const settings = (row?.settings ?? {}) as { skipDepartmentApproval?: boolean };
+  return {
+    skipDepartmentApproval: Boolean(settings.skipDepartmentApproval),
+  };
+}
+
+export async function setWorkflowSettings(params: {
+  skipDepartmentApproval: boolean;
+}) {
+  return prisma.platformModule.upsert({
+    where: { key: WORKFLOW_KEY },
+    update: {
+      settings: { skipDepartmentApproval: params.skipDepartmentApproval },
+      isEnabled: true,
+    },
+    create: {
+      key: WORKFLOW_KEY,
+      isEnabled: true,
+      sortOrder: 95,
+      settings: { skipDepartmentApproval: params.skipDepartmentApproval },
+    },
+  });
+}
 
 const DEFAULT_ROOMS = [
   "قاعة الاجتماعات الكبرى",

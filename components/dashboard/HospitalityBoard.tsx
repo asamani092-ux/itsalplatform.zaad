@@ -30,7 +30,8 @@ interface Booking {
 }
 
 const STATUS_LABELS: Record<string, string> = {
-  Approved_Pending_Assignment: "جديد — بانتظار الإسناد",
+  Pending_Manager: "بانتظار موافقة المدير",
+  Approved_Pending_Assignment: "معتمد — بانتظار الإسناد",
   In_Progress: "قيد التنفيذ",
   Completed: "مكتمل",
   Archived: "مؤرشف",
