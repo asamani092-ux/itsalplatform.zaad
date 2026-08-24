@@ -4,7 +4,6 @@ import { usePathname } from "next/navigation";
 import { getModuleTitle } from "@/lib/modules/registry";
 import NotificationBell from "@/components/notifications/NotificationBell";
 import Breadcrumb from "@/components/ui/breadcrumb";
-import BrandLogo from "@/components/shared/brand-logo";
 import { IconButton } from "@/components/ui/icon-button";
 import { IconMenu } from "@/components/shared/icons";
 
@@ -25,7 +24,6 @@ export default function DashboardHeader({
           className="lg:hidden"
           onClick={onOpenNav}
         />
-        <BrandLogo size="sm" />
         <div className="min-w-0 space-y-1">
           <Breadcrumb
             items={[

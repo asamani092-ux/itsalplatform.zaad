@@ -71,19 +71,40 @@ export default function DashboardSidebar({
       aria-label="التنقّل الرئيسي"
     >
       <div className="zad-sidebar__brand">
-        <div className="flex min-w-0 items-center gap-2">
-          <BrandLogo size="sm" />
+        <div className="zad-sidebar__brand-mark">
+          <BrandLogo size="sm" className="zad-sidebar__logo" />
           <div className="zad-sidebar__brand-text">
             <p className="text-xs text-brand-gray">جمعية الزاد</p>
             <p className="truncate text-sm font-bold text-primary">الاتصال المؤسسي</p>
           </div>
         </div>
-        <IconButton
-          label="إغلاق القائمة"
-          icon={<IconX size={18} />}
-          className="lg:hidden"
-          onClick={onCloseMobile}
-        />
+        <div className="zad-sidebar__brand-actions">
+          <button
+            type="button"
+            className="zad-sidebar__toggle"
+            aria-expanded={!collapsed}
+            aria-controls="dashboard-sidebar-nav"
+            aria-label={collapsed ? "توسيع القائمة" : "طي القائمة"}
+            title={collapsed ? "توسيع القائمة" : "طي القائمة"}
+            onClick={onToggleCollapse}
+          >
+            <span
+              className="inline-flex shrink-0"
+              style={{
+                transform: collapsed ? "scaleX(-1)" : "scaleX(1)",
+              }}
+              aria-hidden
+            >
+              <IconChevron size={18} />
+            </span>
+          </button>
+          <IconButton
+            label="إغلاق القائمة"
+            icon={<IconX size={18} />}
+            className="lg:hidden"
+            onClick={onCloseMobile}
+          />
+        </div>
       </div>
 
       <nav id="dashboard-sidebar-nav" className="zad-sidebar__nav" aria-label="وحدات المنصة">
@@ -118,27 +139,6 @@ export default function DashboardSidebar({
       </nav>
 
       <div className="zad-sidebar__footer">
-        <button
-          type="button"
-          className="zad-sidebar__collapse zad-sidebar__link w-full"
-          aria-expanded={!collapsed}
-          aria-controls="dashboard-sidebar-nav"
-          onClick={onToggleCollapse}
-        >
-          <span
-            className="inline-flex shrink-0"
-            style={{
-              transform: collapsed ? "scaleX(-1)" : "scaleX(1)",
-            }}
-            aria-hidden
-          >
-            <IconChevron size={18} />
-          </span>
-          <span className="zad-sidebar__link-label">
-            {collapsed ? "توسيع القائمة" : "طي القائمة"}
-          </span>
-        </button>
-
         <button
           type="button"
           className="zad-sidebar__link w-full text-[var(--zaad-danger)]"
