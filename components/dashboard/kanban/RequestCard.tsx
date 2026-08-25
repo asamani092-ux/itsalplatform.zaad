@@ -88,9 +88,17 @@ export default function RequestCard({
           ? `${request.title} — اضغط Enter للإكمال أو اسحب إلى عمود مكتمل`
           : request.title
       }
-      onDragStart={() => onDragStart(request.id)}
+      onDragStart={(event) => {
+        event.dataTransfer.setData("text/plain", request.id);
+        event.dataTransfer.effectAllowed = "move";
+        onDragStart(request.id);
+      }}
       onKeyDown={handleCardKeyDown}
-      style={isActive ? { touchAction: "manipulation" } : undefined}
+      style={
+        isActive
+          ? { touchAction: "none", cursor: "grab", userSelect: "none" }
+          : undefined
+      }
     >
       <div className="flex items-start justify-between gap-2">
         <h3 className="text-sm font-bold text-primary">{request.title}</h3>

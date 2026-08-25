@@ -188,9 +188,10 @@ export default function KanbanBoard() {
     );
   }
 
-  function handleDropOnCompleted() {
-    if (!draggingId) return;
-    const dragged = requests.find((r) => r.id === draggingId);
+  function handleDropOnCompleted(requestId?: string | null) {
+    const id = requestId ?? draggingId;
+    if (!id) return;
+    const dragged = requests.find((r) => r.id === id);
     if (!dragged || dragged.status !== "In_Progress") {
       setError("يمكن سحب الطلبات قيد التنفيذ فقط إلى عمود مكتمل");
       setDraggingId(null);
@@ -199,7 +200,7 @@ export default function KanbanBoard() {
     }
     setDraggingId(null);
     setDropHighlight(null);
-    void handleComplete(draggingId);
+    void handleComplete(id);
   }
 
   const boardRequests = requests.filter(
@@ -294,12 +295,20 @@ export default function KanbanBoard() {
                 onDragOver={(e) => {
                   if (!column.dropTarget) return;
                   e.preventDefault();
+                  e.dataTransfer.dropEffect = "move";
                   setDropHighlight(column.id);
                 }}
-                onDragLeave={() => setDropHighlight(null)}
+                onDragLeave={(e) => {
+                  if (!column.dropTarget) return;
+                  const next = e.relatedTarget as Node | null;
+                  if (next && e.currentTarget.contains(next)) return;
+                  setDropHighlight(null);
+                }}
                 onDrop={(e) => {
                   e.preventDefault();
-                  if (column.dropTarget) handleDropOnCompleted();
+                  if (!column.dropTarget) return;
+                  const fromTransfer = e.dataTransfer.getData("text/plain");
+                  handleDropOnCompleted(fromTransfer || draggingId);
                 }}
               >
                 <header
@@ -327,6 +336,16 @@ export default function KanbanBoard() {
                           onDragStart={setDraggingId}
                           busy={busy}
                         />
+                        {request.status === "In_Progress" && (
+                          <button
+                            type="button"
+                            className="btn-secondary w-full text-xs lg:hidden"
+                            disabled={busy}
+                            onClick={() => void handleComplete(request.id)}
+                          >
+                            نقل إلى مكتمل
+                          </button>
+                        )}
                         <button
                           type="button"
                           className="btn-secondary w-full text-xs"
