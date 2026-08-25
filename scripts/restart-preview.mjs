@@ -4,7 +4,7 @@
  * with freshly prepared static assets — prevents white screens from stale chunks.
  */
 import { spawn, execSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, readlinkSync } from "node:fs";
 import { join } from "node:path";
 
 const port = process.env.PORT || "3002";
@@ -24,20 +24,92 @@ try {
   process.exit(1);
 }
 
-function killPort(p) {
-  const attempts = [
-    `lsof -ti tcp:${p} | xargs -r kill -9`,
-    `fuser -k ${p}/tcp`,
-  ];
-  for (const cmd of attempts) {
-    try {
-      execSync(cmd, { stdio: "ignore" });
-    } catch {
-      /* try next */
+function listeningInodes(portNum) {
+  const hex = Number(portNum).toString(16).toUpperCase().padStart(4, "0");
+  const inodes = new Set();
+  for (const table of ["/proc/net/tcp", "/proc/net/tcp6"]) {
+    if (!existsSync(table)) continue;
+    for (const line of readFileSync(table, "utf8").split("\n").slice(1)) {
+      const parts = line.trim().split(/\s+/);
+      if (parts.length < 10) continue;
+      const local = parts[1] ?? "";
+      const state = parts[3];
+      // 0A = LISTEN
+      if (state === "0A" && local.toUpperCase().endsWith(`:${hex}`)) {
+        inodes.add(parts[9]);
+      }
     }
   }
-  // Brief wait so the OS releases the socket
-  execSync("sleep 0.5");
+  return inodes;
+}
+
+function pidsHoldingInodes(inodes) {
+  if (inodes.size === 0) return [];
+  const pids = new Set();
+  for (const dir of readdirSync("/proc")) {
+    if (!/^\d+$/.test(dir)) continue;
+    const fdDir = `/proc/${dir}/fd`;
+    try {
+      for (const fd of readdirSync(fdDir)) {
+        let target = "";
+        try {
+          target = readlinkSync(`${fdDir}/${fd}`);
+        } catch {
+          continue;
+        }
+        const m = target.match(/^socket:\[(\d+)\]$/);
+        if (m && inodes.has(m[1])) pids.add(Number(dir));
+      }
+    } catch {
+      /* no access */
+    }
+  }
+  return [...pids];
+}
+
+function killPort(p) {
+  const self = process.pid;
+  const inodes = listeningInodes(p);
+  let pids = pidsHoldingInodes(inodes).filter((pid) => pid !== self);
+
+  // Fallbacks for environments where /proc fd scan is restricted
+  if (pids.length === 0) {
+    for (const cmd of [
+      `lsof -tiTCP:${p} -sTCP:LISTEN`,
+      `lsof -ti :${p}`,
+      `fuser ${p}/tcp`,
+    ]) {
+      try {
+        const out = execSync(cmd, { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+        for (const token of out.split(/[\s,]+/)) {
+          const n = Number(token);
+          if (Number.isFinite(n) && n > 0 && n !== self) pids.push(n);
+        }
+      } catch {
+        /* try next */
+      }
+    }
+  }
+
+  pids = [...new Set(pids)];
+  for (const pid of pids) {
+    try {
+      process.kill(pid, "SIGKILL");
+      console.log(`restart-preview: killed pid ${pid} on :${p}`);
+    } catch {
+      /* already gone */
+    }
+  }
+
+  // Wait until the port is free (up to ~3s)
+  for (let i = 0; i < 15; i++) {
+    if (listeningInodes(p).size === 0) return;
+    execSync("sleep 0.2");
+  }
+  if (listeningInodes(p).size > 0) {
+    console.error(`restart-preview: port ${p} still busy after kill attempts`);
+    process.exit(1);
+  }
 }
 
 killPort(port);
