@@ -24,11 +24,23 @@ try {
   process.exit(1);
 }
 
-try {
-  execSync(`fuser -k ${port}/tcp 2>/dev/null || true`, { stdio: "ignore" });
-} catch {
-  /* ignore */
+function killPort(p) {
+  const attempts = [
+    `lsof -ti tcp:${p} | xargs -r kill -9`,
+    `fuser -k ${p}/tcp`,
+  ];
+  for (const cmd of attempts) {
+    try {
+      execSync(cmd, { stdio: "ignore" });
+    } catch {
+      /* try next */
+    }
+  }
+  // Brief wait so the OS releases the socket
+  execSync("sleep 0.5");
 }
+
+killPort(port);
 
 const child = spawn("node", [server], {
   env: { ...process.env, HOSTNAME: "0.0.0.0", PORT: port },
