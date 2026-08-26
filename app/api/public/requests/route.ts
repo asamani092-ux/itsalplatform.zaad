@@ -13,6 +13,7 @@ interface SubmitBody {
   contactPhone?: string;
   departmentId?: string;
   requestTypeId?: string;
+  requesterAdministrationId?: string;
   visitDate?: string;
   formSlug?: string;
 }
@@ -97,6 +98,7 @@ export async function POST(request: NextRequest) {
       contactPhone: body.contactPhone?.trim() ?? "",
       departmentId,
       requestTypeId,
+      requesterAdministrationId: body.requesterAdministrationId?.trim() || null,
       visitDate,
     });
 

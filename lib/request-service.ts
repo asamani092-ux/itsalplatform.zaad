@@ -4,7 +4,7 @@ import { ARCHIVE_STATUSES, ACTIVE_STATUSES, assertTransition } from "./workflow"
 import { resolveAssignee } from "./routing-service";
 import { RequestStatus } from "../generated/prisma/client";
 import { generateApprovalToken } from "./tokens";
-import { notify, notifyManager } from "./notifications";
+import { notify, notifyManager, notifyRequesterManager } from "./notifications";
 import { getAppUrl } from "./api-utils";
 
 type DashboardView = "active" | "archive" | "all";
@@ -166,12 +166,26 @@ export async function submitRequest(params: {
   departmentId: string;
   requestTypeId: string;
   visitDate?: Date | null;
+  requesterAdministrationId?: string | null;
 }) {
   const department = await prisma.department.findFirst({
     where: { id: params.departmentId, isActive: true },
   });
   if (!department) {
     throw new Error("NOT_FOUND: القسم غير موجود");
+  }
+
+  // Resolve the submitter's line manager from their (external) administration so
+  // the request can notify their own manager — independent of the handling section.
+  let requesterAdministration: { id: string; managerEmail: string } | null = null;
+  if (params.requesterAdministrationId) {
+    requesterAdministration = await prisma.administration.findFirst({
+      where: { id: params.requesterAdministrationId, isActive: true },
+      select: { id: true, managerEmail: true },
+    });
+    if (!requesterAdministration) {
+      throw new Error("NOT_FOUND: إدارة مقدّم الطلب غير موجودة");
+    }
   }
 
   const requestType = await prisma.requestType.findFirst({
@@ -202,6 +216,8 @@ export async function submitRequest(params: {
       contactEmail: params.contactEmail,
       contactPhone: params.contactPhone,
       managerEmail: department.managerEmail,
+      requesterAdministrationId: requesterAdministration?.id ?? null,
+      requesterManagerEmail: requesterAdministration?.managerEmail ?? null,
       departmentId: params.departmentId,
       requestTypeId: params.requestTypeId,
       visitDate: params.visitDate ?? null,
@@ -221,6 +237,15 @@ export async function submitRequest(params: {
       ? "تقديم مباشر للوحة العمل (تجاوز موافقة مدير الإدارة)"
       : "تم تقديم الطلب",
   });
+
+  // Notify the submitter's own line manager (from their administration), if known.
+  if (requesterAdministration?.managerEmail) {
+    await notifyRequesterManager({
+      managerEmail: requesterAdministration.managerEmail,
+      requestTitle: params.title,
+      requestId: created.id,
+    });
+  }
 
   if (skipDepartmentApproval) {
     const assignee = await resolveAssignee(params.requestTypeId);

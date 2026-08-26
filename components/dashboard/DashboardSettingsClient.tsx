@@ -7,11 +7,13 @@ import {
   RequestTypesManager,
 } from "@/components/dashboard/TaxonomyManager";
 import RoutingRulesManager from "@/components/dashboard/RoutingRulesManager";
+import AdministrationsManager from "@/components/dashboard/AdministrationsManager";
 import { getApiErrorMessage, parseApiResponse } from "@/components/lib/api-types";
 
 type SettingsSection =
   | "modules"
   | "workflow"
+  | "administrations"
   | "departments"
   | "requestTypes"
   | "rooms"
@@ -28,6 +30,7 @@ interface Department {
 const NAV: { id: SettingsSection; label: string }[] = [
   { id: "modules", label: "الخدمات والأدوات" },
   { id: "workflow", label: "مسار الطلبات" },
+  { id: "administrations", label: "الإدارات ومدراؤها" },
   { id: "departments", label: "جهات استقبال الطلبات" },
   { id: "requestTypes", label: "أنواع الطلبات" },
   { id: "rooms", label: "القاعات" },
@@ -190,6 +193,8 @@ export default function DashboardSettingsClient({
             </button>
           </div>
         )}
+
+        {section === "administrations" && <AdministrationsManager />}
 
         {section === "departments" && <DepartmentsManager />}
 
