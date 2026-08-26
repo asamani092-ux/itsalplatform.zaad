@@ -6,6 +6,7 @@ import {
   DepartmentsManager,
   RequestTypesManager,
 } from "@/components/dashboard/TaxonomyManager";
+import RoutingRulesManager from "@/components/dashboard/RoutingRulesManager";
 import { getApiErrorMessage, parseApiResponse } from "@/components/lib/api-types";
 
 type SettingsSection =
@@ -22,13 +23,6 @@ interface Department {
   slug: string;
   managerEmail: string;
   receptionToken: string | null;
-}
-
-interface RoutingRule {
-  id: string;
-  requestType: { name: string };
-  employee: { name: string };
-  isActive: boolean;
 }
 
 const NAV: { id: SettingsSection; label: string }[] = [
@@ -49,7 +43,6 @@ export default function DashboardSettingsClient({
     initialSection ?? "modules",
   );
   const [departments, setDepartments] = useState<Department[]>([]);
-  const [rules, setRules] = useState<RoutingRule[]>([]);
   const [error, setError] = useState("");
   const [skipApproval, setSkipApproval] = useState(false);
   const [roomsText, setRoomsText] = useState("");
@@ -58,14 +51,12 @@ export default function DashboardSettingsClient({
 
   const load = useCallback(async () => {
     try {
-      const [deptRes, rulesRes, appRes] = await Promise.all([
+      const [deptRes, appRes] = await Promise.all([
         fetch("/api/manager/settings/departments"),
-        fetch("/api/manager/settings/routing-rules"),
         fetch("/api/manager/settings/app"),
       ]);
 
       const deptPayload = await parseApiResponse<{ departments: Department[] }>(deptRes);
-      const rulesPayload = await parseApiResponse<{ rules: RoutingRule[] }>(rulesRes);
       const appPayload = await parseApiResponse<{
         workflow: { skipDepartmentApproval: boolean };
         rooms: string[];
@@ -74,7 +65,6 @@ export default function DashboardSettingsClient({
       if (deptPayload.success) {
         setDepartments(deptPayload.data.departments);
       }
-      if (rulesPayload.success) setRules(rulesPayload.data.rules);
       if (appPayload.success) {
         setSkipApproval(appPayload.data.workflow.skipDepartmentApproval);
         setRoomsText(appPayload.data.rooms.join("\n"));
@@ -227,32 +217,7 @@ export default function DashboardSettingsClient({
           </div>
         )}
 
-        {section === "routing" && (
-          <div className="card space-y-3 p-4">
-            <h2 className="text-lg font-bold text-primary">
-              قواعد التوجيه ({rules.length})
-            </h2>
-            {rules.length === 0 ? (
-              <p className="text-sm text-brand-gray">لا توجد قواعد توجيه بعد.</p>
-            ) : (
-              <ul className="space-y-2 text-sm">
-                {rules.map((rule) => (
-                  <li
-                    key={rule.id}
-                    className="flex flex-wrap gap-2 border-b border-surface-border py-2"
-                  >
-                    <span className="font-semibold text-primary">
-                      {rule.requestType.name}
-                    </span>
-                    <span className="text-brand-gray">←</span>
-                    <span>{rule.employee.name}</span>
-                    {!rule.isActive && <span className="badge-warning">معطّل</span>}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        )}
+        {section === "routing" && <RoutingRulesManager />}
       </div>
     </div>
   );
