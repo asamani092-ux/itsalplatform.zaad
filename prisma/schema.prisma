@@ -21,22 +21,51 @@ enum EmployeeRole {
   RECEPTION
 }
 
-model Department {
-  id            String                 @id @default(cuid())
-  name          String
-  slug          String                 @unique
-  managerEmail  String
-  receptionToken String?               @unique
-  isActive      Boolean                @default(true)
-  requestTypes  RequestType[]
-  requests      CommunicationRequest[]
-  requestForms  RequestForm[]
-  visitorLogs   ReceptionVisitorLog[]
-  employees     CommEmployee[]         @relation("EmployeeDepartment")
-  createdAt     DateTime               @default(now())
-  updatedAt     DateTime               @updatedAt
+enum AdministrationKind {
+  INTERNAL
+  EXTERNAL
+}
+
+/**
+ * Top-level org unit (إدارة). INTERNAL = إدارة الاتصال المؤسسي that owns the
+ * handling sections (Department). EXTERNAL = requesting administrations whose
+ * employees submit requests; managerEmail is the submitter's line manager.
+ */
+model Administration {
+  id                String                 @id @default(cuid())
+  name              String
+  slug              String                 @unique
+  managerEmail      String
+  kind              AdministrationKind     @default(EXTERNAL)
+  isActive          Boolean                @default(true)
+  departments       Department[]
+  requesterRequests CommunicationRequest[] @relation("RequesterAdministration")
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
 
   @@index([isActive])
+  @@index([kind])
+}
+
+model Department {
+  id               String                 @id @default(cuid())
+  name             String
+  slug             String                 @unique
+  managerEmail     String
+  receptionToken   String?                @unique
+  isActive         Boolean                @default(true)
+  administrationId String?
+  administration   Administration?        @relation(fields: [administrationId], references: [id])
+  requestTypes     RequestType[]
+  requests         CommunicationRequest[]
+  requestForms     RequestForm[]
+  visitorLogs      ReceptionVisitorLog[]
+  employees        CommEmployee[]         @relation("EmployeeDepartment")
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+
+  @@index([isActive])
+  @@index([administrationId])
 }
 
 model RequestType {
@@ -122,6 +151,9 @@ model CommunicationRequest {
   contactEmail       String
   contactPhone       String
   managerEmail       String
+  requesterManagerEmail     String?
+  requesterAdministrationId String?
+  requesterAdministration   Administration? @relation("RequesterAdministration", fields: [requesterAdministrationId], references: [id])
   departmentId       String
   department         Department          @relation(fields: [departmentId], references: [id])
   requestTypeId      String
@@ -149,6 +181,7 @@ model CommunicationRequest {
   @@index([approvalToken])
   @@index([assignedEmployeeId])
   @@index([departmentId])
+  @@index([requesterAdministrationId])
   @@index([requestTypeId])
   @@index([createdAt])
   @@index([visitDate])

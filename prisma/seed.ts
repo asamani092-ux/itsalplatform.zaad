@@ -24,37 +24,97 @@ function daysFromNow(d: number) {
 async function main() {
   const passwordHash = await hashPassword("password123");
 
+  // Internal administration (إدارة الاتصال المؤسسي) — owns the handling sections.
+  const commAdministration = await prisma.administration.upsert({
+    where: { slug: "corporate-comm" },
+    update: {
+      name: "إدارة الاتصال المؤسسي",
+      managerEmail: "director@zaad.org",
+      kind: "INTERNAL",
+      isActive: true,
+    },
+    create: {
+      name: "إدارة الاتصال المؤسسي",
+      slug: "corporate-comm",
+      managerEmail: "director@zaad.org",
+      kind: "INTERNAL",
+    },
+  });
+
+  // External administrations (الإدارات الأخرى) — their employees submit requests;
+  // managerEmail is the submitter's line manager notified on submission.
+  const externalAdministrations = [
+    { slug: "hr", name: "إدارة الموارد البشرية", managerEmail: "hr.manager@zaad.org" },
+    { slug: "finance", name: "الإدارة المالية", managerEmail: "finance.manager@zaad.org" },
+    { slug: "it", name: "إدارة تقنية المعلومات", managerEmail: "it.manager@zaad.org" },
+    { slug: "programs", name: "إدارة البرامج والمشاريع", managerEmail: "programs.manager@zaad.org" },
+  ];
+  for (const adm of externalAdministrations) {
+    await prisma.administration.upsert({
+      where: { slug: adm.slug },
+      update: { name: adm.name, managerEmail: adm.managerEmail, kind: "EXTERNAL", isActive: true },
+      create: { name: adm.name, slug: adm.slug, managerEmail: adm.managerEmail, kind: "EXTERNAL" },
+    });
+  }
+
   await prisma.department.upsert({
     where: { slug: "communications" },
-    update: { receptionToken: "reception-demo-token", isActive: true },
+    update: {
+      receptionToken: "reception-demo-token",
+      isActive: true,
+      administrationId: commAdministration.id,
+    },
     create: {
       name: "قسم الاتصال المؤسسي",
       slug: "communications",
       managerEmail: "manager@zaad.org",
       receptionToken: "reception-demo-token",
+      administrationId: commAdministration.id,
     },
   });
 
   await prisma.department.upsert({
     where: { slug: "general" },
-    update: { receptionToken: "reception-default-token", isActive: true },
+    update: {
+      receptionToken: "reception-default-token",
+      isActive: true,
+      administrationId: commAdministration.id,
+    },
     create: {
       id: "dept_default",
       name: "قسم عام",
       slug: "general",
       managerEmail: "manager@zaad.org",
       receptionToken: "reception-default-token",
+      administrationId: commAdministration.id,
     },
   });
 
   await prisma.department.upsert({
     where: { slug: "partnerships" },
-    update: { receptionToken: "reception-partners-token", isActive: true },
+    update: {
+      receptionToken: "reception-partners-token",
+      isActive: true,
+      administrationId: commAdministration.id,
+    },
     create: {
       name: "قسم الشراكات",
       slug: "partnerships",
       managerEmail: "manager@zaad.org",
       receptionToken: "reception-partners-token",
+      administrationId: commAdministration.id,
+    },
+  });
+
+  // قسم تنمية الموارد المالية — owns the grants tool.
+  await prisma.department.upsert({
+    where: { slug: "financial-resources" },
+    update: { isActive: true, administrationId: commAdministration.id },
+    create: {
+      name: "قسم تنمية الموارد المالية",
+      slug: "financial-resources",
+      managerEmail: "manager@zaad.org",
+      administrationId: commAdministration.id,
     },
   });
 
