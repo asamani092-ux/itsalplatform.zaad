@@ -31,7 +31,8 @@ export type ModuleIconKey =
   | "calendar"
   | "folder"
   | "form"
-  | "desk";
+  | "desk"
+  | "grant";
 
 /** Paths follow the official brand guide icon set (24x24, stroke 2, round). */
 export const MODULE_ICON_PATHS: Record<ModuleIconKey, string[]> = {
@@ -61,6 +62,11 @@ export const MODULE_ICON_PATHS: Record<ModuleIconKey, string[]> = {
     "M9 17h4",
   ],
   desk: ["M3 10h18", "M5 10V6h14v4", "M6 10v10", "M18 10v10"],
+  grant: [
+    "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z",
+    "M12 6v12",
+    "M14.5 9a2.5 2.5 0 0 0-2.5-1.5c-1.5 0-2.5.8-2.5 2s1 1.8 2.5 2 2.5.8 2.5 2-1 2-2.5 2A2.5 2.5 0 0 1 9.5 16",
+  ],
 };
 
 export const PLATFORM_MODULES: PlatformModuleDef[] = [
@@ -119,6 +125,17 @@ export const PLATFORM_MODULES: PlatformModuleDef[] = [
     core: false,
     defaultEnabled: true,
     sortOrder: 50,
+  },
+  {
+    key: "grants",
+    label: "إدارة المنح",
+    description: "متابعة منح تنمية الموارد المالية من الإضافة حتى الإغلاق",
+    href: "/dashboard/grants",
+    category: "services",
+    icon: "grant",
+    core: false,
+    defaultEnabled: true,
+    sortOrder: 55,
   },
   {
     key: "media",

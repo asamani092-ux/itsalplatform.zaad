@@ -622,6 +622,34 @@ async function main() {
     });
   }
 
+  // Demo grant with follow-up stages for the financial-resources section.
+  const financialSection = await prisma.department.findUnique({
+    where: { slug: "financial-resources" },
+  });
+  const existingGrant = await prisma.grant.findFirst({
+    where: { title: "منحة دعم برنامج التطوع" },
+  });
+  if (!existingGrant) {
+    await prisma.grant.create({
+      data: {
+        title: "منحة دعم برنامج التطوع",
+        donorName: "مؤسسة العطاء",
+        amount: 50000,
+        details: "منحة تشغيلية لدعم برنامج التطوع السنوي",
+        stageCount: 3,
+        departmentId: financialSection?.id ?? null,
+        createdById: director.id,
+        stages: {
+          create: [
+            { index: 1, label: "المرحلة 1", amount: 16667, status: "Done", note: "استلام الدفعة الأولى" },
+            { index: 2, label: "المرحلة 2", amount: 16667 },
+            { index: 3, label: "المرحلة 3", amount: 16666 },
+          ],
+        },
+      },
+    });
+  }
+
   await prisma.mediaDocument.createMany({
     data: [
       {

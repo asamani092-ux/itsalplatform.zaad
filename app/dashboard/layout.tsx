@@ -15,12 +15,12 @@ export default async function DashboardLayout({
   ]);
 
   // Desk-only employees (reception section) see just the reception module.
-  // Directors see everything incl. grants; section managers see all enabled tools.
+  // Grants management is a director-only tool, so hide it from section managers.
   const deskOnly =
     session?.role === "EMPLOYEE" && session?.deskAccess === true;
   const visibleModules = deskOnly
     ? modules.filter((m) => m.key === "reception")
-    : modules;
+    : modules.filter((m) => m.key !== "grants" || session?.role === "DIRECTOR");
 
   return (
     <div dir="rtl">

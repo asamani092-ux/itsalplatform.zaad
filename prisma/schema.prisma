@@ -26,6 +26,16 @@ enum AdministrationKind {
   EXTERNAL
 }
 
+enum GrantStatus {
+  Open
+  Closed
+}
+
+enum GrantStageStatus {
+  Pending
+  Done
+}
+
 /**
  * Top-level org unit (إدارة). INTERNAL = إدارة الاتصال المؤسسي that owns the
  * handling sections (Department). EXTERNAL = requesting administrations whose
@@ -61,6 +71,7 @@ model Department {
   requestForms     RequestForm[]
   visitorLogs      ReceptionVisitorLog[]
   employees        CommEmployee[]         @relation("EmployeeDepartment")
+  grants           Grant[]
   createdAt        DateTime               @default(now())
   updatedAt        DateTime               @updatedAt
 
@@ -119,6 +130,7 @@ model CommEmployee {
   passwordResets    PasswordResetToken[]
   visitorLogs       ReceptionVisitorLog[] @relation("MarkedByReception")
   attendanceEvents  AttendanceEvent[]     @relation("AttendanceEventCreator")
+  grantsCreated     Grant[]               @relation("GrantCreator")
   createdAt         DateTime              @default(now())
   updatedAt         DateTime              @updatedAt
 
@@ -346,6 +358,49 @@ model RequestForm {
   @@index([isPublished])
   @@index([departmentId])
   @@index([requestTypeId])
+}
+
+/**
+ * Grant (منحة) tracked by تنمية الموارد المالية from intake to closure, with
+ * manually-updated follow-up stages (or a single closure stage when none set).
+ */
+model Grant {
+  id           String       @id @default(cuid())
+  title        String
+  donorName    String
+  amount       Float
+  details      String       @default("")
+  stageCount   Int          @default(0)
+  status       GrantStatus  @default(Open)
+  departmentId String?
+  department   Department?  @relation(fields: [departmentId], references: [id])
+  createdById  String?
+  createdBy    CommEmployee? @relation("GrantCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  stages       GrantStage[]
+  closedAt     DateTime?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@index([status])
+  @@index([departmentId])
+  @@index([createdAt])
+}
+
+model GrantStage {
+  id        String           @id @default(cuid())
+  grantId   String
+  grant     Grant            @relation(fields: [grantId], references: [id], onDelete: Cascade)
+  index     Int
+  label     String
+  amount    Float?
+  dueDate   DateTime?
+  status    GrantStageStatus @default(Pending)
+  note      String           @default("")
+  updatedAt DateTime         @updatedAt
+  createdAt DateTime         @default(now())
+
+  @@index([grantId])
+  @@index([status])
 }
 
 model MediaDocument {
