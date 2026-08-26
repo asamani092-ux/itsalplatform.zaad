@@ -203,6 +203,31 @@ export default function KanbanBoard() {
     void handleComplete(id);
   }
 
+  function bindDropZoneHandlers(columnId: string, isDropTarget: boolean) {
+    return {
+      onDragOver: (e: React.DragEvent) => {
+        if (!isDropTarget) return;
+        e.preventDefault();
+        e.stopPropagation();
+        e.dataTransfer.dropEffect = "move";
+        setDropHighlight(columnId);
+      },
+      onDragLeave: (e: React.DragEvent) => {
+        if (!isDropTarget) return;
+        const next = e.relatedTarget as Node | null;
+        if (next && e.currentTarget.contains(next)) return;
+        setDropHighlight(null);
+      },
+      onDrop: (e: React.DragEvent) => {
+        if (!isDropTarget) return;
+        e.preventDefault();
+        e.stopPropagation();
+        const fromTransfer = e.dataTransfer.getData("text/plain");
+        handleDropOnCompleted(fromTransfer || draggingId);
+      },
+    };
+  }
+
   const boardRequests = requests.filter(
     (r) =>
       (r.status === "Approved_Pending_Assignment" ||
@@ -218,7 +243,9 @@ export default function KanbanBoard() {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-brand-gray">إسناد ومتابعة SLA — اسحب أو اضغط Enter على البطاقة</p>
+        <p className="text-sm text-brand-gray">
+          من «قيد التنفيذ»: اسحب المقبض ⋮⋮ إلى «مكتمل»، أو زر «وضع علامة مكتمل». من «جديد»: الإسناد فقط.
+        </p>
         <IconButton
           label={loading ? "جاري التحديث..." : "تحديث اللوحة"}
           icon={<IconRefresh size={18} />}
@@ -292,24 +319,7 @@ export default function KanbanBoard() {
                     : ""
                 }`}
                 aria-label={`${column.title} — ${columnRequests.length} بطاقة`}
-                onDragOver={(e) => {
-                  if (!column.dropTarget) return;
-                  e.preventDefault();
-                  e.dataTransfer.dropEffect = "move";
-                  setDropHighlight(column.id);
-                }}
-                onDragLeave={(e) => {
-                  if (!column.dropTarget) return;
-                  const next = e.relatedTarget as Node | null;
-                  if (next && e.currentTarget.contains(next)) return;
-                  setDropHighlight(null);
-                }}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  if (!column.dropTarget) return;
-                  const fromTransfer = e.dataTransfer.getData("text/plain");
-                  handleDropOnCompleted(fromTransfer || draggingId);
-                }}
+                {...bindDropZoneHandlers(column.id, column.dropTarget)}
               >
                 <header
                   className={`flex items-center justify-between border-b-2 px-4 py-3 ${column.headerClass}`}
@@ -320,7 +330,7 @@ export default function KanbanBoard() {
                   </span>
                 </header>
 
-                <div className="flex-1 space-y-2 p-2">
+                <div className="flex-1 space-y-2 p-2" {...bindDropZoneHandlers(column.id, column.dropTarget)}>
                   {columnRequests.length === 0 ? (
                     <p className="py-12 text-center text-xs text-brand-gray">لا توجد بطاقات</p>
                   ) : (
@@ -334,12 +344,16 @@ export default function KanbanBoard() {
                           onComplete={handleComplete}
                           onArchive={handleArchive}
                           onDragStart={setDraggingId}
+                          onDragEnd={() => {
+                            setDraggingId(null);
+                            setDropHighlight(null);
+                          }}
                           busy={busy}
                         />
                         {request.status === "In_Progress" && (
                           <button
                             type="button"
-                            className="btn-secondary w-full text-xs lg:hidden"
+                            className="btn-secondary w-full text-xs"
                             disabled={busy}
                             onClick={() => void handleComplete(request.id)}
                           >

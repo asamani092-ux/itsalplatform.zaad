@@ -482,7 +482,7 @@ export default function DashboardTeamPage() {
                         onClick={() => openEdit(emp)}
                       />
                       <IconButton
-                        label="إرسال رابط الاستعادة"
+                        label="إرسال رابط إعادة تعيين كلمة المرور"
                         icon={<IconSend size={18} />}
                         disabled={resettingId === emp.id}
                         onClick={() => void sendResetLink(emp)}
