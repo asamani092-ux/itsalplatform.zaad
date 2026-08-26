@@ -26,7 +26,28 @@ interface Kpis {
     count: number;
     avgLifecycleMs: number | null;
   }[];
+  overdueByDepartment: { departmentName: string; count: number }[];
+  overdueList: {
+    id: string;
+    title: string;
+    status: string;
+    requiredDate: string;
+    departmentName: string;
+  }[];
 }
+
+interface DepartmentOption {
+  id: string;
+  name: string;
+}
+
+const STATUS_LABELS: Record<string, string> = {
+  Pending_Manager: "بانتظار المدير",
+  Approved_Pending_Assignment: "جديد",
+  In_Progress: "قيد التنفيذ",
+  Completed: "مكتمل",
+  Archived: "مؤرشف",
+};
 
 function KpiCard({
   label,
@@ -66,11 +87,16 @@ export default function DashboardKpiPage() {
   const [kpis, setKpis] = useState<Kpis | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [departments, setDepartments] = useState<DepartmentOption[]>([]);
+  const [departmentId, setDepartmentId] = useState("");
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (deptId: string) => {
     setLoading(true);
     try {
-      const res = await fetch("/api/manager/kpis");
+      const url = deptId
+        ? `/api/manager/kpis?departmentId=${encodeURIComponent(deptId)}`
+        : "/api/manager/kpis";
+      const res = await fetch(url);
       const payload = await parseApiResponse<{ kpis: Kpis }>(res);
       if (!res.ok || !payload.success) {
         throw new Error(getApiErrorMessage(payload, "تعذّر تحميل المؤشرات"));
@@ -84,14 +110,49 @@ export default function DashboardKpiPage() {
   }, []);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    void load(departmentId);
+  }, [load, departmentId]);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const res = await fetch("/api/manager/settings/departments");
+        const payload = await parseApiResponse<{ departments: DepartmentOption[] }>(res);
+        if (payload.success) {
+          setDepartments(
+            payload.data.departments.map((d) => ({ id: d.id, name: d.name })),
+          );
+        }
+      } catch {
+        // Filter is optional.
+      }
+    })();
+  }, []);
 
   return (
     <div className="space-y-6">
-      <p className="text-sm text-brand-gray">
-        مؤشرات تشغيل قسم الاتصال: الطلبات، SLA، الضيافة، وزيارات الاستقبال
-      </p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-brand-gray">
+          مؤشرات عامة للمنصة ومتابعة كل قسم — مع إبراز الطلبات المتأخرة وغير المغلقة
+        </p>
+        {departments.length > 0 && (
+          <label className="flex items-center gap-2 text-sm">
+            <span className="text-brand-gray">القسم:</span>
+            <select
+              className="input-field"
+              value={departmentId}
+              onChange={(e) => setDepartmentId(e.target.value)}
+            >
+              <option value="">كل الأقسام (عام)</option>
+              {departments.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+      </div>
 
       {error && (
         <p className="text-sm text-[var(--zaad-danger)]" role="alert">
@@ -220,6 +281,62 @@ export default function DashboardKpiPage() {
                 </tbody>
               </table>
             </div>
+          </div>
+
+          <div className="card space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-lg font-bold text-primary">
+                متابعة المتأخرة وغير المغلقة
+              </h2>
+              <span className={kpis.overdueOpen > 0 ? "badge-danger" : "badge-success"}>
+                {kpis.overdueOpen} طلب متأخر
+              </span>
+            </div>
+            <p className="text-xs text-brand-gray">
+              طلبات تخطّت التاريخ المطلوب ولم تُغلق — يراجعها مدير القسم المعني.
+            </p>
+
+            {kpis.overdueByDepartment.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {kpis.overdueByDepartment.map((row) => (
+                  <span
+                    key={row.departmentName}
+                    className="rounded-full bg-[color-mix(in_srgb,var(--zaad-danger)_10%,transparent)] px-3 py-1 text-xs text-[var(--zaad-danger)]"
+                  >
+                    {row.departmentName}: {row.count}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {kpis.overdueList.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="tmkeen-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">الطلب</th>
+                      <th scope="col">القسم</th>
+                      <th scope="col">الحالة</th>
+                      <th scope="col">التاريخ المطلوب</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {kpis.overdueList.map((row) => (
+                      <tr key={row.id}>
+                        <td className="font-semibold">{row.title}</td>
+                        <td>{row.departmentName}</td>
+                        <td>{STATUS_LABELS[row.status] ?? row.status}</td>
+                        <td dir="ltr">
+                          {new Date(row.requiredDate).toLocaleDateString("ar")}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="text-sm text-brand-gray">لا توجد طلبات متأخرة حالياً.</p>
+            )}
           </div>
         </>
       )}

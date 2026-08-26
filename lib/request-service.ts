@@ -636,7 +636,12 @@ interface KpiCompletedLifecycleRow {
   completedAt: Date | null;
 }
 
-export async function getManagerKpis() {
+export async function getManagerKpis(options?: { departmentId?: string }) {
+  // Scope every metric to a single section when a departmentId is provided.
+  const scopeWhere = options?.departmentId
+    ? { departmentId: options.departmentId }
+    : {};
+
   const [statusCounts, byDepartment, byRequestType, allCompleted]: [
     KpiStatusCountGroupRow[],
     KpiDepartmentCountGroupRow[],
@@ -645,18 +650,21 @@ export async function getManagerKpis() {
   ] = await Promise.all([
       prisma.communicationRequest.groupBy({
         by: ["status"],
+        where: scopeWhere,
         _count: { _all: true },
       }),
       prisma.communicationRequest.groupBy({
         by: ["departmentId"],
+        where: scopeWhere,
         _count: { _all: true },
       }),
       prisma.communicationRequest.groupBy({
         by: ["requestTypeId"],
+        where: scopeWhere,
         _count: { _all: true },
       }),
       prisma.communicationRequest.findMany({
-        where: { completedAt: { not: null } },
+        where: { ...scopeWhere, completedAt: { not: null } },
         select: {
           requestTypeId: true,
           createdAt: true,
@@ -710,34 +718,59 @@ export async function getManagerKpis() {
   const monthAhead = new Date();
   monthAhead.setDate(monthAhead.getDate() + 30);
 
-  const [completedThisWeek, overdueOpen, upcomingBookings, visitsToday, avgAssignMsRows] =
-    await Promise.all([
+  const overdueOpenWhere = {
+    ...scopeWhere,
+    requiredDate: { lt: todayStart },
+    status: { notIn: [RequestStatus.Completed, RequestStatus.Archived] },
+  };
+
+  const [
+    completedThisWeek,
+    overdueOpen,
+    upcomingBookings,
+    visitsToday,
+    avgAssignMsRows,
+    overdueByDepartmentRows,
+    overdueList,
+  ] = await Promise.all([
       prisma.communicationRequest.count({
-        where: { completedAt: { gte: weekAgo } },
+        where: { ...scopeWhere, completedAt: { gte: weekAgo } },
       }),
-      prisma.communicationRequest.count({
-        where: {
-          requiredDate: { lt: todayStart },
-          status: {
-            notIn: [RequestStatus.Completed, RequestStatus.Archived],
-          },
-        },
-      }),
+      prisma.communicationRequest.count({ where: overdueOpenWhere }),
       prisma.hospitalityBooking.count({
         where: { meetingDate: { gte: todayStart, lte: monthAhead } },
       }),
       prisma.communicationRequest.count({
         where: {
+          ...scopeWhere,
           visitDate: { gte: todayStart, lt: new Date(todayStart.getTime() + 86400000) },
           approvedAt: { not: null },
           requestType: { requiresVisitDate: true },
         },
       }),
       prisma.communicationRequest.findMany({
-        where: { assignedAt: { not: null } },
+        where: { ...scopeWhere, assignedAt: { not: null } },
         select: { createdAt: true, assignedAt: true },
         take: 500,
         orderBy: { assignedAt: "desc" },
+      }),
+      prisma.communicationRequest.groupBy({
+        by: ["departmentId"],
+        where: overdueOpenWhere,
+        _count: { _all: true },
+      }),
+      prisma.communicationRequest.findMany({
+        where: overdueOpenWhere,
+        select: {
+          id: true,
+          title: true,
+          status: true,
+          requiredDate: true,
+          departmentId: true,
+          department: { select: { name: true } },
+        },
+        orderBy: { requiredDate: "asc" },
+        take: 10,
       }),
     ]);
 
@@ -776,16 +809,33 @@ export async function getManagerKpis() {
       status: s.status,
       count: s._count._all,
     })),
-    byDepartment: byDepartment.map((d: KpiDepartmentCountGroupRow) => ({
-      departmentId: d.departmentId,
-      departmentName: deptMap[d.departmentId] ?? d.departmentId,
-      count: d._count._all,
-    })),
+    byDepartment: byDepartment
+      .map((d: KpiDepartmentCountGroupRow) => ({
+        departmentId: d.departmentId,
+        departmentName: deptMap[d.departmentId] ?? d.departmentId,
+        count: d._count._all,
+      }))
+      .sort((a, b) => b.count - a.count),
     byRequestType: byRequestType.map((r: KpiRequestTypeCountGroupRow) => ({
       requestTypeId: r.requestTypeId,
       requestTypeName: typeMap[r.requestTypeId] ?? r.requestTypeId,
       count: r._count._all,
       avgLifecycleMs: slaByType[r.requestTypeId]?.avgMs ?? null,
+    })),
+    // Director focus: late / unclosed requests, overall and per section.
+    overdueByDepartment: overdueByDepartmentRows
+      .map((d: KpiDepartmentCountGroupRow) => ({
+        departmentId: d.departmentId,
+        departmentName: deptMap[d.departmentId] ?? d.departmentId,
+        count: d._count._all,
+      }))
+      .sort((a, b) => b.count - a.count),
+    overdueList: overdueList.map((r) => ({
+      id: r.id,
+      title: r.title,
+      status: r.status,
+      requiredDate: r.requiredDate.toISOString(),
+      departmentName: r.department?.name ?? r.departmentId,
     })),
   };
 }
