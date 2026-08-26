@@ -30,7 +30,7 @@ const NAV: { id: SettingsSection; label: string }[] = [
   { id: "workflow", label: "مسار الطلبات" },
   { id: "departments", label: "جهات استقبال الطلبات" },
   { id: "requestTypes", label: "أنواع الطلبات" },
-  { id: "rooms", label: "قاعات الضيافة" },
+  { id: "rooms", label: "القاعات" },
   { id: "routing", label: "قواعد التوجيه" },
 ];
 
@@ -117,7 +117,7 @@ export default function DashboardSettingsClient({
         throw new Error(getApiErrorMessage(payload, "فشل حفظ القاعات"));
       }
       setRoomsText(payload.data.rooms.join("\n"));
-      setAppStatus("تم حفظ قاعات الضيافة");
+      setAppStatus("تم حفظ القاعات");
     } catch (e) {
       setError(e instanceof Error ? e.message : "خطأ");
     } finally {
@@ -199,7 +199,7 @@ export default function DashboardSettingsClient({
 
         {section === "rooms" && (
           <div className="card space-y-3 p-4">
-            <h2 className="text-lg font-bold text-primary">قاعات الضيافة</h2>
+            <h2 className="text-lg font-bold text-primary">القاعات</h2>
             <p className="text-sm text-brand-gray">قاعة في كل سطر — تُستخدم في الحجوزات والنموذج العام.</p>
             <textarea
               className="input-field min-h-40 w-full"
