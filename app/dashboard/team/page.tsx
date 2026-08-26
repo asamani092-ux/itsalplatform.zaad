@@ -172,8 +172,8 @@ function MemberModal({
               onChange={(e) => setForm({ ...form, role: e.target.value })}
             >
               <option value="EMPLOYEE">موظف</option>
-              <option value="RECEPTION">استقبال</option>
-              <option value="MANAGER">مدير</option>
+              <option value="SECTION_MANAGER">مدير قسم</option>
+              <option value="DIRECTOR">مدير إدارة</option>
             </select>
           </div>
           <div className="space-y-1">
@@ -463,10 +463,10 @@ export default function DashboardTeamPage() {
                   </td>
                   <td dir="ltr">{emp.phoneNumber || "—"}</td>
                   <td>
-                    {emp.role === "MANAGER"
-                      ? "مدير"
-                      : emp.role === "RECEPTION"
-                        ? "استقبال"
+                    {emp.role === "DIRECTOR"
+                      ? "مدير إدارة"
+                      : emp.role === "SECTION_MANAGER"
+                        ? "مدير قسم"
                         : "موظف"}
                   </td>
                   <td>

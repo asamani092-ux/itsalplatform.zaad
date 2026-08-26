@@ -218,20 +218,46 @@ async function main() {
   const types = await prisma.requestType.findMany();
   const typeBySlug = Object.fromEntries(types.map((t) => [t.slug, t]));
 
+  const commSection = await prisma.department.findUnique({
+    where: { slug: "communications" },
+  });
+
+  // Department director (مدير الإدارة) — indicators, tasks, grants only.
+  const director = await prisma.commEmployee.upsert({
+    where: { email: "director@zaad.org" },
+    update: {
+      phoneNumber: "0500000000",
+      passwordHash,
+      role: EmployeeRole.DIRECTOR,
+      isActive: true,
+      departmentId: null,
+    },
+    create: {
+      name: "مدير الإدارة",
+      email: "director@zaad.org",
+      phoneNumber: "0500000000",
+      passwordHash,
+      role: EmployeeRole.DIRECTOR,
+    },
+  });
+
+  // Section manager (مدير القسم) — the previously-nominated manager account.
   const manager = await prisma.commEmployee.upsert({
     where: { email: "manager@zaad.org" },
     update: {
       phoneNumber: "0500000001",
       passwordHash,
-      role: EmployeeRole.MANAGER,
+      role: EmployeeRole.SECTION_MANAGER,
       isActive: true,
+      departmentId: commSection?.id ?? null,
     },
     create: {
-      name: "مدير الاتصال",
+      name: "مدير القسم",
       email: "manager@zaad.org",
       phoneNumber: "0500000001",
       passwordHash,
-      role: EmployeeRole.MANAGER,
+      role: EmployeeRole.SECTION_MANAGER,
+      departmentId: commSection?.id ?? null,
     },
   });
 
@@ -250,6 +276,7 @@ async function main() {
         passwordHash,
         role: EmployeeRole.EMPLOYEE,
         isActive: true,
+        departmentId: commSection?.id ?? null,
       },
       create: {
         name: emp.name,
@@ -257,25 +284,30 @@ async function main() {
         phoneNumber: emp.phone,
         passwordHash,
         role: EmployeeRole.EMPLOYEE,
+        departmentId: commSection?.id ?? null,
       },
     });
     createdEmployees.push(row);
   }
 
+  // Reception is now a regular employee whose section grants desk access
+  // (communications section carries a reception token).
   const receptionist = await prisma.commEmployee.upsert({
     where: { email: "reception@zaad.org" },
     update: {
       phoneNumber: "0500000005",
       passwordHash,
-      role: EmployeeRole.RECEPTION,
+      role: EmployeeRole.EMPLOYEE,
       isActive: true,
+      departmentId: commSection?.id ?? null,
     },
     create: {
       name: "موظف الاستقبال",
       email: "reception@zaad.org",
       phoneNumber: "0500000005",
       passwordHash,
-      role: EmployeeRole.RECEPTION,
+      role: EmployeeRole.EMPLOYEE,
+      departmentId: commSection?.id ?? null,
     },
   });
 
@@ -618,9 +650,10 @@ async function main() {
   });
 
   console.log("Seed complete:");
-  console.log(`  Manager: ${manager.email} / password123`);
+  console.log(`  Director: ${director.email} / password123`);
+  console.log(`  Section manager: ${manager.email} / password123`);
   console.log(`  Employees: password123 for all (email login)`);
-  console.log(`  Reception desk: ${receptionist.email} / password123`);
+  console.log(`  Reception desk (employee): ${receptionist.email} / password123`);
   console.log(`  Demo requests: ${demoRequests.length}`);
   console.log(`  Visitor logs: 3 | Hospitality: 2 | Forms: 2`);
   console.log(`  Reception token (legacy kiosk): reception-demo-token`);

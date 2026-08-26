@@ -16,6 +16,10 @@ export interface SessionPayload {
   email: string;
   phoneNumber: string;
   role: EmployeeRole;
+  /** Section (قسم) the account belongs to — scopes section managers/employees. */
+  departmentId: string | null;
+  /** Reception desk capability derived from the account's section at login. */
+  deskAccess: boolean;
 }
 
 assertSessionSecret();
@@ -26,6 +30,8 @@ export async function createSessionToken(payload: SessionPayload): Promise<strin
     email: payload.email,
     phoneNumber: payload.phoneNumber,
     role: payload.role,
+    departmentId: payload.departmentId,
+    deskAccess: payload.deskAccess,
   })
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(payload.sub)
@@ -47,6 +53,9 @@ export async function verifySessionToken(
       email: String(payload.email ?? ""),
       phoneNumber: String(payload.phoneNumber ?? ""),
       role: payload.role as EmployeeRole,
+      departmentId:
+        typeof payload.departmentId === "string" ? payload.departmentId : null,
+      deskAccess: payload.deskAccess === true,
     };
   } catch {
     return null;

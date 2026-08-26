@@ -30,7 +30,7 @@ export default function LoginForm({ nextUrl }: { nextUrl?: string | null }) {
         body: JSON.stringify({ email, password, rememberMe }),
       });
       const payload = await parseApiResponse<{
-        user: { role: string };
+        user: { role: string; deskAccess?: boolean };
       }>(res);
 
       if (!res.ok || !payload.success) {
@@ -38,12 +38,13 @@ export default function LoginForm({ nextUrl }: { nextUrl?: string | null }) {
         return;
       }
 
-      const role = payload.data.user.role;
+      const { role, deskAccess } = payload.data.user;
+      const isManagement = role === "DIRECTOR" || role === "SECTION_MANAGER";
       const dest =
         nextUrl ??
-        (role === "MANAGER"
+        (isManagement
           ? "/dashboard"
-          : role === "RECEPTION"
+          : deskAccess
             ? "/dashboard/reception"
             : "/employee");
       router.push(dest);

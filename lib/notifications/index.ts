@@ -57,7 +57,7 @@ export async function notifyManager(params: {
 }): Promise<void> {
   try {
     const manager = await prisma.commEmployee.findFirst({
-      where: { email: params.managerEmail, role: "MANAGER", isActive: true },
+      where: { email: params.managerEmail, isActive: true },
     });
 
     if (manager) {

@@ -14,10 +14,13 @@ export default async function DashboardLayout({
     getRouteSession(),
   ]);
 
-  const visibleModules =
-    session?.role === "RECEPTION"
-      ? modules.filter((m) => m.key === "reception")
-      : modules;
+  // Desk-only employees (reception section) see just the reception module.
+  // Directors see everything incl. grants; section managers see all enabled tools.
+  const deskOnly =
+    session?.role === "EMPLOYEE" && session?.deskAccess === true;
+  const visibleModules = deskOnly
+    ? modules.filter((m) => m.key === "reception")
+    : modules;
 
   return (
     <div dir="rtl">

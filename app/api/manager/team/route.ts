@@ -5,6 +5,13 @@ import { createEmployee, updateEmployee } from "@/lib/auth-service";
 import { handleApiError, jsonError, jsonOk } from "@/lib/api-utils";
 import { EmployeeRole } from "@/generated/prisma/client";
 
+/** Section managers are scoped to their own section; directors see everything. */
+function sectionScope(session: { role: EmployeeRole; departmentId: string | null }) {
+  return session.role === EmployeeRole.SECTION_MANAGER
+    ? session.departmentId
+    : null;
+}
+
 const employeeSelect = {
   id: true,
   name: true,
@@ -22,7 +29,11 @@ export async function GET() {
     const auth = await requireManagerSession();
     if (auth.error) return auth.error;
 
+    const scopedDeptId = sectionScope(auth.session);
     const employees = await prisma.commEmployee.findMany({
+      where: scopedDeptId
+        ? { OR: [{ departmentId: scopedDeptId }, { id: auth.session.sub }] }
+        : {},
       orderBy: { name: "asc" },
       select: employeeSelect,
     });
@@ -51,13 +62,18 @@ export async function POST(request: NextRequest) {
       return jsonError("الاسم والبريد وكلمة المرور مطلوبة", "VALIDATION", 400);
     }
 
+    // Section managers may only add employees inside their own section.
+    const scopedDeptId = sectionScope(auth.session);
+    const role = scopedDeptId ? EmployeeRole.EMPLOYEE : body.role ?? EmployeeRole.EMPLOYEE;
+    const departmentId = scopedDeptId ?? body.departmentId ?? null;
+
     const employee = await createEmployee({
       name: body.name,
       email: body.email,
       phoneNumber: body.phoneNumber?.trim() || null,
       password: body.password,
-      role: body.role ?? EmployeeRole.EMPLOYEE,
-      departmentId: body.departmentId ?? null,
+      role,
+      departmentId,
     });
 
     return jsonOk(employee, 201);
@@ -86,6 +102,21 @@ export async function PATCH(request: NextRequest) {
       return jsonError("معرّف الموظف مطلوب", "VALIDATION", 400);
     }
 
+    // Section managers may only edit members of their own section, and may not
+    // promote roles or reassign sections.
+    const scopedDeptId = sectionScope(auth.session);
+    if (scopedDeptId) {
+      const target = await prisma.commEmployee.findUnique({
+        where: { id: body.id },
+        select: { departmentId: true },
+      });
+      if (!target || target.departmentId !== scopedDeptId) {
+        return jsonError("لا يمكنك تعديل عضو خارج قسمك", "FORBIDDEN", 403);
+      }
+      delete body.role;
+      delete body.departmentId;
+    }
+
     const employee = await updateEmployee(body.id, body);
     return jsonOk(employee);
   } catch (error) {
@@ -102,6 +133,17 @@ export async function DELETE(request: NextRequest) {
     if (!id) return jsonError("معرّف الموظف مطلوب", "VALIDATION", 400);
     if (id === auth.session.sub) {
       return jsonError("لا يمكنك حذف حسابك الحالي", "VALIDATION", 400);
+    }
+
+    const scopedDeptId = sectionScope(auth.session);
+    if (scopedDeptId) {
+      const target = await prisma.commEmployee.findUnique({
+        where: { id },
+        select: { departmentId: true },
+      });
+      if (!target || target.departmentId !== scopedDeptId) {
+        return jsonError("لا يمكنك حذف عضو خارج قسمك", "FORBIDDEN", 403);
+      }
     }
 
     const assigned = await prisma.communicationRequest.count({

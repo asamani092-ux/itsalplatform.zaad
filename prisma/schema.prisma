@@ -17,8 +17,8 @@ enum RequestStatus {
 
 enum EmployeeRole {
   EMPLOYEE
-  MANAGER
-  RECEPTION
+  SECTION_MANAGER
+  DIRECTOR
 }
 
 enum AdministrationKind {

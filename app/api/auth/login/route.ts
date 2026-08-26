@@ -35,6 +35,8 @@ export async function POST(request: NextRequest) {
       email: user.email,
       phoneNumber: user.phoneNumber ?? "",
       role: user.role,
+      departmentId: user.departmentId,
+      deskAccess: user.deskAccess,
     });
 
     await setSessionCookie(token, body.rememberMe === true);
@@ -46,6 +48,7 @@ export async function POST(request: NextRequest) {
         email: user.email,
         phoneNumber: user.phoneNumber,
         role: user.role,
+        deskAccess: user.deskAccess,
       },
     });
   } catch (error) {

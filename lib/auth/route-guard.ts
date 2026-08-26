@@ -10,61 +10,55 @@ export async function getRouteSession() {
   return verifySessionToken(token);
 }
 
+const UNAUTHORIZED = NextResponse.json(
+  { success: false, error: { message: "يجب تسجيل الدخول", code: "UNAUTHORIZED" } },
+  { status: 401 },
+);
+
+function forbidden(message: string) {
+  return NextResponse.json(
+    { success: false, error: { message, code: "FORBIDDEN" } },
+    { status: 403 },
+  );
+}
+
+const MANAGEMENT_ROLES: EmployeeRole[] = [
+  EmployeeRole.DIRECTOR,
+  EmployeeRole.SECTION_MANAGER,
+];
+
+/** Any management account (مدير الإدارة أو مدير القسم) — the /dashboard surface. */
 export async function requireManagerSession() {
   const session = await getRouteSession();
-  if (!session) {
-    return {
-      error: NextResponse.json(
-        { success: false, error: { message: "يجب تسجيل الدخول", code: "UNAUTHORIZED" } },
-        { status: 401 },
-      ),
-    };
+  if (!session) return { error: UNAUTHORIZED };
+  if (!MANAGEMENT_ROLES.includes(session.role)) {
+    return { error: forbidden("صلاحيات الإدارة مطلوبة") };
   }
-  if (session.role !== EmployeeRole.MANAGER) {
-    return {
-      error: NextResponse.json(
-        { success: false, error: { message: "صلاحيات المدير مطلوبة", code: "FORBIDDEN" } },
-        { status: 403 },
-      ),
-    };
+  return { session };
+}
+
+/** Department director only (مدير الإدارة) — indicators, tasks, grants. */
+export async function requireDirectorSession() {
+  const session = await getRouteSession();
+  if (!session) return { error: UNAUTHORIZED };
+  if (session.role !== EmployeeRole.DIRECTOR) {
+    return { error: forbidden("صلاحيات مدير الإدارة مطلوبة") };
   }
   return { session };
 }
 
 export async function requireEmployeeSession() {
   const session = await getRouteSession();
-  if (!session) {
-    return {
-      error: NextResponse.json(
-        { success: false, error: { message: "يجب تسجيل الدخول", code: "UNAUTHORIZED" } },
-        { status: 401 },
-      ),
-    };
-  }
+  if (!session) return { error: UNAUTHORIZED };
   return { session };
 }
 
-/** Central reception desk: RECEPTION role or MANAGER. */
+/** Central reception desk: management roles or an employee with desk access. */
 export async function requireReceptionDeskSession() {
   const session = await getRouteSession();
-  if (!session) {
-    return {
-      error: NextResponse.json(
-        { success: false, error: { message: "يجب تسجيل الدخول", code: "UNAUTHORIZED" } },
-        { status: 401 },
-      ),
-    };
-  }
-  if (
-    session.role !== EmployeeRole.RECEPTION &&
-    session.role !== EmployeeRole.MANAGER
-  ) {
-    return {
-      error: NextResponse.json(
-        { success: false, error: { message: "صلاحيات الاستقبال مطلوبة", code: "FORBIDDEN" } },
-        { status: 403 },
-      ),
-    };
+  if (!session) return { error: UNAUTHORIZED };
+  if (!MANAGEMENT_ROLES.includes(session.role) && !session.deskAccess) {
+    return { error: forbidden("صلاحيات الاستقبال مطلوبة") };
   }
   return { session };
 }
