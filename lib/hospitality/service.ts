@@ -16,6 +16,7 @@ export interface BookingInput {
   endTime: string;
   attendeesCount: number;
   notes: string;
+  cateringRequests?: string;
 }
 
 export async function findBookingConflict(input: {
@@ -89,10 +90,13 @@ export async function createBookingWithRequest(input: BookingInput) {
       `${input.notes || "حجز قاعة"}\n` +
       `القاعة: ${input.roomName}\n` +
       `التوقيت: ${input.startTime} — ${input.endTime}\n` +
-      `عدد الحضور: ${input.attendeesCount}`,
+      `عدد الحضور (تقريبي): ${input.attendeesCount}\n` +
+      (input.cateringRequests
+        ? `طلبات الضيافة: ${input.cateringRequests}\n(تنفيذ الطلبات حسب القدرة والاستطاعة)`
+        : ""),
     requiredDate: input.meetingDate,
     contactEmail: input.requesterEmail,
-    contactPhone: input.requesterPhone,
+    contactPhone: input.requesterPhone || "0500000000",
     departmentId: requestType.departmentId,
     requestTypeId: requestType.id,
     visitDate,
@@ -102,13 +106,14 @@ export async function createBookingWithRequest(input: BookingInput) {
     data: {
       requesterName: input.requesterName,
       requesterEmail: input.requesterEmail,
-      requesterPhone: input.requesterPhone,
+      requesterPhone: input.requesterPhone || "",
       roomName: input.roomName,
       meetingDate: input.meetingDate,
       startTime: input.startTime,
       endTime: input.endTime,
       attendeesCount: input.attendeesCount,
       notes: input.notes,
+      cateringRequests: input.cateringRequests?.trim() || "",
       requestId: request.id,
     },
   });

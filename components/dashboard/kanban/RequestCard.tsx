@@ -49,7 +49,39 @@ interface RequestCardProps {
   onComplete: (requestId: string) => Promise<void>;
   onArchive: (requestId: string) => Promise<void>;
   onDragStart: (requestId: string) => void;
+  onDragEnd?: () => void;
   busy: boolean;
+}
+
+function DragHandle({
+  requestId,
+  label,
+  onDragStart,
+  onDragEnd,
+}: {
+  requestId: string;
+  label: string;
+  onDragStart: (requestId: string) => void;
+  onDragEnd?: () => void;
+}) {
+  return (
+    <div
+      draggable
+      className="flex cursor-grab items-center justify-center gap-1 rounded-md border border-dashed border-surface-border bg-surface-muted py-1.5 text-[10px] font-semibold text-brand-gray active:cursor-grabbing"
+      aria-label={label}
+      onDragStart={(event) => {
+        event.dataTransfer.setData("text/plain", requestId);
+        event.dataTransfer.effectAllowed = "move";
+        onDragStart(requestId);
+      }}
+      onDragEnd={() => onDragEnd?.()}
+    >
+      <span aria-hidden className="tracking-widest text-primary">
+        ⋮⋮
+      </span>
+      اسحب إلى مكتمل
+    </div>
+  );
 }
 
 export default function RequestCard({
@@ -60,6 +92,7 @@ export default function RequestCard({
   onComplete,
   onArchive,
   onDragStart,
+  onDragEnd,
   busy,
 }: RequestCardProps) {
   const isNew = request.status === "Approved_Pending_Assignment";
@@ -80,24 +113,28 @@ export default function RequestCard({
       className={`card space-y-2 p-3 shadow-sm transition-shadow hover:shadow-md focus-within:ring-2 focus-within:ring-primary/30 ${
         slaBreached ? "border-[var(--zaad-danger)] bg-[var(--zaad-danger-bg)]" : ""
       }`}
-      draggable={isActive}
       tabIndex={isActive ? 0 : undefined}
       role={isActive ? "button" : undefined}
       aria-label={
         isActive
-          ? `${request.title} — اضغط Enter للإكمال أو اسحب إلى عمود مكتمل`
+          ? `${request.title} — اضغط Enter للإكمال أو اسحب المقبض إلى عمود مكتمل`
           : request.title
       }
-      onDragStart={() => onDragStart(request.id)}
       onKeyDown={handleCardKeyDown}
     >
+      {isActive && (
+        <DragHandle
+          requestId={request.id}
+          label={`سحب ${request.title} إلى عمود مكتمل`}
+          onDragStart={onDragStart}
+          onDragEnd={onDragEnd}
+        />
+      )}
+
       <div className="flex items-start justify-between gap-2">
         <h3 className="text-sm font-bold text-primary">{request.title}</h3>
         {slaBreached && (
-          <span className="badge-danger shrink-0 text-[10px]">تجاوز SLA</span>
-        )}
-        {isActive && !slaBreached && (
-          <span className="badge-primary shrink-0 text-[10px]">اسحب →</span>
+          <span className="badge-danger shrink-0 text-[10px]">متأخر</span>
         )}
       </div>
 
@@ -154,6 +191,9 @@ export default function RequestCard({
           <label className="label-field text-xs" htmlFor={`assign-${request.id}`}>
             إسناد لموظف
           </label>
+          <p className="text-[10px] text-brand-gray">
+            اختر موظفاً لنقل الطلب إلى «قيد التنفيذ» — السحب غير متاح من عمود جديد.
+          </p>
           <select
             id={`assign-${request.id}`}
             className="input-field text-sm focus-visible:ring-2 focus-visible:ring-primary/20"

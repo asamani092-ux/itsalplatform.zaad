@@ -95,8 +95,9 @@ export async function DELETE(request: NextRequest) {
 
     const used = await prisma.communicationRequest.count({ where: { departmentId: id } });
     const types = await prisma.requestType.count({ where: { departmentId: id } });
+    const forms = await prisma.requestForm.count({ where: { departmentId: id } });
 
-    if (used > 0 || types > 0) {
+    if (used > 0 || types > 0 || forms > 0) {
       const deactivated = await prisma.department.update({
         where: { id },
         data: { isActive: false },
@@ -106,10 +107,22 @@ export async function DELETE(request: NextRequest) {
         deleted: false,
         deactivated: true,
         department: deactivated,
-        message: "القسم مرتبط بطلبات أو أنواع طلبات — تم تعطيله بدل حذفه",
+        message: "القسم مرتبط ببيانات — تم تعطيله بدل حذفه",
       });
     }
 
+    await prisma.requestForm.updateMany({
+      where: { departmentId: id },
+      data: { departmentId: null },
+    });
+    await prisma.receptionVisitorLog.updateMany({
+      where: { departmentId: id },
+      data: { departmentId: null },
+    });
+    await prisma.commEmployee.updateMany({
+      where: { departmentId: id },
+      data: { departmentId: null },
+    });
     await prisma.department.delete({ where: { id } });
     return jsonOk({ id, deleted: true, deactivated: false });
   } catch (error) {

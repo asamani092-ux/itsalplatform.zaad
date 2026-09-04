@@ -34,11 +34,11 @@ export async function POST(request: NextRequest) {
     }
 
     const filename = `${randomUUID()}.${detected.ext}`;
-    const uploadDir = path.join(process.cwd(), "public", "uploads", "proofs");
+    const uploadDir = path.join(process.cwd(), "public", "uploads", "media");
     await mkdir(uploadDir, { recursive: true });
     await writeFile(path.join(uploadDir, filename), bytes);
 
-    return jsonOk({ url: `/uploads/proofs/${filename}` }, 201);
+    return jsonOk({ url: `/uploads/media/${filename}` }, 201);
   } catch (error) {
     return handleApiError(error);
   }

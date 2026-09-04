@@ -10,7 +10,7 @@ import { getApiErrorMessage, parseApiResponse } from "@/components/lib/api-types
 import { IconButton } from "@/components/ui/icon-button";
 import FilterBar from "@/components/ui/filter-bar";
 import SlideOver from "@/components/ui/slide-over";
-import { IconRefresh, IconSend } from "@/components/shared/icons";
+import { IconRefresh } from "@/components/shared/icons";
 
 type BoardTab = "board" | "archive";
 
@@ -18,7 +18,7 @@ const COLUMNS = [
   {
     id: "approved",
     status: "Approved_Pending_Assignment",
-    title: "جديد (معتمد)",
+    title: "جديد",
     headerClass: "border-secondary bg-[color-mix(in_srgb,var(--zaad-secondary)_18%,white)]",
     dropTarget: false,
   },
@@ -42,7 +42,6 @@ export default function KanbanBoard() {
   const [tab, setTab] = useState<BoardTab>("board");
   const [requests, setRequests] = useState<DashboardRequest[]>([]);
   const [archiveRequests, setArchiveRequests] = useState<DashboardRequest[]>([]);
-  const [pendingRequests, setPendingRequests] = useState<DashboardRequest[]>([]);
   const [employees, setEmployees] = useState<CommEmployee[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -57,10 +56,9 @@ export default function KanbanBoard() {
     setError(null);
 
     try {
-      const [allRes, archiveRes, pendingRes, empRes] = await Promise.all([
+      const [allRes, archiveRes, empRes] = await Promise.all([
         fetch("/api/manager/tickets?view=all"),
         fetch("/api/manager/tickets?view=archive"),
-        fetch("/api/manager/tickets?status=Pending_Manager"),
         fetch("/api/manager/team"),
       ]);
 
@@ -70,9 +68,6 @@ export default function KanbanBoard() {
       const archivePayload = await parseApiResponse<{
         requests: DashboardRequest[];
       }>(archiveRes);
-      const pendingPayload = await parseApiResponse<{
-        requests: DashboardRequest[];
-      }>(pendingRes);
       const empPayload = await parseApiResponse<{ employees: CommEmployee[] }>(
         empRes,
       );
@@ -87,9 +82,6 @@ export default function KanbanBoard() {
       setRequests(allPayload.data.requests);
       setArchiveRequests(
         archivePayload.success ? archivePayload.data.requests : [],
-      );
-      setPendingRequests(
-        pendingPayload.success ? pendingPayload.data.requests : [],
       );
       setEmployees(
         empPayload.data.employees.filter((e: CommEmployee) => e.role === "EMPLOYEE"),
@@ -112,11 +104,41 @@ export default function KanbanBoard() {
     setError(null);
     try {
       const response = await action();
-      const payload = await parseApiResponse<unknown>(response);
+      const payload = await parseApiResponse<
+        DashboardRequest & { request?: DashboardRequest }
+      >(response);
       if (!response.ok || !payload.success) {
         throw new Error(getApiErrorMessage(payload, "فشلت العملية"));
       }
-      await loadData();
+      const updated =
+        payload.data?.request ??
+        (payload.data?.id && payload.data?.status ? payload.data : null);
+      if (updated) {
+        setRequests((prev) => {
+          const next = prev.filter((r) => r.id !== updated.id);
+          if (
+            updated.status === "Approved_Pending_Assignment" ||
+            updated.status === "In_Progress" ||
+            updated.status === "Completed"
+          ) {
+            if (updated.status !== "Completed" || tab === "board") {
+              // keep completed on board until archived view refresh
+            }
+            next.push(updated);
+          }
+          return next;
+        });
+        setArchiveRequests((prev) => {
+          if (updated.status === "Archived" || updated.status === "Completed") {
+            const without = prev.filter((r) => r.id !== updated.id);
+            if (updated.status === "Archived") return [...without, updated];
+            return without;
+          }
+          return prev.filter((r) => r.id !== updated.id);
+        });
+      } else {
+        await loadData();
+      }
     } catch (actionError) {
       setError(
         actionError instanceof Error ? actionError.message : "فشلت العملية",
@@ -166,15 +188,10 @@ export default function KanbanBoard() {
     );
   }
 
-  function handleResendApproval(requestId: string) {
-    return runAction(() =>
-      fetch(`/api/manager/tickets/${requestId}/resend-approval`, { method: "POST" }),
-    );
-  }
-
-  function handleDropOnCompleted() {
-    if (!draggingId) return;
-    const dragged = requests.find((r) => r.id === draggingId);
+  function handleDropOnCompleted(requestId?: string | null) {
+    const id = requestId ?? draggingId;
+    if (!id) return;
+    const dragged = requests.find((r) => r.id === id);
     if (!dragged || dragged.status !== "In_Progress") {
       setError("يمكن سحب الطلبات قيد التنفيذ فقط إلى عمود مكتمل");
       setDraggingId(null);
@@ -183,7 +200,32 @@ export default function KanbanBoard() {
     }
     setDraggingId(null);
     setDropHighlight(null);
-    void handleComplete(draggingId);
+    void handleComplete(id);
+  }
+
+  function bindDropZoneHandlers(columnId: string, isDropTarget: boolean) {
+    return {
+      onDragOver: (e: React.DragEvent) => {
+        if (!isDropTarget) return;
+        e.preventDefault();
+        e.stopPropagation();
+        e.dataTransfer.dropEffect = "move";
+        setDropHighlight(columnId);
+      },
+      onDragLeave: (e: React.DragEvent) => {
+        if (!isDropTarget) return;
+        const next = e.relatedTarget as Node | null;
+        if (next && e.currentTarget.contains(next)) return;
+        setDropHighlight(null);
+      },
+      onDrop: (e: React.DragEvent) => {
+        if (!isDropTarget) return;
+        e.preventDefault();
+        e.stopPropagation();
+        const fromTransfer = e.dataTransfer.getData("text/plain");
+        handleDropOnCompleted(fromTransfer || draggingId);
+      },
+    };
   }
 
   const boardRequests = requests.filter(
@@ -196,15 +238,14 @@ export default function KanbanBoard() {
         r.contactEmail.includes(query.trim())),
   );
 
-  const detailRequest =
-    requests.find((r) => r.id === detailId) ??
-    pendingRequests.find((r) => r.id === detailId) ??
-    null;
+  const detailRequest = requests.find((r) => r.id === detailId) ?? null;
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-brand-gray">إسناد ومتابعة SLA — اسحب أو اضغط Enter على البطاقة</p>
+        <p className="text-sm text-brand-gray">
+          من «قيد التنفيذ»: اسحب المقبض ⋮⋮ إلى «مكتمل»، أو زر «وضع علامة مكتمل». من «جديد»: الإسناد فقط.
+        </p>
         <IconButton
           label={loading ? "جاري التحديث..." : "تحديث اللوحة"}
           icon={<IconRefresh size={18} />}
@@ -245,57 +286,6 @@ export default function KanbanBoard() {
         />
       </FilterBar>
 
-      {tab === "board" && pendingRequests.length > 0 && (
-        <section className="space-y-3">
-          <div className="card-section">
-            <p className="text-sm font-bold text-primary">
-              بانتظار موافقة المدير ({pendingRequests.length})
-            </p>
-            <p className="mt-1 text-xs text-brand-gray">
-              لم تصل هذه الطلبات للوحة بعد — تنتظر ضغط المدير على رابط الموافقة.
-            </p>
-          </div>
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {pendingRequests.map((request) => (
-              <article key={request.id} className="card space-y-2 p-3">
-                <div className="flex items-start justify-between gap-2">
-                  <h3 className="text-sm font-bold text-primary">{request.title}</h3>
-                  <span className="badge-warning shrink-0 text-[10px]">بانتظار الموافقة</span>
-                </div>
-                <p className="line-clamp-2 text-xs text-brand-gray">
-                  {request.description}
-                </p>
-                <p className="text-[10px] text-brand-gray">
-                  {request.department?.name ?? "—"}
-                  {request.requestType ? ` — ${request.requestType.name}` : ""}
-                </p>
-                <p className="text-[10px] text-brand-gray" dir="ltr">
-                  {request.contactEmail}
-                </p>
-                <div className="grid gap-2">
-                  <button
-                    type="button"
-                    className="btn-secondary w-full text-xs"
-                    onClick={() => setDetailId(request.id)}
-                  >
-                    التفاصيل
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-secondary w-full text-xs"
-                    disabled={busy}
-                    onClick={() => void handleResendApproval(request.id)}
-                  >
-                    <IconSend size={16} />
-                    إعادة إرسال رابط الموافقة
-                  </button>
-                </div>
-              </article>
-            ))}
-          </div>
-        </section>
-      )}
-
       {error && (
         <div
           className="rounded-lg border border-[var(--zaad-danger)] bg-[var(--zaad-danger-bg)] px-4 py-3 text-sm font-semibold text-[var(--zaad-danger)]"
@@ -329,16 +319,7 @@ export default function KanbanBoard() {
                     : ""
                 }`}
                 aria-label={`${column.title} — ${columnRequests.length} بطاقة`}
-                onDragOver={(e) => {
-                  if (!column.dropTarget) return;
-                  e.preventDefault();
-                  setDropHighlight(column.id);
-                }}
-                onDragLeave={() => setDropHighlight(null)}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  if (column.dropTarget) handleDropOnCompleted();
-                }}
+                {...bindDropZoneHandlers(column.id, column.dropTarget)}
               >
                 <header
                   className={`flex items-center justify-between border-b-2 px-4 py-3 ${column.headerClass}`}
@@ -349,7 +330,7 @@ export default function KanbanBoard() {
                   </span>
                 </header>
 
-                <div className="flex-1 space-y-2 p-2">
+                <div className="flex-1 space-y-2 p-2" {...bindDropZoneHandlers(column.id, column.dropTarget)}>
                   {columnRequests.length === 0 ? (
                     <p className="py-12 text-center text-xs text-brand-gray">لا توجد بطاقات</p>
                   ) : (
@@ -363,8 +344,22 @@ export default function KanbanBoard() {
                           onComplete={handleComplete}
                           onArchive={handleArchive}
                           onDragStart={setDraggingId}
+                          onDragEnd={() => {
+                            setDraggingId(null);
+                            setDropHighlight(null);
+                          }}
                           busy={busy}
                         />
+                        {request.status === "In_Progress" && (
+                          <button
+                            type="button"
+                            className="btn-secondary w-full text-xs"
+                            disabled={busy}
+                            onClick={() => void handleComplete(request.id)}
+                          >
+                            نقل إلى مكتمل
+                          </button>
+                        )}
                         <button
                           type="button"
                           className="btn-secondary w-full text-xs"

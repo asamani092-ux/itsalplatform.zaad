@@ -17,7 +17,7 @@ export default function DashboardHeader({
 
   return (
     <header className="flex flex-wrap items-center justify-between gap-3 border-b border-surface-border bg-surface px-4 py-3 sm:px-6 sm:py-4">
-      <div className="flex min-w-0 items-center gap-2">
+      <div className="flex min-w-0 items-center gap-3">
         <IconButton
           label="فتح القائمة"
           icon={<IconMenu size={18} />}

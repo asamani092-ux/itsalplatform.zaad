@@ -15,7 +15,7 @@
 ```
 [عام]  /  → نموذج تقديم
          /approve?token=  → موافقة المدير (magic link، 7 أيام)
-[جلسة] /login  → MANAGER → /dashboard/*  |  EMPLOYEE → /employee/*
+[جلسة] /login  → DIRECTOR/SECTION_MANAGER → /dashboard/*  |  EMPLOYEE → /employee/* (استقبال: /dashboard/reception عند صلاحية المكتب)
 [API]  /api/public/*  /api/manager/*  /api/employee/*  (+ legacy wrappers محمية)
 ```
 
@@ -154,7 +154,7 @@ npx tsc --noEmit     # فحص TypeScript
 | PATCH | `/api/manager/tickets/:id/status` |
 | GET/POST/PATCH | `/api/manager/team`, `/api/manager/settings/*` |
 
-### Legacy (محمية — MANAGER فقط)
+### Legacy (محمية — أدوار الإدارة فقط)
 
 `/api/dashboard/*`, `/api/employees`, `/api/hospitality/bookings`, `/api/media/documents`
 

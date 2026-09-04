@@ -402,11 +402,54 @@
   padding: var(--space-4);
   border-block-end: var(--border-hairline) solid var(--border-subtle);
 }
+.zad-sidebar__brand-mark {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: var(--space-2);
+}
+.zad-sidebar__logo {
+  flex-shrink: 0;
+}
 .zad-sidebar__brand-text {
   min-width: 0;
 }
+.zad-sidebar__brand-actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: var(--space-1);
+}
+.zad-sidebar__toggle {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.25rem;
+  min-width: 2.25rem;
+  border-radius: var(--radius-lg);
+  color: var(--text-secondary);
+  transition: background-color var(--duration-fast) var(--ease-standard),
+    color var(--duration-fast) var(--ease-standard);
+}
+.zad-sidebar__toggle:hover {
+  background: var(--surface-base);
+  color: var(--text-brand);
+}
 .zad-shell[data-sidebar-collapsed="true"] .zad-sidebar__brand-text {
   display: none;
+}
+.zad-shell[data-sidebar-collapsed="true"] .zad-sidebar__brand {
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding-inline: var(--space-2);
+}
+.zad-shell[data-sidebar-collapsed="true"] .zad-sidebar__brand-mark {
+  justify-content: center;
+}
+.zad-shell[data-sidebar-collapsed="true"] .zad-sidebar__brand-actions {
+  justify-content: center;
 }
 .zad-sidebar__nav {
   flex: 1;
@@ -469,9 +512,6 @@
   flex-direction: column;
   gap: var(--space-2);
 }
-.zad-sidebar__collapse {
-  display: none;
-}
 .zad-shell__main {
   margin-inline-start: var(--sidebar);
   min-height: 100dvh;
@@ -493,9 +533,9 @@
   }
 }
 
-/* سطح المكتب: زر الطي ظاهر */
+/* سطح المكتب: زر الطي بجانب الشعار */
 @media (min-width: 1024px) {
-  .zad-sidebar__collapse {
+  .zad-sidebar__toggle {
     display: inline-flex;
   }
   .zad-sidebar[data-open="false"] {

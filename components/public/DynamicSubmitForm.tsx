@@ -9,6 +9,10 @@ import {
   type FormSettingsData,
 } from "@/lib/forms/schema";
 import Stepper from "@/components/ui/stepper";
+import RoomAvailabilityCalendar from "@/components/public/RoomAvailabilityCalendar";
+
+/** Client-safe duplicate of lib/hospitality HOSPITALITY_TYPE_SLUG (server-only module). */
+const HOSPITALITY_TYPE_SLUG = "hospitality-booking";
 
 interface Department {
   id: string;
@@ -23,6 +27,12 @@ interface RequestType {
   description: string;
   requiresVisitDate: boolean;
   departmentId: string | null;
+}
+
+interface Administration {
+  id: string;
+  name: string;
+  slug: string;
 }
 
 interface FieldErrors {
@@ -133,6 +143,8 @@ export default function DynamicSubmitForm({
   const [requestTypes, setRequestTypes] = useState<RequestType[]>(
     initialRequestTypes ?? [],
   );
+  const [administrations, setAdministrations] = useState<Administration[]>([]);
+  const [requesterAdministrationId, setRequesterAdministrationId] = useState("");
   const [departmentId, setDepartmentId] = useState(
     pinnedDepartmentId ?? defaults.departmentId,
   );
@@ -152,6 +164,8 @@ export default function DynamicSubmitForm({
   const [submittedId, setSubmittedId] = useState<string | null>(null);
 
   const selectedType = requestTypes.find((rt) => rt.id === requestTypeId);
+  const showHospitalityAvailability =
+    selectedType?.slug === HOSPITALITY_TYPE_SLUG || slug === HOSPITALITY_TYPE_SLUG;
 
   const loadMeta = useCallback(async () => {
     setLoading(true);
@@ -188,6 +202,19 @@ export default function DynamicSubmitForm({
   useEffect(() => {
     if (!hasInitial) void loadMeta();
   }, [hasInitial, loadMeta]);
+
+  // Requester administrations are always loaded (never passed as initial props).
+  useEffect(() => {
+    void (async () => {
+      try {
+        const res = await fetchWithTimeout("/api/public/administrations");
+        const payload = await parseApiResponse<{ administrations: Administration[] }>(res);
+        if (payload.success) setAdministrations(payload.data.administrations);
+      } catch {
+        // Optional field — ignore load failures.
+      }
+    })();
+  }, []);
 
   useEffect(() => {
     if (!departmentId || hasInitial) return;
@@ -239,6 +266,7 @@ export default function DynamicSubmitForm({
           contactPhone: contactPhone.trim(),
           departmentId,
           requestTypeId,
+          requesterAdministrationId: requesterAdministrationId || undefined,
           formSlug: slug,
           visitDate:
             selectedType?.requiresVisitDate && fields.visitDate.enabled
@@ -280,8 +308,9 @@ export default function DynamicSubmitForm({
           <p>{settings.successMessage}</p>
           <p>الخطوات التالية:</p>
           <ol className="list-decimal space-y-1 ps-5 text-start">
-            <li>سيُرسل رابط الموافقة للمدير المباشر تلقائياً.</li>
-            <li>بعد الموافقة ينتقل الطلب إلى لوحة قسم الاتصال.</li>
+            <li>سيُرسل رابط الموافقة لمدير القسم المستقبِل تلقائياً.</li>
+            <li>إذا حددت إدارتك، يُشعَر مديرك المباشر بالطلب.</li>
+            <li>بعد الموافقة ينتقل الطلب إلى لوحة القسم المستقبِل.</li>
             <li>ستصلك تحديثات على البريد المُدخل.</li>
           </ol>
         </div>
@@ -333,6 +362,31 @@ export default function DynamicSubmitForm({
         </div>
       ) : (
         <>
+          {administrations.length > 0 && (
+            <div className="space-y-1 rounded-lg border border-[color-mix(in_srgb,var(--zaad-primary)_20%,transparent)] bg-[color-mix(in_srgb,var(--zaad-primary)_5%,transparent)] p-3">
+              <label className="label-field" htmlFor="requesterAdministration">
+                إدارتك (مقدّم الطلب)
+                <span className="text-brand-gray"> (اختياري)</span>
+              </label>
+              <select
+                id="requesterAdministration"
+                className="input-field w-full focus-visible:ring-2 focus-visible:ring-primary/20"
+                value={requesterAdministrationId}
+                onChange={(e) => setRequesterAdministrationId(e.target.value)}
+              >
+                <option value="">— اختر إدارتك —</option>
+                {administrations.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-brand-gray">
+                يُستخدم لإشعار مديرك المباشر بالطلب. الحقول أدناه تخص القسم المستقبِل للطلب.
+              </p>
+            </div>
+          )}
+
           {!pinnedDepartmentId && (
           <div className="space-y-1">
             <label className="label-field" htmlFor="department">
@@ -479,6 +533,16 @@ export default function DynamicSubmitForm({
                 </p>
               )}
             </div>
+          )}
+
+          {showHospitalityAvailability && (
+            <RoomAvailabilityCalendar
+              date={requiredDate}
+              onDateChange={(next) => {
+                setRequiredDate(next);
+                setFieldErrors((prev) => ({ ...prev, requiredDate: undefined }));
+              }}
+            />
           )}
 
           {selectedType?.requiresVisitDate && fields.visitDate.enabled && (

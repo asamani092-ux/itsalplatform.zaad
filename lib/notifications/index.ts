@@ -57,7 +57,7 @@ export async function notifyManager(params: {
 }): Promise<void> {
   try {
     const manager = await prisma.commEmployee.findFirst({
-      where: { email: params.managerEmail, role: "MANAGER", isActive: true },
+      where: { email: params.managerEmail, isActive: true },
     });
 
     if (manager) {
@@ -86,6 +86,47 @@ export async function notifyManager(params: {
     });
   } catch (error) {
     console.error("[notifications] notifyManager failed", error);
+  }
+}
+
+/** Notify the submitter's own line manager (their administration manager). */
+export async function notifyRequesterManager(params: {
+  managerEmail: string;
+  requestTitle: string;
+  requestId: string;
+}): Promise<void> {
+  try {
+    const manager = await prisma.commEmployee.findFirst({
+      where: { email: params.managerEmail, isActive: true },
+    });
+
+    const title = "طلب جديد من أحد منسوبي إدارتك";
+    const body = `الطلب: ${params.requestTitle}`;
+
+    if (manager) {
+      await notify({
+        recipientId: manager.id,
+        recipientEmail: manager.email,
+        type: "requester_manager_info",
+        title,
+        body,
+        channel: "both",
+        emailKind: "approval_needed",
+      });
+      return;
+    }
+
+    // No account matched — email-only heads-up.
+    const template = buildEmailTemplate("approval_needed", {
+      title: params.requestTitle,
+    });
+    await sendEmail({
+      to: params.managerEmail,
+      subject: template.subject,
+      html: template.html,
+    });
+  } catch (error) {
+    console.error("[notifications] notifyRequesterManager failed", error);
   }
 }
 

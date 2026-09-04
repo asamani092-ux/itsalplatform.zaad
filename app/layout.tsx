@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { ToastProvider } from "@/components/ui/toast";
+import ChunkLoadRecovery from "@/components/shared/chunk-load-recovery";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -21,7 +22,10 @@ export default function RootLayout({
         />
       </head>
       <body className="zad-root min-h-screen bg-surface-muted font-sans antialiased">
-        <ToastProvider>{children}</ToastProvider>
+        <ToastProvider>
+          <ChunkLoadRecovery />
+          {children}
+        </ToastProvider>
       </body>
     </html>
   );

@@ -4,7 +4,7 @@ import { ARCHIVE_STATUSES, ACTIVE_STATUSES, assertTransition } from "./workflow"
 import { resolveAssignee } from "./routing-service";
 import { RequestStatus } from "../generated/prisma/client";
 import { generateApprovalToken } from "./tokens";
-import { notify, notifyManager } from "./notifications";
+import { notify, notifyManager, notifyRequesterManager } from "./notifications";
 import { getAppUrl } from "./api-utils";
 
 type DashboardView = "active" | "archive" | "all";
@@ -69,9 +69,14 @@ export async function listRequests(options: {
     statusFilter = ARCHIVE_STATUSES;
   }
 
+  const hidePendingManager = view === "all" && !status;
+
   const requests = await prisma.communicationRequest.findMany({
     where: {
       ...(statusFilter ? { status: { in: statusFilter } } : {}),
+      ...(hidePendingManager
+        ? { status: { not: RequestStatus.Pending_Manager } }
+        : {}),
       ...(departmentId ? { departmentId } : {}),
       ...(requestTypeId ? { requestTypeId } : {}),
       ...(assignedEmployeeId ? { assignedEmployeeId } : {}),
@@ -161,12 +166,26 @@ export async function submitRequest(params: {
   departmentId: string;
   requestTypeId: string;
   visitDate?: Date | null;
+  requesterAdministrationId?: string | null;
 }) {
   const department = await prisma.department.findFirst({
     where: { id: params.departmentId, isActive: true },
   });
   if (!department) {
     throw new Error("NOT_FOUND: القسم غير موجود");
+  }
+
+  // Resolve the submitter's line manager from their (external) administration so
+  // the request can notify their own manager — independent of the handling section.
+  let requesterAdministration: { id: string; managerEmail: string } | null = null;
+  if (params.requesterAdministrationId) {
+    requesterAdministration = await prisma.administration.findFirst({
+      where: { id: params.requesterAdministrationId, isActive: true },
+      select: { id: true, managerEmail: true },
+    });
+    if (!requesterAdministration) {
+      throw new Error("NOT_FOUND: إدارة مقدّم الطلب غير موجودة");
+    }
   }
 
   const requestType = await prisma.requestType.findFirst({
@@ -181,6 +200,14 @@ export async function submitRequest(params: {
   }
 
   const approvalToken = generateApprovalToken();
+  const { skipDepartmentApproval } = await import("./app-settings").then((m) =>
+    m.getWorkflowSettings(),
+  );
+
+  const initialStatus = skipDepartmentApproval
+    ? RequestStatus.Approved_Pending_Assignment
+    : RequestStatus.Pending_Manager;
+
   const created = await prisma.communicationRequest.create({
     data: {
       title: params.title,
@@ -189,12 +216,15 @@ export async function submitRequest(params: {
       contactEmail: params.contactEmail,
       contactPhone: params.contactPhone,
       managerEmail: department.managerEmail,
+      requesterAdministrationId: requesterAdministration?.id ?? null,
+      requesterManagerEmail: requesterAdministration?.managerEmail ?? null,
       departmentId: params.departmentId,
       requestTypeId: params.requestTypeId,
       visitDate: params.visitDate ?? null,
       approvalToken,
       approvalTokenExpiresAt: approvalTokenExpiresAtFromNow(),
-      status: RequestStatus.Pending_Manager,
+      status: initialStatus,
+      approvedAt: skipDepartmentApproval ? new Date() : null,
     },
     include: requestInclude,
   });
@@ -202,9 +232,64 @@ export async function submitRequest(params: {
   await recordStatusChange({
     requestId: created.id,
     fromStatus: null,
-    toStatus: RequestStatus.Pending_Manager,
-    note: "تم تقديم الطلب",
+    toStatus: initialStatus,
+    note: skipDepartmentApproval
+      ? "تقديم مباشر للوحة العمل (تجاوز موافقة مدير الإدارة)"
+      : "تم تقديم الطلب",
   });
+
+  // Notify the submitter's own line manager (from their administration), if known.
+  if (requesterAdministration?.managerEmail) {
+    await notifyRequesterManager({
+      managerEmail: requesterAdministration.managerEmail,
+      requestTitle: params.title,
+      requestId: created.id,
+    });
+  }
+
+  if (skipDepartmentApproval) {
+    const assignee = await resolveAssignee(params.requestTypeId);
+    if (assignee) {
+      assertTransition(
+        RequestStatus.Approved_Pending_Assignment,
+        RequestStatus.In_Progress,
+      );
+      const assigned = await prisma.communicationRequest.update({
+        where: { id: created.id },
+        data: {
+          status: RequestStatus.In_Progress,
+          assignedEmployeeId: assignee.id,
+          assignedAt: new Date(),
+        },
+        include: requestInclude,
+      });
+      await recordStatusChange({
+        requestId: created.id,
+        fromStatus: RequestStatus.Approved_Pending_Assignment,
+        toStatus: RequestStatus.In_Progress,
+        changedBy: "routing-service",
+        note: "إسناد تلقائي عبر قاعدة التوجيه",
+      });
+      await recordAssignment({
+        requestId: created.id,
+        employeeId: assignee.id,
+        assignedBy: "routing-service",
+        note: "إسناد تلقائي",
+      });
+      await notify({
+        recipientId: assignee.id,
+        recipientEmail: assignee.email,
+        type: "assignment",
+        title: "تم إسناد تذكرة جديدة إليك",
+        body: `الطلب: ${assigned.title}`,
+        link: `/employee/tickets/${assigned.id}`,
+        channel: "both",
+        emailKind: "assigned",
+      });
+      return { request: withSla(assigned), approvalUrl: null as string | null };
+    }
+    return { request: withSla(created), approvalUrl: null as string | null };
+  }
 
   const approvalUrl = `${getAppUrl()}/approve?token=${approvalToken}`;
   await notifyManager({
@@ -551,7 +636,12 @@ interface KpiCompletedLifecycleRow {
   completedAt: Date | null;
 }
 
-export async function getManagerKpis() {
+export async function getManagerKpis(options?: { departmentId?: string }) {
+  // Scope every metric to a single section when a departmentId is provided.
+  const scopeWhere = options?.departmentId
+    ? { departmentId: options.departmentId }
+    : {};
+
   const [statusCounts, byDepartment, byRequestType, allCompleted]: [
     KpiStatusCountGroupRow[],
     KpiDepartmentCountGroupRow[],
@@ -560,18 +650,21 @@ export async function getManagerKpis() {
   ] = await Promise.all([
       prisma.communicationRequest.groupBy({
         by: ["status"],
+        where: scopeWhere,
         _count: { _all: true },
       }),
       prisma.communicationRequest.groupBy({
         by: ["departmentId"],
+        where: scopeWhere,
         _count: { _all: true },
       }),
       prisma.communicationRequest.groupBy({
         by: ["requestTypeId"],
+        where: scopeWhere,
         _count: { _all: true },
       }),
       prisma.communicationRequest.findMany({
-        where: { completedAt: { not: null } },
+        where: { ...scopeWhere, completedAt: { not: null } },
         select: {
           requestTypeId: true,
           createdAt: true,
@@ -615,23 +708,134 @@ export async function getManagerKpis() {
     statusCounts.find((s: KpiStatusCountGroupRow) => s.status === RequestStatus.Completed)?._count
       ._all ?? 0;
 
+  const countOf = (status: RequestStatus) =>
+    statusCounts.find((s: KpiStatusCountGroupRow) => s.status === status)?._count._all ?? 0;
+
+  const weekAgo = new Date();
+  weekAgo.setDate(weekAgo.getDate() - 7);
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const monthAhead = new Date();
+  monthAhead.setDate(monthAhead.getDate() + 30);
+
+  const overdueOpenWhere = {
+    ...scopeWhere,
+    requiredDate: { lt: todayStart },
+    status: { notIn: [RequestStatus.Completed, RequestStatus.Archived] },
+  };
+
+  const [
+    completedThisWeek,
+    overdueOpen,
+    upcomingBookings,
+    visitsToday,
+    avgAssignMsRows,
+    overdueByDepartmentRows,
+    overdueList,
+  ] = await Promise.all([
+      prisma.communicationRequest.count({
+        where: { ...scopeWhere, completedAt: { gte: weekAgo } },
+      }),
+      prisma.communicationRequest.count({ where: overdueOpenWhere }),
+      prisma.hospitalityBooking.count({
+        where: { meetingDate: { gte: todayStart, lte: monthAhead } },
+      }),
+      prisma.communicationRequest.count({
+        where: {
+          ...scopeWhere,
+          visitDate: { gte: todayStart, lt: new Date(todayStart.getTime() + 86400000) },
+          approvedAt: { not: null },
+          requestType: { requiresVisitDate: true },
+        },
+      }),
+      prisma.communicationRequest.findMany({
+        where: { ...scopeWhere, assignedAt: { not: null } },
+        select: { createdAt: true, assignedAt: true },
+        take: 500,
+        orderBy: { assignedAt: "desc" },
+      }),
+      prisma.communicationRequest.groupBy({
+        by: ["departmentId"],
+        where: overdueOpenWhere,
+        _count: { _all: true },
+      }),
+      prisma.communicationRequest.findMany({
+        where: overdueOpenWhere,
+        select: {
+          id: true,
+          title: true,
+          status: true,
+          requiredDate: true,
+          departmentId: true,
+          department: { select: { name: true } },
+        },
+        orderBy: { requiredDate: "asc" },
+        take: 10,
+      }),
+    ]);
+
+  let avgAssignmentMs: number | null = null;
+  if (avgAssignMsRows.length > 0) {
+    const sum = avgAssignMsRows.reduce((acc, row) => {
+      if (!row.assignedAt) return acc;
+      return acc + (row.assignedAt.getTime() - row.createdAt.getTime());
+    }, 0);
+    avgAssignmentMs = sum / avgAssignMsRows.length;
+  }
+
+  const completedLifecycle = allCompleted.filter((r) => r.completedAt);
+  const avgLifecycleMs =
+    completedLifecycle.length > 0
+      ? completedLifecycle.reduce(
+          (acc, r) => acc + ((r.completedAt as Date).getTime() - r.createdAt.getTime()),
+          0,
+        ) / completedLifecycle.length
+      : null;
+
   return {
     totalRequests: total,
     completionRate: total > 0 ? completed / total : 0,
+    pendingManager: countOf(RequestStatus.Pending_Manager),
+    pendingAssignment: countOf(RequestStatus.Approved_Pending_Assignment),
+    inProgress: countOf(RequestStatus.In_Progress),
+    completed,
+    completedThisWeek,
+    overdueOpen,
+    upcomingBookings,
+    visitsToday,
+    avgLifecycleMs,
+    avgAssignmentMs,
     statusCounts: statusCounts.map((s: KpiStatusCountGroupRow) => ({
       status: s.status,
       count: s._count._all,
     })),
-    byDepartment: byDepartment.map((d: KpiDepartmentCountGroupRow) => ({
-      departmentId: d.departmentId,
-      departmentName: deptMap[d.departmentId] ?? d.departmentId,
-      count: d._count._all,
-    })),
+    byDepartment: byDepartment
+      .map((d: KpiDepartmentCountGroupRow) => ({
+        departmentId: d.departmentId,
+        departmentName: deptMap[d.departmentId] ?? d.departmentId,
+        count: d._count._all,
+      }))
+      .sort((a, b) => b.count - a.count),
     byRequestType: byRequestType.map((r: KpiRequestTypeCountGroupRow) => ({
       requestTypeId: r.requestTypeId,
       requestTypeName: typeMap[r.requestTypeId] ?? r.requestTypeId,
       count: r._count._all,
       avgLifecycleMs: slaByType[r.requestTypeId]?.avgMs ?? null,
+    })),
+    // Director focus: late / unclosed requests, overall and per section.
+    overdueByDepartment: overdueByDepartmentRows
+      .map((d: KpiDepartmentCountGroupRow) => ({
+        departmentId: d.departmentId,
+        departmentName: deptMap[d.departmentId] ?? d.departmentId,
+        count: d._count._all,
+      }))
+      .sort((a, b) => b.count - a.count),
+    overdueList: overdueList.map((r) => ({
+      id: r.id,
+      title: r.title,
+      status: r.status,
+      requiredDate: r.requiredDate.toISOString(),
+      departmentName: r.department?.name ?? r.departmentId,
     })),
   };
 }
@@ -697,6 +901,72 @@ export async function markVisitAttendance(params: {
   });
 
   return { department, request: withSla(updated) };
+}
+
+/** Central desk: all departments' visit requests from today onward. Time O(n), Space O(n). */
+export async function listCentralReceptionVisits() {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const requests = await prisma.communicationRequest.findMany({
+    where: {
+      approvedAt: { not: null },
+      requestType: { requiresVisitDate: true },
+      visitDate: { gte: today },
+      status: {
+        in: [
+          RequestStatus.Approved_Pending_Assignment,
+          RequestStatus.In_Progress,
+          RequestStatus.Completed,
+        ],
+      },
+    },
+    include: requestInclude,
+    orderBy: [{ visitDate: "asc" }, { title: "asc" }],
+  });
+
+  return { requests: requests.map(withSla) };
+}
+
+/** Mark attendance by request id (central desk). Time O(1), Space O(1). */
+export async function markCentralVisitAttendance(params: {
+  requestId: string;
+  attended: boolean;
+}) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const existing = await prisma.communicationRequest.findFirst({
+    where: {
+      id: params.requestId,
+      approvedAt: { not: null },
+      requestType: { requiresVisitDate: true },
+      visitDate: { gte: today },
+      status: {
+        in: [
+          RequestStatus.Approved_Pending_Assignment,
+          RequestStatus.In_Progress,
+          RequestStatus.Completed,
+        ],
+      },
+    },
+    select: { id: true },
+  });
+
+  if (!existing) {
+    throw new Error("NOT_FOUND: الطلب غير موجود في قائمة الاستقبال المركزي");
+  }
+
+  const updated = await prisma.communicationRequest.update({
+    where: { id: params.requestId },
+    data: {
+      visitAttended: params.attended,
+      visitMarkedAt: new Date(),
+    },
+    include: requestInclude,
+  });
+
+  return { request: withSla(updated) };
 }
 
 export async function regenerateApprovalLink(requestId: string) {

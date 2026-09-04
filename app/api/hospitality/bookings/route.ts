@@ -14,6 +14,7 @@ interface BookingBody {
   endTime?: string;
   attendeesCount?: number;
   notes?: string;
+  cateringRequests?: string;
 }
 
 function timeToMinutes(time: string): number {
@@ -65,19 +66,26 @@ export async function POST(request: NextRequest) {
     if (
       !body.requesterName?.trim() ||
       !body.requesterEmail?.trim() ||
-      !body.requesterPhone?.trim() ||
       !body.roomName?.trim() ||
       !body.meetingDate ||
       !body.startTime ||
       !body.endTime ||
       !body.attendeesCount
     ) {
-      return jsonError("جميع حقول الحجز مطلوبة", "VALIDATION", 400);
+      return jsonError("الاسم والبريد والقاعة والتاريخ والوقت وعدد الحضور مطلوبة", "VALIDATION", 400);
     }
 
     const meetingDate = new Date(body.meetingDate);
     if (Number.isNaN(meetingDate.getTime())) {
       return jsonError("تاريخ الاجتماع غير صالح", "VALIDATION", 400);
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const meetingDay = new Date(meetingDate);
+    meetingDay.setHours(0, 0, 0, 0);
+    if (meetingDay < today) {
+      return jsonError("لا يمكن الحجز بتاريخ سابق", "VALIDATION", 400);
     }
 
     const startTime = body.startTime.trim();
@@ -88,6 +96,7 @@ export async function POST(request: NextRequest) {
       return jsonError("وقت النهاية يجب أن يكون بعد وقت البداية", "VALIDATION", 400);
     }
 
+    // Reject any overlap including boundary touch (1-minute conflict).
     const conflict = await findBookingConflict({
       roomName,
       meetingDate,
@@ -106,13 +115,14 @@ export async function POST(request: NextRequest) {
     const { booking, requestId } = await createBookingWithRequest({
       requesterName: body.requesterName.trim(),
       requesterEmail: body.requesterEmail.trim(),
-      requesterPhone: body.requesterPhone.trim(),
+      requesterPhone: body.requesterPhone?.trim() || "",
       roomName,
       meetingDate,
       startTime,
       endTime,
       attendeesCount: body.attendeesCount,
       notes: body.notes?.trim() ?? "",
+      cateringRequests: body.cateringRequests?.trim() ?? "",
     });
 
     return jsonOk({ ...booking, requestId }, 201);

@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { getApiErrorMessage, parseApiResponse } from "@/components/lib/api-types";
-import DynamicSubmitForm from "@/components/public/DynamicSubmitForm";
 import {
   FORM_FIELD_KEYS,
   formPublicPath,
@@ -17,6 +17,7 @@ import {
   IconCopy,
   IconEdit,
   IconExternal,
+  IconEye,
   IconPlus,
   IconQr,
   IconTrash,
@@ -56,8 +57,8 @@ export default function RequestFormsManager({
   requestTypes: RequestType[];
 }) {
   const [forms, setForms] = useState<RequestFormData[]>([]);
-  const [selectedId, setSelectedId] = useState<string>("");
   const [draft, setDraft] = useState<RequestFormData | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -81,7 +82,6 @@ export default function RequestFormsManager({
         throw new Error(getApiErrorMessage(payload, "تعذّر تحميل النماذج"));
       }
       setForms(payload.data.forms);
-      setSelectedId((prev) => prev || payload.data.forms[0]?.id || "");
     } catch (e) {
       setError(e instanceof Error ? e.message : "خطأ");
     } finally {
@@ -93,15 +93,21 @@ export default function RequestFormsManager({
     void load();
   }, [load]);
 
-  useEffect(() => {
-    const found = forms.find((f) => f.id === selectedId) ?? null;
-    setDraft(found ? { ...found, fields: { ...found.fields } } : null);
-  }, [selectedId, forms]);
-
   const publicUrl = useMemo(
     () => (draft ? `${origin}${formPublicPath(draft.slug)}` : ""),
     [draft, origin],
   );
+
+  function openEdit(form: RequestFormData) {
+    setDraft({ ...form, fields: { ...form.fields } });
+    setEditOpen(true);
+    setError("");
+  }
+
+  function closeEdit() {
+    setEditOpen(false);
+    setDraft(null);
+  }
 
   function patchDraft(patch: Partial<RequestFormData>) {
     setDraft((prev) => (prev ? { ...prev, ...patch } : prev));
@@ -136,7 +142,7 @@ export default function RequestFormsManager({
       setNewName("");
       setNewSlug("");
       await load();
-      setSelectedId(payload.data.form.id);
+      openEdit(payload.data.form);
       setStatus("تم إنشاء النموذج");
       window.setTimeout(() => setStatus(""), 4000);
     } catch (e) {
@@ -150,7 +156,6 @@ export default function RequestFormsManager({
     if (!draft) return;
     setSaving(true);
     setError("");
-    setStatus("");
     try {
       const res = await fetch(`/api/manager/forms/${draft.id}`, {
         method: "PATCH",
@@ -162,7 +167,8 @@ export default function RequestFormsManager({
         throw new Error(getApiErrorMessage(payload, "فشل الحفظ"));
       }
       await load();
-      setStatus("تم الحفظ — الرابط العام محدّث");
+      setDraft({ ...payload.data.form, fields: { ...payload.data.form.fields } });
+      setStatus("تم الحفظ");
       window.setTimeout(() => setStatus(""), 4000);
     } catch (e) {
       setError(e instanceof Error ? e.message : "خطأ");
@@ -180,7 +186,7 @@ export default function RequestFormsManager({
       if (!res.ok || !payload.success) {
         throw new Error(getApiErrorMessage(payload, "فشل الحذف"));
       }
-      setSelectedId("");
+      closeEdit();
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "خطأ");
@@ -189,9 +195,9 @@ export default function RequestFormsManager({
     }
   }
 
-  async function copyLink() {
+  async function copyLink(url: string) {
     try {
-      await navigator.clipboard.writeText(publicUrl);
+      await navigator.clipboard.writeText(url);
       setStatus("تم نسخ الرابط");
     } catch {
       setStatus("تعذّر النسخ — انسخ الرابط يدوياً");
@@ -209,11 +215,11 @@ export default function RequestFormsManager({
 
   return (
     <div className="space-y-4">
-      <div className="card-section flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-bold text-primary">نماذج الطلبات</h2>
           <p className="mt-1 text-sm text-brand-gray">
-            أنشئ أكثر من نموذج — لكل نموذج رابط عام و QR مستقل.
+            إدارة النماذج بروابط و QR مستقلة — التحرير في نافذة، والمعاينة في صفحة منفصلة.
           </p>
         </div>
         <button
@@ -266,59 +272,7 @@ export default function RequestFormsManager({
         </div>
       )}
 
-      <div className="card overflow-x-auto p-0">
-        <table className="tmkeen-table">
-          <thead>
-            <tr>
-              <th>النموذج</th>
-              <th>الرابط</th>
-              <th>الحالة</th>
-              <th>إجراءات</th>
-            </tr>
-          </thead>
-          <tbody>
-            {forms.map((form) => (
-              <tr key={form.id}>
-                <td className="font-semibold text-primary">
-                  {form.name}
-                  {form.isDefault && <span className="badge-warning ms-2">افتراضي</span>}
-                </td>
-                <td dir="ltr" className="text-xs">
-                  {formPublicPath(form.slug)}
-                </td>
-                <td>
-                  <span className={form.isPublished ? "badge-success" : "badge-danger"}>
-                    {form.isPublished ? "منشور" : "غير منشور"}
-                  </span>
-                </td>
-                <td>
-                  <div className="flex flex-wrap gap-1">
-                    <IconButton
-                      label="تحرير النموذج"
-                      icon={<IconEdit size={18} />}
-                      onClick={() => setSelectedId(form.id)}
-                    />
-                    <IconButton
-                      label="رمز QR"
-                      icon={<IconQr size={18} />}
-                      onClick={() => setQrFormId(form.id)}
-                    />
-                    <IconLinkButton
-                      label="فتح الرابط العام"
-                      icon={<IconExternal size={18} />}
-                      href={formPublicPath(form.slug)}
-                      target="_blank"
-                      rel="noreferrer"
-                    />
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {error && (
+      {error && !editOpen && (
         <p className="text-sm text-[var(--zaad-danger)]" role="alert">
           {error}
         </p>
@@ -329,33 +283,108 @@ export default function RequestFormsManager({
         </p>
       )}
 
-      {draft && (
-        <div className="space-y-4">
-          <div className="card space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <h3 className="text-lg font-bold text-primary">تحرير: {draft.name}</h3>
-              <div className="flex items-center gap-2">
-                <span className={draft.isPublished ? "badge-success" : "badge-danger"}>
-                  {draft.isPublished ? "منشور" : "غير منشور"}
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        {forms.map((form) => {
+          const url = `${origin}${formPublicPath(form.slug)}`;
+          return (
+            <article key={form.id} className="card flex flex-col gap-3 p-4">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <h3 className="font-bold text-primary">{form.name}</h3>
+                  <p className="mt-1 break-all font-mono text-xs text-brand-gray" dir="ltr">
+                    {formPublicPath(form.slug)}
+                  </p>
+                </div>
+                <span className={form.isPublished ? "badge-success" : "badge-danger"}>
+                  {form.isPublished ? "منشور" : "مسودة"}
                 </span>
-                <button
-                  type="button"
-                  className={
-                    draft.isPublished
-                      ? "btn-secondary border-[var(--zaad-danger)] text-sm text-[var(--zaad-danger)]"
-                      : "btn-primary text-sm"
-                  }
-                  onClick={() => patchDraft({ isPublished: !draft.isPublished })}
-                >
-                  {draft.isPublished ? "إيقاف النشر" : "نشر"}
-                </button>
               </div>
+              {form.isDefault && <span className="badge-warning w-fit">افتراضي</span>}
+              <div className="mt-auto flex flex-wrap gap-1">
+                <IconButton
+                  label="تحرير"
+                  icon={<IconEdit size={18} />}
+                  onClick={() => openEdit(form)}
+                />
+                <IconLinkButton
+                  label="معاينة حقيقية"
+                  icon={<IconEye size={18} />}
+                  href={`/dashboard/forms/preview/${form.id}`}
+                />
+                <IconButton
+                  label="نسخ الرابط"
+                  icon={<IconCopy size={18} />}
+                  onClick={() => void copyLink(url || formPublicPath(form.slug))}
+                />
+                <IconButton
+                  label="رمز QR"
+                  icon={<IconQr size={18} />}
+                  onClick={() => setQrFormId(form.id)}
+                />
+                <IconLinkButton
+                  label="الرابط العام"
+                  icon={<IconExternal size={18} />}
+                  href={formPublicPath(form.slug)}
+                  target="_blank"
+                  rel="noreferrer"
+                />
+              </div>
+            </article>
+          );
+        })}
+      </div>
+
+      {editOpen && draft && (
+        <div
+          className="modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="form-edit-title"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) closeEdit();
+          }}
+        >
+          <div className="modal-panel wide card max-h-[90vh] space-y-4 overflow-y-auto">
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <h3 id="form-edit-title" className="text-lg font-bold text-primary">
+                تحرير: {draft.name}
+              </h3>
+              <IconButton label="إغلاق" icon={<IconX size={18} />} onClick={closeEdit} />
+            </div>
+
+            {error && (
+              <p className="text-sm text-[var(--zaad-danger)]" role="alert">
+                {error}
+              </p>
+            )}
+
+            <div className="flex flex-wrap items-center gap-2">
+              <span className={draft.isPublished ? "badge-success" : "badge-danger"}>
+                {draft.isPublished ? "منشور" : "غير منشور"}
+              </span>
+              <button
+                type="button"
+                className={
+                  draft.isPublished
+                    ? "btn-secondary border-[var(--zaad-danger)] text-sm text-[var(--zaad-danger)]"
+                    : "btn-primary text-sm"
+                }
+                onClick={() => patchDraft({ isPublished: !draft.isPublished })}
+              >
+                {draft.isPublished ? "إيقاف النشر" : "نشر"}
+              </button>
+              <Link
+                href={`/dashboard/forms/preview/${draft.id}`}
+                className="btn-secondary text-sm"
+              >
+                معاينة حقيقية
+              </Link>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <label className="label-field" htmlFor="form-name">
-                  اسم النموذج (داخلي)
+                  اسم النموذج
                 </label>
                 <input
                   id="form-name"
@@ -378,7 +407,7 @@ export default function RequestFormsManager({
               </div>
               <div className="space-y-1">
                 <label className="label-field" htmlFor="form-dept">
-                  تثبيت القسم (اختياري)
+                  تثبيت القسم
                 </label>
                 <select
                   id="form-dept"
@@ -396,7 +425,7 @@ export default function RequestFormsManager({
               </div>
               <div className="space-y-1">
                 <label className="label-field" htmlFor="form-type">
-                  تثبيت نوع الطلب (اختياري)
+                  تثبيت نوع الطلب
                 </label>
                 <select
                   id="form-type"
@@ -419,30 +448,8 @@ export default function RequestFormsManager({
               <p className="mt-1 break-all font-mono text-sm text-primary" dir="ltr">
                 {publicUrl || formPublicPath(draft.slug)}
               </p>
-              <div className="mt-2 flex flex-wrap gap-1">
-                <IconButton
-                  label="نسخ الرابط"
-                  icon={<IconCopy size={18} />}
-                  onClick={() => void copyLink()}
-                />
-                <IconLinkButton
-                  label="فتح الرابط العام"
-                  icon={<IconExternal size={18} />}
-                  href={formPublicPath(draft.slug)}
-                  target="_blank"
-                  rel="noreferrer"
-                />
-                <IconButton
-                  label="عرض رمز QR"
-                  icon={<IconQr size={18} />}
-                  onClick={() => setQrFormId(draft.id)}
-                />
-              </div>
             </div>
-          </div>
 
-          <div className="card space-y-3">
-            <h3 className="font-bold text-primary">محتوى الصفحة</h3>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <label className="label-field" htmlFor="form-title">
@@ -511,127 +518,101 @@ export default function RequestFormsManager({
                 />
               </div>
             </div>
-          </div>
 
-          <div className="card space-y-3">
-            <div>
-              <h3 className="font-bold text-primary">حقول النموذج</h3>
-              <p className="mt-1 text-xs text-brand-gray">
-                الحقول المقفلة أساسية لسير العمل — يمكن تغيير تسميتها فقط.
-              </p>
+            <div className="space-y-3">
+              <h4 className="font-bold text-primary">حقول النموذج</h4>
+              {FORM_FIELD_KEYS.map((key) => {
+                const field = draft.fields[key];
+                const locked = isLockedField(key);
+                return (
+                  <div
+                    key={key}
+                    className="space-y-2 rounded-lg border border-surface-border p-3"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="font-semibold text-primary">
+                        {FIELD_TITLES[key]}
+                        {locked && <span className="badge-warning ms-2">مقفل</span>}
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          disabled={locked}
+                          className={`rounded-lg px-3 py-1 text-xs font-semibold disabled:opacity-50 ${
+                            field.enabled
+                              ? "bg-primary text-white"
+                              : "border border-surface-border bg-surface text-brand-gray"
+                          }`}
+                          onClick={() => patchField(key, { enabled: !field.enabled })}
+                        >
+                          {field.enabled ? "ظاهر" : "مخفي"}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={locked || !field.enabled}
+                          className={`rounded-lg px-3 py-1 text-xs font-semibold disabled:opacity-50 ${
+                            field.required
+                              ? "bg-secondary text-[var(--zaad-warning)]"
+                              : "border border-surface-border bg-surface text-brand-gray"
+                          }`}
+                          onClick={() => patchField(key, { required: !field.required })}
+                        >
+                          {field.required ? "إلزامي" : "اختياري"}
+                        </button>
+                      </div>
+                    </div>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <div className="space-y-1">
+                        <label className="label-field text-xs" htmlFor={`fl-${key}`}>
+                          التسمية
+                        </label>
+                        <input
+                          id={`fl-${key}`}
+                          className="input-field w-full text-sm"
+                          value={field.label}
+                          onChange={(e) => patchField(key, { label: e.target.value })}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="label-field text-xs" htmlFor={`fp-${key}`}>
+                          نص المساعدة
+                        </label>
+                        <input
+                          id={`fp-${key}`}
+                          className="input-field w-full text-sm"
+                          value={field.placeholder}
+                          onChange={(e) => patchField(key, { placeholder: e.target.value })}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-            {FORM_FIELD_KEYS.map((key) => {
-              const field = draft.fields[key];
-              const locked = isLockedField(key);
-              return (
-                <div
-                  key={key}
-                  className="space-y-2 rounded-lg border border-surface-border p-3"
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="font-semibold text-primary">
-                      {FIELD_TITLES[key]}
-                      {locked && <span className="badge-warning ms-2">مقفل</span>}
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        disabled={locked}
-                        className={`rounded-lg px-3 py-1 text-xs font-semibold disabled:opacity-50 ${
-                          field.enabled
-                            ? "bg-primary text-white"
-                            : "border border-surface-border bg-surface text-brand-gray"
-                        }`}
-                        onClick={() => patchField(key, { enabled: !field.enabled })}
-                      >
-                        {field.enabled ? "ظاهر" : "مخفي"}
-                      </button>
-                      <button
-                        type="button"
-                        disabled={locked || !field.enabled}
-                        className={`rounded-lg px-3 py-1 text-xs font-semibold disabled:opacity-50 ${
-                          field.required
-                            ? "bg-secondary text-[var(--zaad-warning)]"
-                            : "border border-surface-border bg-surface text-brand-gray"
-                        }`}
-                        onClick={() => patchField(key, { required: !field.required })}
-                      >
-                        {field.required ? "إلزامي" : "اختياري"}
-                      </button>
-                    </div>
-                  </div>
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    <div className="space-y-1">
-                      <label className="label-field text-xs" htmlFor={`fl-${key}`}>
-                        التسمية
-                      </label>
-                      <input
-                        id={`fl-${key}`}
-                        className="input-field w-full text-sm"
-                        value={field.label}
-                        onChange={(e) => patchField(key, { label: e.target.value })}
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="label-field text-xs" htmlFor={`fp-${key}`}>
-                        نص المساعدة
-                      </label>
-                      <input
-                        id={`fp-${key}`}
-                        className="input-field w-full text-sm"
-                        value={field.placeholder}
-                        onChange={(e) => patchField(key, { placeholder: e.target.value })}
-                      />
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
 
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              className="btn-primary text-sm"
-              disabled={saving}
-              onClick={() => void handleSave()}
-            >
-              {saving ? "جاري الحفظ..." : "حفظ النموذج"}
-            </button>
-            <button
-              type="button"
-              className="btn-secondary text-sm"
-              disabled={saving}
-              onClick={() => void load()}
-            >
-              استرجاع المحفوظ
-            </button>
-            {!draft.isDefault && (
-              <IconButton
-                label="حذف النموذج"
-                icon={<IconTrash size={18} />}
-                tone="danger"
+            <div className="flex flex-wrap gap-2 border-t border-surface-border pt-3">
+              <button
+                type="button"
+                className="btn-primary text-sm"
                 disabled={saving}
-                onClick={() => void handleDelete()}
-              />
-            )}
+                onClick={() => void handleSave()}
+              >
+                {saving ? "جاري الحفظ..." : "حفظ"}
+              </button>
+              <button type="button" className="btn-secondary text-sm" onClick={closeEdit}>
+                إغلاق
+              </button>
+              {!draft.isDefault && (
+                <IconButton
+                  label="حذف النموذج"
+                  icon={<IconTrash size={18} />}
+                  tone="danger"
+                  disabled={saving}
+                  onClick={() => void handleDelete()}
+                />
+              )}
+            </div>
           </div>
-
-          <div className="card-section">
-            <h3 className="font-bold text-primary">معاينة</h3>
-            <p className="mt-1 text-xs text-brand-gray">
-              هذا ما يراه مقدّم الطلب عند فتح الرابط.
-            </p>
-          </div>
-          <DynamicSubmitForm
-            slug={draft.slug}
-            preview
-            initialDepartments={departments}
-            initialRequestTypes={requestTypes.map((rt) => ({ ...rt, description: "" }))}
-            settings={draft}
-            pinnedDepartmentId={draft.departmentId}
-            pinnedRequestTypeId={draft.requestTypeId}
-          />
         </div>
       )}
 

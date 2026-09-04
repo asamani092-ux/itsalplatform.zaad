@@ -96,6 +96,26 @@ export function DepartmentsManager() {
   const [form, setForm] = useState({ name: "", slug: "", managerEmail: "" });
   const [editing, setEditing] = useState<DepartmentRow | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<DepartmentRow | null>(null);
+  const [teamMembers, setTeamMembers] = useState<{ name: string; email: string }[]>([]);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const res = await fetch("/api/manager/team");
+        const payload = await parseApiResponse<{
+          employees: { name: string; email: string; isActive: boolean }[];
+        }>(res);
+        if (!res.ok || !payload.success) return;
+        setTeamMembers(
+          (payload.data.employees ?? [])
+            .filter((e) => e.isActive)
+            .map((e) => ({ name: e.name, email: e.email })),
+        );
+      } catch {
+        // keep empty select
+      }
+    })();
+  }, []);
 
   return (
     <div className="space-y-4">
@@ -149,18 +169,23 @@ export function DepartmentsManager() {
             />
           </div>
           <div className="space-y-1">
-            <label className="label-field" htmlFor="dept-email">
-              بريد المدير
+            <label className="label-field" htmlFor="dept-manager">
+              مدير الجهة (من الفريق)
             </label>
-            <input
-              id="dept-email"
+            <select
+              id="dept-manager"
               className="input-field w-full"
-              dir="ltr"
-              type="email"
               value={form.managerEmail}
               onChange={(e) => setForm({ ...form, managerEmail: e.target.value })}
               required
-            />
+            >
+              <option value="">— اختر من الفريق —</option>
+              {teamMembers.map((m) => (
+                <option key={m.email} value={m.email}>
+                  {m.name} ({m.email})
+                </option>
+              ))}
+            </select>
           </div>
           <div className="sm:col-span-3">
             <button type="submit" className="btn-primary text-sm">
@@ -272,20 +297,31 @@ export function DepartmentsManager() {
                 />
               </div>
               <div className="space-y-1">
-                <label className="label-field" htmlFor="edit-dept-email">
-                  بريد المدير
+                <label className="label-field" htmlFor="edit-dept-manager">
+                  مدير الجهة (من الفريق)
                 </label>
-                <input
-                  id="edit-dept-email"
+                <select
+                  id="edit-dept-manager"
                   className="input-field w-full"
-                  dir="ltr"
-                  type="email"
                   value={editing.managerEmail}
                   onChange={(e) =>
                     setEditing({ ...editing, managerEmail: e.target.value })
                   }
                   required
-                />
+                >
+                  <option value="">— اختر من الفريق —</option>
+                  {!teamMembers.some((m) => m.email === editing.managerEmail) &&
+                    editing.managerEmail && (
+                      <option value={editing.managerEmail}>
+                        {editing.managerEmail} (حالي)
+                      </option>
+                    )}
+                  {teamMembers.map((m) => (
+                    <option key={m.email} value={m.email}>
+                      {m.name} ({m.email})
+                    </option>
+                  ))}
+                </select>
               </div>
               <div className="flex flex-col gap-2 sm:flex-row">
                 <button
@@ -370,7 +406,7 @@ export function RequestTypesManager({
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-brand-gray">
-          أنواع الطلبات المتاحة (بيان صحفي، تغطية إعلامية، ...)
+          أنواع الطلبات المتاحة للمستقبلين (حجز قاعات، تصاميم، زيارات، ...)
         </p>
         <button
           type="button"
@@ -413,7 +449,7 @@ export function RequestTypesManager({
             <input
               id="rt-name"
               className="input-field w-full"
-              placeholder="مثال: بيان صحفي"
+              placeholder="مثال: طلب تصميم"
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
               required
@@ -427,7 +463,7 @@ export function RequestTypesManager({
               id="rt-slug"
               className="input-field w-full"
               dir="ltr"
-              placeholder="press-release"
+              placeholder="design-request"
               value={form.slug}
               onChange={(e) => setForm({ ...form, slug: e.target.value })}
               required
