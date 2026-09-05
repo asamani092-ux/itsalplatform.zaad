@@ -41,7 +41,11 @@ export async function GET(request: NextRequest) {
       orderBy: { startTime: "asc" },
     });
 
-    const slots = bookings.map((b) => ({
+    const slots = bookings.map((b: {
+      startTime: string;
+      endTime: string;
+      requesterName: string;
+    }) => ({
       startTime: b.startTime,
       endTime: b.endTime,
       requesterName: b.requesterName || undefined,

@@ -112,12 +112,14 @@ export async function getGrantKpis() {
     }),
   ]);
 
-  const total = grants.length;
-  const open = grants.filter((g) => g.status === "Open").length;
-  const totalAmount = grants.reduce((sum, g) => sum + g.amount, 0);
-  const openAmount = grants
-    .filter((g) => g.status === "Open")
-    .reduce((sum, g) => sum + g.amount, 0);
+  type GrantKpiRow = { amount: number; status: string };
+  const rows: GrantKpiRow[] = grants;
+  const total = rows.length;
+  const open = rows.filter((g: GrantKpiRow) => g.status === "Open").length;
+  const totalAmount = rows.reduce((sum: number, g: GrantKpiRow) => sum + g.amount, 0);
+  const openAmount = rows
+    .filter((g: GrantKpiRow) => g.status === "Open")
+    .reduce((sum: number, g: GrantKpiRow) => sum + g.amount, 0);
 
   return {
     totalGrants: total,
