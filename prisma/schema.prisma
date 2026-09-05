@@ -123,6 +123,7 @@ model CommEmployee {
   isActive          Boolean               @default(true)
   departmentId      String?
   department        Department?           @relation("EmployeeDepartment", fields: [departmentId], references: [id])
+  isReceptionDesk   Boolean               @default(false)
   assignedRequests  CommunicationRequest[] @relation("AssignedEmployee")
   assignmentHistory AssignmentHistory[]
   routingRules      RoutingRule[]

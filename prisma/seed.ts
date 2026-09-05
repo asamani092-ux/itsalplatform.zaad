@@ -276,6 +276,7 @@ async function main() {
         passwordHash,
         role: EmployeeRole.EMPLOYEE,
         isActive: true,
+        isReceptionDesk: false,
         departmentId: commSection?.id ?? null,
       },
       create: {
@@ -284,14 +285,14 @@ async function main() {
         phoneNumber: emp.phone,
         passwordHash,
         role: EmployeeRole.EMPLOYEE,
+        isReceptionDesk: false,
         departmentId: commSection?.id ?? null,
       },
     });
     createdEmployees.push(row);
   }
 
-  // Reception is now a regular employee whose section grants desk access
-  // (communications section carries a reception token).
+  // Dedicated reception desk account (explicit flag — not inferred from department token).
   const receptionist = await prisma.commEmployee.upsert({
     where: { email: "reception@zaad.org" },
     update: {
@@ -299,6 +300,7 @@ async function main() {
       passwordHash,
       role: EmployeeRole.EMPLOYEE,
       isActive: true,
+      isReceptionDesk: true,
       departmentId: commSection?.id ?? null,
     },
     create: {
@@ -307,6 +309,7 @@ async function main() {
       phoneNumber: "0500000005",
       passwordHash,
       role: EmployeeRole.EMPLOYEE,
+      isReceptionDesk: true,
       departmentId: commSection?.id ?? null,
     },
   });
