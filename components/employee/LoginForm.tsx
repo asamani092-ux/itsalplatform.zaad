@@ -9,7 +9,20 @@ import { getApiErrorMessage, parseApiResponse } from "@/components/lib/api-types
 import { fetchWithTimeout } from "@/lib/client/fetch-with-timeout";
 import BrandLogo from "@/components/shared/brand-logo";
 
-export default function LoginForm({ nextUrl }: { nextUrl?: string | null }) {
+const DEMO_ACCOUNTS = [
+  { role: "مدير الإدارة", email: "director@zaad.org" },
+  { role: "مدير القسم", email: "manager@zaad.org" },
+  { role: "موظف", email: "sara.comm@zaad.org" },
+  { role: "استقبال", email: "reception@zaad.org" },
+] as const;
+
+export default function LoginForm({
+  nextUrl,
+  showDemoHints = false,
+}: {
+  nextUrl?: string | null;
+  showDemoHints?: boolean;
+}) {
   const router = useRouter();
 
   const [email, setEmail] = useState("");
@@ -123,6 +136,35 @@ export default function LoginForm({ nextUrl }: { nextUrl?: string | null }) {
         >
           {loading ? "جاري الدخول..." : "دخول"}
         </Button>
+
+        {showDemoHints ? (
+          <div
+            className="rounded-md border border-dashed border-brand-gray/40 bg-surface-muted/60 p-3 text-start text-xs text-brand-gray"
+            dir="rtl"
+          >
+            <p className="mb-2 font-semibold text-primary">حسابات تجريبية (غير إنتاجي)</p>
+            <ul className="space-y-1">
+              {DEMO_ACCOUNTS.map((a) => (
+                <li key={a.email}>
+                  <span className="text-brand-gray">{a.role}: </span>
+                  <button
+                    type="button"
+                    className="underline"
+                    onClick={() => {
+                      setEmail(a.email);
+                      setPassword("password123");
+                    }}
+                  >
+                    {a.email}
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-2" dir="ltr">
+              password: password123
+            </p>
+          </div>
+        ) : null}
       </form>
     </div>
   );

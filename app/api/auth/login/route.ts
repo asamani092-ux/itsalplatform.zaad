@@ -9,7 +9,12 @@ import { checkRateLimit, rateLimitKey } from "@/lib/rate-limit";
 
 export async function POST(request: NextRequest) {
   try {
-    const limit = checkRateLimit(rateLimitKey(request, "auth-login"), 5, 60_000);
+    const loginLimit = process.env.NODE_ENV === "production" ? 5 : 20;
+    const limit = checkRateLimit(
+      rateLimitKey(request, "auth-login"),
+      loginLimit,
+      60_000,
+    );
     if (!limit.allowed) {
       return jsonError("تم تجاوز عدد المحاولات المسموح. حاول لاحقاً.", "RATE_LIMITED", 429);
     }
