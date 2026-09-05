@@ -56,7 +56,7 @@ Migration: `prisma/migrations/20260905120000_add_reception_desk_flag`
 | 5 | hospitality | حجوزات الضيافة | `/dashboard/hospitality` | يعمل |
 | 6 | grants | إدارة المنح | `/dashboard/grants` | يعمل (DIRECTOR) |
 | 7 | media | مركز الوثائق | `/dashboard/media` | يعمل |
-| 8 | reception | الاستقبال والزيارات | `/dashboard/reception` | يعمل؛ desk عبر العلم |
+| 8 | reception | الاستقبال والزيارات | `/dashboard/reception` | يعمل؛ desk عبر `isReceptionDesk` |
 | 9 | settings | الإعدادات | `/dashboard/settings` | يعمل |
 
 ### أسطح إضافية
