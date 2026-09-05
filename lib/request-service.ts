@@ -690,7 +690,7 @@ export async function getManagerKpis(options?: { departmentId?: string }) {
   const slaByType: Record<string, { count: number; avgMs: number }> = {};
   for (const row of allCompleted) {
     if (!row.completedAt) continue;
-    const ms = row.completedAt.getTime() - row.createdAt.getTime();
+    const ms = Math.max(0, row.completedAt.getTime() - row.createdAt.getTime());
     if (!slaByType[row.requestTypeId]) {
       slaByType[row.requestTypeId] = { count: 0, avgMs: 0 };
     }
@@ -775,19 +775,29 @@ export async function getManagerKpis(options?: { departmentId?: string }) {
     ]);
 
   let avgAssignmentMs: number | null = null;
-  if (avgAssignMsRows.length > 0) {
-    const sum = avgAssignMsRows.reduce((acc, row) => {
-      if (!row.assignedAt) return acc;
-      return acc + (row.assignedAt.getTime() - row.createdAt.getTime());
-    }, 0);
-    avgAssignmentMs = sum / avgAssignMsRows.length;
+  {
+    const assignPairs = avgAssignMsRows.filter(
+      (row): row is { createdAt: Date; assignedAt: Date } => row.assignedAt != null,
+    );
+    if (assignPairs.length > 0) {
+      const sum = assignPairs.reduce(
+        (acc, row) =>
+          acc + Math.max(0, row.assignedAt.getTime() - row.createdAt.getTime()),
+        0,
+      );
+      avgAssignmentMs = sum / assignPairs.length;
+    }
   }
 
-  const completedLifecycle = allCompleted.filter((r) => r.completedAt);
+  const completedLifecycle = allCompleted.filter(
+    (r): r is (typeof allCompleted)[number] & { completedAt: Date } =>
+      r.completedAt != null,
+  );
   const avgLifecycleMs =
     completedLifecycle.length > 0
       ? completedLifecycle.reduce(
-          (acc, r) => acc + ((r.completedAt as Date).getTime() - r.createdAt.getTime()),
+          (acc, r) =>
+            acc + Math.max(0, r.completedAt.getTime() - r.createdAt.getTime()),
           0,
         ) / completedLifecycle.length
       : null;
