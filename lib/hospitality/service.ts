@@ -6,6 +6,13 @@ import { sameCalendarDay, timesOverlap } from "./conflict";
 
 export const HOSPITALITY_TYPE_SLUG = "hospitality-booking";
 
+/** Minimal booking shape used for same-room time conflict checks. */
+interface HospitalityBookingConflictRow {
+  meetingDate: Date;
+  startTime: string;
+  endTime: string;
+}
+
 export interface BookingInput {
   requesterName: string;
   requesterEmail: string;
@@ -30,13 +37,15 @@ export async function findBookingConflict(input: {
   const dayEnd = new Date(input.meetingDate);
   dayEnd.setHours(23, 59, 59, 999);
 
-  const sameRoom = await prisma.hospitalityBooking.findMany({
-    where: { roomName: input.roomName, meetingDate: { gte: dayStart, lte: dayEnd } },
-  });
+  const sameRoom: HospitalityBookingConflictRow[] =
+    await prisma.hospitalityBooking.findMany({
+      where: { roomName: input.roomName, meetingDate: { gte: dayStart, lte: dayEnd } },
+      select: { meetingDate: true, startTime: true, endTime: true },
+    });
 
   return (
     sameRoom.find(
-      (existing) =>
+      (existing: HospitalityBookingConflictRow) =>
         sameCalendarDay(existing.meetingDate, input.meetingDate) &&
         timesOverlap(existing.startTime, existing.endTime, input.startTime, input.endTime),
     ) ?? null

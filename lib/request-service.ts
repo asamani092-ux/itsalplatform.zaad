@@ -636,6 +636,31 @@ interface KpiCompletedLifecycleRow {
   completedAt: Date | null;
 }
 
+interface KpiAssignTimestampRow {
+  createdAt: Date;
+  assignedAt: Date | null;
+}
+
+interface KpiAssignPairRow {
+  createdAt: Date;
+  assignedAt: Date;
+}
+
+interface KpiDepartmentBucketRow {
+  departmentId: string;
+  departmentName: string;
+  count: number;
+}
+
+interface KpiOverdueListRow {
+  id: string;
+  title: string;
+  status: RequestStatus;
+  requiredDate: Date;
+  departmentId: string;
+  department: { name: string } | null;
+}
+
 export async function getManagerKpis(options?: { departmentId?: string }) {
   // Scope every metric to a single section when a departmentId is provided.
   const scopeWhere = options?.departmentId
@@ -732,6 +757,14 @@ export async function getManagerKpis(options?: { departmentId?: string }) {
     avgAssignMsRows,
     overdueByDepartmentRows,
     overdueList,
+  ]: [
+    number,
+    number,
+    number,
+    number,
+    KpiAssignTimestampRow[],
+    KpiDepartmentCountGroupRow[],
+    KpiOverdueListRow[],
   ] = await Promise.all([
       prisma.communicationRequest.count({
         where: { ...scopeWhere, completedAt: { gte: weekAgo } },
@@ -776,12 +809,14 @@ export async function getManagerKpis(options?: { departmentId?: string }) {
 
   let avgAssignmentMs: number | null = null;
   {
-    const assignPairs = avgAssignMsRows.filter(
-      (row): row is { createdAt: Date; assignedAt: Date } => row.assignedAt != null,
+    const assignRows: KpiAssignTimestampRow[] = avgAssignMsRows;
+    const assignPairs: KpiAssignPairRow[] = assignRows.filter(
+      (row: KpiAssignTimestampRow): row is KpiAssignPairRow =>
+        row.assignedAt != null,
     );
     if (assignPairs.length > 0) {
       const sum = assignPairs.reduce(
-        (acc, row) =>
+        (acc: number, row: KpiAssignPairRow) =>
           acc + Math.max(0, row.assignedAt.getTime() - row.createdAt.getTime()),
         0,
       );
@@ -790,13 +825,13 @@ export async function getManagerKpis(options?: { departmentId?: string }) {
   }
 
   const completedLifecycle = allCompleted.filter(
-    (r): r is (typeof allCompleted)[number] & { completedAt: Date } =>
+    (r: KpiCompletedLifecycleRow): r is KpiCompletedLifecycleRow & { completedAt: Date } =>
       r.completedAt != null,
   );
   const avgLifecycleMs =
     completedLifecycle.length > 0
       ? completedLifecycle.reduce(
-          (acc, r) =>
+          (acc: number, r: KpiCompletedLifecycleRow & { completedAt: Date }) =>
             acc + Math.max(0, r.completedAt.getTime() - r.createdAt.getTime()),
           0,
         ) / completedLifecycle.length
@@ -820,12 +855,17 @@ export async function getManagerKpis(options?: { departmentId?: string }) {
       count: s._count._all,
     })),
     byDepartment: byDepartment
-      .map((d: KpiDepartmentCountGroupRow) => ({
-        departmentId: d.departmentId,
-        departmentName: deptMap[d.departmentId] ?? d.departmentId,
-        count: d._count._all,
-      }))
-      .sort((a, b) => b.count - a.count),
+      .map(
+        (d: KpiDepartmentCountGroupRow): KpiDepartmentBucketRow => ({
+          departmentId: d.departmentId,
+          departmentName: deptMap[d.departmentId] ?? d.departmentId,
+          count: d._count._all,
+        }),
+      )
+      .sort(
+        (a: KpiDepartmentBucketRow, b: KpiDepartmentBucketRow) =>
+          b.count - a.count,
+      ),
     byRequestType: byRequestType.map((r: KpiRequestTypeCountGroupRow) => ({
       requestTypeId: r.requestTypeId,
       requestTypeName: typeMap[r.requestTypeId] ?? r.requestTypeId,
@@ -834,13 +874,18 @@ export async function getManagerKpis(options?: { departmentId?: string }) {
     })),
     // Director focus: late / unclosed requests, overall and per section.
     overdueByDepartment: overdueByDepartmentRows
-      .map((d: KpiDepartmentCountGroupRow) => ({
-        departmentId: d.departmentId,
-        departmentName: deptMap[d.departmentId] ?? d.departmentId,
-        count: d._count._all,
-      }))
-      .sort((a, b) => b.count - a.count),
-    overdueList: overdueList.map((r) => ({
+      .map(
+        (d: KpiDepartmentCountGroupRow): KpiDepartmentBucketRow => ({
+          departmentId: d.departmentId,
+          departmentName: deptMap[d.departmentId] ?? d.departmentId,
+          count: d._count._all,
+        }),
+      )
+      .sort(
+        (a: KpiDepartmentBucketRow, b: KpiDepartmentBucketRow) =>
+          b.count - a.count,
+      ),
+    overdueList: overdueList.map((r: KpiOverdueListRow) => ({
       id: r.id,
       title: r.title,
       status: r.status,

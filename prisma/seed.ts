@@ -1,5 +1,10 @@
 import "dotenv/config";
-import { PrismaClient, EmployeeRole, RequestStatus } from "../generated/prisma/client";
+import {
+  PrismaClient,
+  EmployeeRole,
+  RequestStatus,
+  type Department,
+} from "../generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 import { hashPassword } from "../lib/auth-service";
@@ -121,7 +126,9 @@ async function main() {
   const departments = await prisma.department.findMany({
     where: { isActive: true },
   });
-  const bySlug = Object.fromEntries(departments.map((d) => [d.slug, d]));
+  const bySlug: Record<string, Department> = Object.fromEntries(
+    departments.map((d: Department) => [d.slug, d]),
+  );
 
   const requestTypes = [
     {
