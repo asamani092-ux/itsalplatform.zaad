@@ -15,7 +15,7 @@ import {
   type UatWorks,
 } from "@/lib/uat/report";
 
-const STORAGE_KEY = "zaad-uat-v1";
+const STORAGE_KEY = `zaad-uat-${UAT_VERSION}`;
 
 const RATINGS: { value: UatRating; label: string }[] = [
   { value: "5", label: "5" },
@@ -26,7 +26,14 @@ const RATINGS: { value: UatRating; label: string }[] = [
   { value: "na", label: "غير مُجرَّب" },
 ];
 
-const ROLES = ["مدير", "موظف", "استقبال", "مقدّم طلب", "فريق التقنية"];
+const ROLES = [
+  "مدير الإدارة",
+  "مدير القسم",
+  "موظف",
+  "استقبال",
+  "مقدّم طلب",
+  "فريق التقنية",
+];
 const ENVIRONMENTS = ["محلي", "VPS تجريبي", "إنتاج"];
 
 function emptyState(): UatState {
