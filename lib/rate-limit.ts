@@ -62,7 +62,10 @@ export function recordAuthFailure(
     return { locked: true, retryAfterMs: existing.lockedUntil - now };
   }
 
-  const failures = (existing && existing.lockedUntil <= now ? 0 : existing?.failures ?? 0) + 1;
+  // lockedUntil === 0 means "counting failures, not locked".
+  // Only reset the counter when a previous lock window has expired.
+  const expiredLock = Boolean(existing && existing.lockedUntil > 0 && existing.lockedUntil <= now);
+  const failures = (expiredLock ? 0 : existing?.failures ?? 0) + 1;
   if (failures >= maxFailures) {
     locks.set(key, { failures: 0, lockedUntil: now + lockMs });
     return { locked: true, retryAfterMs: lockMs };
