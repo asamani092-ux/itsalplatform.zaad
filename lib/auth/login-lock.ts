@@ -20,10 +20,9 @@ async function readLocks(): Promise<LockMap> {
     where: { key: AUTH_LOCKS_KEY },
     select: { settings: true },
   });
-  const settings = (row?.settings ?? {}) as LockMap;
-  return settings && typeof settings === "object" && !Array.isArray(settings)
-    ? settings
-    : {};
+  const raw = row?.settings;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  return raw as LockMap;
 }
 
 async function writeLocks(locks: LockMap): Promise<void> {
