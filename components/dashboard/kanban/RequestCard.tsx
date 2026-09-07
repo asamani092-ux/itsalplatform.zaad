@@ -2,6 +2,7 @@ import { formatDurationMs, formatElapsedSince } from "@/components/shared/format
 import AvatarGroup from "@/components/ui/avatar-group";
 import { isSlaBreached } from "./sla-utils";
 import { IconArchive, IconCheck } from "@/components/shared/icons";
+import StatusBadge from "@/components/shared/status-badge";
 
 export interface SlaMetrics {
   createdToApprovalMs: number | null;
@@ -28,10 +29,21 @@ export interface DashboardRequest {
   approvedAt: string | null;
   assignedAt: string | null;
   completedAt: string | null;
+  completionDeclaredAt?: string | null;
+  rejectionReason?: string | null;
+  reviewNote?: string | null;
+  employeeNote?: string | null;
   assignedEmployee: AssignedEmployee | null;
   department?: { name: string };
   requestType?: { name: string };
   sla: SlaMetrics;
+  statusHistory?: Array<{
+    id: string;
+    fromStatus: string | null;
+    toStatus: string;
+    note: string | null;
+    changedAt: string;
+  }>;
 }
 
 export interface CommEmployee {
@@ -46,42 +58,10 @@ interface RequestCardProps {
   employees: CommEmployee[];
   onAssign: (requestId: string, employeeId: string) => Promise<void>;
   onReassign: (requestId: string, employeeId: string) => Promise<void>;
-  onComplete: (requestId: string) => Promise<void>;
+  onApproveCompletion: (requestId: string) => Promise<void>;
+  onReturn: (requestId: string) => void;
   onArchive: (requestId: string) => Promise<void>;
-  onDragStart: (requestId: string) => void;
-  onDragEnd?: () => void;
   busy: boolean;
-}
-
-function DragHandle({
-  requestId,
-  label,
-  onDragStart,
-  onDragEnd,
-}: {
-  requestId: string;
-  label: string;
-  onDragStart: (requestId: string) => void;
-  onDragEnd?: () => void;
-}) {
-  return (
-    <div
-      draggable
-      className="flex cursor-grab items-center justify-center gap-1 rounded-md border border-dashed border-surface-border bg-surface-muted py-1.5 text-[10px] font-semibold text-brand-gray active:cursor-grabbing"
-      aria-label={label}
-      onDragStart={(event) => {
-        event.dataTransfer.setData("text/plain", requestId);
-        event.dataTransfer.effectAllowed = "move";
-        onDragStart(requestId);
-      }}
-      onDragEnd={() => onDragEnd?.()}
-    >
-      <span aria-hidden className="tracking-widest text-primary">
-        ⋮⋮
-      </span>
-      اسحب إلى مكتمل
-    </div>
-  );
 }
 
 export default function RequestCard({
@@ -89,53 +69,32 @@ export default function RequestCard({
   employees,
   onAssign,
   onReassign,
-  onComplete,
+  onApproveCompletion,
+  onReturn,
   onArchive,
-  onDragStart,
-  onDragEnd,
   busy,
 }: RequestCardProps) {
   const isNew = request.status === "Approved_Pending_Assignment";
   const isActive = request.status === "In_Progress";
+  const isReview = request.status === "Pending_Review";
   const isDone = request.status === "Completed";
+  const isRejected = request.status === "Rejected";
   const slaBreached = isSlaBreached(request);
-
-  function handleCardKeyDown(event: React.KeyboardEvent) {
-    if (!isActive || busy) return;
-    if (event.key === "Enter" || event.key === " ") {
-      event.preventDefault();
-      void onComplete(request.id);
-    }
-  }
 
   return (
     <article
-      className={`card space-y-2 p-3 shadow-sm transition-shadow hover:shadow-md focus-within:ring-2 focus-within:ring-primary/30 ${
+      className={`card space-y-2 p-3 shadow-sm transition-shadow hover:shadow-md ${
         slaBreached ? "border-[var(--zaad-danger)] bg-[var(--zaad-danger-bg)]" : ""
       }`}
-      tabIndex={isActive ? 0 : undefined}
-      role={isActive ? "button" : undefined}
-      aria-label={
-        isActive
-          ? `${request.title} — اضغط Enter للإكمال أو اسحب المقبض إلى عمود مكتمل`
-          : request.title
-      }
-      onKeyDown={handleCardKeyDown}
     >
-      {isActive && (
-        <DragHandle
-          requestId={request.id}
-          label={`سحب ${request.title} إلى عمود مكتمل`}
-          onDragStart={onDragStart}
-          onDragEnd={onDragEnd}
-        />
-      )}
-
       <div className="flex items-start justify-between gap-2">
         <h3 className="text-sm font-bold text-primary">{request.title}</h3>
-        {slaBreached && (
-          <span className="badge-danger shrink-0 text-[10px]">متأخر</span>
-        )}
+        <div className="flex shrink-0 flex-col items-end gap-1">
+          <StatusBadge status={request.status} />
+          {slaBreached && (
+            <span className="badge-danger text-[10px]">متأخر</span>
+          )}
+        </div>
       </div>
 
       <p className="line-clamp-2 text-xs text-brand-gray">{request.description}</p>
@@ -149,6 +108,12 @@ export default function RequestCard({
 
       {request.assignedEmployee && (
         <AvatarGroup names={[request.assignedEmployee.name]} />
+      )}
+
+      {request.employeeNote && isNew && (
+        <p className="rounded-md bg-surface-muted p-2 text-[11px] text-brand-gray">
+          ملاحظة الموظف: {request.employeeNote}
+        </p>
       )}
 
       <div
@@ -191,9 +156,6 @@ export default function RequestCard({
           <label className="label-field text-xs" htmlFor={`assign-${request.id}`}>
             إسناد لموظف
           </label>
-          <p className="text-[10px] text-brand-gray">
-            اختر موظفاً لنقل الطلب إلى «قيد التنفيذ» — السحب غير متاح من عمود جديد.
-          </p>
           <select
             id={`assign-${request.id}`}
             className="input-field text-sm focus-visible:ring-2 focus-visible:ring-primary/20"
@@ -244,14 +206,30 @@ export default function RequestCard({
               </option>
             ))}
           </select>
+          <p className="text-[10px] text-brand-gray">
+            بانتظار إعلان الانتهاء من الموظف.
+          </p>
+        </div>
+      )}
+
+      {isReview && (
+        <div className="space-y-2">
           <button
             type="button"
             className="btn-recommend w-full text-sm focus-visible:ring-2 focus-visible:ring-primary/20"
             disabled={busy}
-            onClick={() => void onComplete(request.id)}
+            onClick={() => void onApproveCompletion(request.id)}
           >
             <IconCheck size={16} />
-            وضع علامة مكتمل
+            اعتماد الإكمال
+          </button>
+          <button
+            type="button"
+            className="btn-secondary w-full border-[var(--zaad-danger)] text-xs text-[var(--zaad-danger)]"
+            disabled={busy}
+            onClick={() => onReturn(request.id)}
+          >
+            إرجاع للموظف
           </button>
         </div>
       )}
@@ -266,6 +244,12 @@ export default function RequestCard({
           <IconArchive size={16} />
           نقل للأرشيف
         </button>
+      )}
+
+      {isRejected && request.rejectionReason && (
+        <p className="rounded-md bg-[var(--zaad-danger-bg)] p-2 text-[11px] text-[var(--zaad-danger)]">
+          سبب الرفض: {request.rejectionReason}
+        </p>
       )}
     </article>
   );

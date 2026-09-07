@@ -714,6 +714,20 @@ export async function rejectRequest(params: {
   return withSla(updated);
 }
 
+/** Token-based reject for the public approval link (no session). */
+export async function rejectRequestByToken(token: string, reason: string) {
+  const existing = await getRequestByToken(token);
+  const manager = await prisma.commEmployee.findFirst({
+    where: { email: existing.managerEmail, isActive: true },
+    select: { id: true },
+  });
+  return rejectRequest({
+    requestId: existing.id,
+    managerId: manager?.id ?? "approval-token",
+    reason,
+  });
+}
+
 export async function approveCompletion(params: {
   requestId: string;
   managerId: string;
