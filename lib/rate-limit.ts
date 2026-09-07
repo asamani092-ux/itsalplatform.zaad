@@ -1,9 +1,11 @@
 /**
- * In-memory sliding-window rate limiter + failure lockouts.
- * Suitable for single-instance deployments; replace with Redis for multi-instance.
- *
- * Maps hang off globalThis so Next.js route-module re-evaluations share state.
+ * Sliding-window rate limiter + failure lockouts.
+ * Auth lock state is file-backed so it survives Next.js route-module isolation.
+ * Burst rate limits stay in-memory (best-effort for single instance).
  */
+
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 
 interface WindowEntry {
   timestamps: number[];
@@ -16,15 +18,33 @@ interface LockEntry {
 
 const globalStore = globalThis as typeof globalThis & {
   __zaadRateLimitStore?: Map<string, WindowEntry>;
-  __zaadAuthLocks?: Map<string, LockEntry>;
 };
 
 const store =
   globalStore.__zaadRateLimitStore ??
   (globalStore.__zaadRateLimitStore = new Map<string, WindowEntry>());
-const locks =
-  globalStore.__zaadAuthLocks ??
-  (globalStore.__zaadAuthLocks = new Map<string, LockEntry>());
+
+const LOCK_FILE = join(process.cwd(), ".data", "auth-locks.json");
+
+function readLocks(): Record<string, LockEntry> {
+  try {
+    if (!existsSync(LOCK_FILE)) return {};
+    const raw = readFileSync(LOCK_FILE, "utf8");
+    const parsed = JSON.parse(raw) as Record<string, LockEntry>;
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeLocks(data: Record<string, LockEntry>): void {
+  try {
+    mkdirSync(dirname(LOCK_FILE), { recursive: true });
+    writeFileSync(LOCK_FILE, JSON.stringify(data), "utf8");
+  } catch {
+    // best-effort; lockout degrades open if disk fails
+  }
+}
 
 export interface RateLimitResult {
   allowed: boolean;
@@ -52,11 +72,13 @@ export function checkRateLimit(
 
 /** Returns remaining lockout ms if locked, else 0. */
 export function getLockRemainingMs(key: string): number {
-  const entry = locks.get(key);
+  const locks = readLocks();
+  const entry = locks[key];
   if (!entry) return 0;
   const remaining = entry.lockedUntil - Date.now();
   if (remaining <= 0) {
-    locks.delete(key);
+    delete locks[key];
+    writeLocks(locks);
     return 0;
   }
   return remaining;
@@ -68,27 +90,31 @@ export function recordAuthFailure(
   lockMs: number,
 ): { locked: boolean; retryAfterMs?: number } {
   const now = Date.now();
-  const existing = locks.get(key);
+  const locks = readLocks();
+  const existing = locks[key];
   if (existing && existing.lockedUntil > now) {
     return { locked: true, retryAfterMs: existing.lockedUntil - now };
   }
 
-  // lockedUntil === 0 means "counting failures, not locked".
-  // Only reset the counter when a previous lock window has expired.
   const expiredLock = Boolean(
     existing && existing.lockedUntil > 0 && existing.lockedUntil <= now,
   );
   const failures = (expiredLock ? 0 : existing?.failures ?? 0) + 1;
   if (failures >= maxFailures) {
-    locks.set(key, { failures: 0, lockedUntil: now + lockMs });
+    locks[key] = { failures: 0, lockedUntil: now + lockMs };
+    writeLocks(locks);
     return { locked: true, retryAfterMs: lockMs };
   }
-  locks.set(key, { failures, lockedUntil: 0 });
+  locks[key] = { failures, lockedUntil: 0 };
+  writeLocks(locks);
   return { locked: false };
 }
 
 export function clearAuthFailures(key: string): void {
-  locks.delete(key);
+  const locks = readLocks();
+  if (!(key in locks)) return;
+  delete locks[key];
+  writeLocks(locks);
 }
 
 export function getClientIp(request: Request): string {
