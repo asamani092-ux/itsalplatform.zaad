@@ -21,7 +21,14 @@ async function readLocks(): Promise<LockMap> {
     `SELECT settings FROM "PlatformModule" WHERE key = $1 LIMIT 1`,
     AUTH_LOCKS_KEY,
   );
-  const raw = rows[0]?.settings;
+  let raw: unknown = rows[0]?.settings;
+  if (typeof raw === "string") {
+    try {
+      raw = JSON.parse(raw);
+    } catch {
+      return {};
+    }
+  }
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
   return { ...(raw as LockMap) };
 }

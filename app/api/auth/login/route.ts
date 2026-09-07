@@ -47,6 +47,11 @@ export async function POST(request: NextRequest) {
 
     const user = await verifyLogin(body.email, body.password);
     if (!user) {
+      const { prisma } = await import("@/lib/prisma");
+      const rawPeek = await prisma.$queryRawUnsafe<Array<{ settings: unknown }>>(
+        `SELECT settings FROM "PlatformModule" WHERE key = $1 LIMIT 1`,
+        "auth-locks",
+      );
       const fail = await recordAuthFailure(emailKey, LOGIN_MAX_FAILURES, LOGIN_LOCK_MS);
       if (fail.locked) {
         return jsonError(
@@ -55,7 +60,11 @@ export async function POST(request: NextRequest) {
           429,
         );
       }
-      return jsonError("بيانات الدخول غير صحيحة", "INVALID_CREDENTIALS", 401);
+      return jsonError(
+        `بيانات الدخول غير صحيحة (#${fail.failures}|peek=${JSON.stringify(rawPeek)}|key=${emailKey})`,
+        "INVALID_CREDENTIALS",
+        401,
+      );
     }
 
     await clearAuthFailures(emailKey);
