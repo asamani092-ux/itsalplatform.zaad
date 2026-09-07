@@ -9,6 +9,9 @@ import {
   setAttendeeAttendance,
 } from "@/lib/reception-service";
 
+type AttendanceListRow = Awaited<ReturnType<typeof listAttendanceEvents>>[number];
+type AttendanceFlag = AttendanceListRow["attendees"][number];
+
 export async function GET(request: NextRequest) {
   try {
     const auth = await requireReceptionDeskSession();
@@ -21,14 +24,14 @@ export async function GET(request: NextRequest) {
     }
     const events = await listAttendanceEvents();
     return jsonOk({
-      events: events.map((e) => ({
+      events: events.map((e: AttendanceListRow) => ({
         id: e.id,
         title: e.title,
         kind: e.kind,
         scheduledAt: e.scheduledAt,
         notes: e.notes,
         total: e._count.attendees,
-        attended: e.attendees.filter((a) => a.attended).length,
+        attended: e.attendees.filter((a: AttendanceFlag) => a.attended).length,
       })),
     });
   } catch (error) {
@@ -55,7 +58,7 @@ export async function POST(request: NextRequest) {
 
     const names = (body.namesText ?? "")
       .split(/[\n,;]+/)
-      .map((n) => n.trim())
+      .map((n: string) => n.trim())
       .filter(Boolean);
 
     const event = await createAttendanceEvent({
@@ -89,7 +92,7 @@ export async function PATCH(request: NextRequest) {
     if (body.action === "add_names" && body.eventId) {
       const names = (body.namesText ?? "")
         .split(/[\n,;]+/)
-        .map((n) => n.trim())
+        .map((n: string) => n.trim())
         .filter(Boolean);
       const event = await addAttendeesBulk({ eventId: body.eventId, names });
       return jsonOk({ event });

@@ -18,7 +18,7 @@ export async function verifyPassword(
 export async function verifyLogin(email: string, password: string) {
   const employee = await prisma.commEmployee.findUnique({
     where: { email: email.trim().toLowerCase() },
-    include: { department: { select: { id: true, receptionToken: true } } },
+    include: { department: { select: { id: true } } },
   });
 
   if (!employee || !employee.isActive) {
@@ -30,12 +30,11 @@ export async function verifyLogin(email: string, password: string) {
     return null;
   }
 
-  // Reception desk capability: management roles always, or an employee whose
-  // section (قسم) is reception-enabled (has a reception token configured).
+  // Reception desk capability: management roles, or an employee flagged as desk staff.
   const deskAccess =
     employee.role === EmployeeRole.DIRECTOR ||
     employee.role === EmployeeRole.SECTION_MANAGER ||
-    Boolean(employee.department?.receptionToken);
+    employee.isReceptionDesk === true;
 
   return {
     id: employee.id,

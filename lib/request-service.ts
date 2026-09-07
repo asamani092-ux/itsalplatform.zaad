@@ -636,6 +636,31 @@ interface KpiCompletedLifecycleRow {
   completedAt: Date | null;
 }
 
+interface KpiAssignTimestampRow {
+  createdAt: Date;
+  assignedAt: Date | null;
+}
+
+interface KpiAssignPairRow {
+  createdAt: Date;
+  assignedAt: Date;
+}
+
+interface KpiDepartmentBucketRow {
+  departmentId: string;
+  departmentName: string;
+  count: number;
+}
+
+interface KpiOverdueListRow {
+  id: string;
+  title: string;
+  status: RequestStatus;
+  requiredDate: Date;
+  departmentId: string;
+  department: { name: string } | null;
+}
+
 export async function getManagerKpis(options?: { departmentId?: string }) {
   // Scope every metric to a single section when a departmentId is provided.
   const scopeWhere = options?.departmentId
@@ -690,7 +715,7 @@ export async function getManagerKpis(options?: { departmentId?: string }) {
   const slaByType: Record<string, { count: number; avgMs: number }> = {};
   for (const row of allCompleted) {
     if (!row.completedAt) continue;
-    const ms = row.completedAt.getTime() - row.createdAt.getTime();
+    const ms = Math.max(0, row.completedAt.getTime() - row.createdAt.getTime());
     if (!slaByType[row.requestTypeId]) {
       slaByType[row.requestTypeId] = { count: 0, avgMs: 0 };
     }
@@ -732,6 +757,14 @@ export async function getManagerKpis(options?: { departmentId?: string }) {
     avgAssignMsRows,
     overdueByDepartmentRows,
     overdueList,
+  ]: [
+    number,
+    number,
+    number,
+    number,
+    KpiAssignTimestampRow[],
+    KpiDepartmentCountGroupRow[],
+    KpiOverdueListRow[],
   ] = await Promise.all([
       prisma.communicationRequest.count({
         where: { ...scopeWhere, completedAt: { gte: weekAgo } },
@@ -775,19 +808,31 @@ export async function getManagerKpis(options?: { departmentId?: string }) {
     ]);
 
   let avgAssignmentMs: number | null = null;
-  if (avgAssignMsRows.length > 0) {
-    const sum = avgAssignMsRows.reduce((acc, row) => {
-      if (!row.assignedAt) return acc;
-      return acc + (row.assignedAt.getTime() - row.createdAt.getTime());
-    }, 0);
-    avgAssignmentMs = sum / avgAssignMsRows.length;
+  {
+    const assignRows: KpiAssignTimestampRow[] = avgAssignMsRows;
+    const assignPairs: KpiAssignPairRow[] = assignRows.filter(
+      (row: KpiAssignTimestampRow): row is KpiAssignPairRow =>
+        row.assignedAt != null,
+    );
+    if (assignPairs.length > 0) {
+      const sum = assignPairs.reduce(
+        (acc: number, row: KpiAssignPairRow) =>
+          acc + Math.max(0, row.assignedAt.getTime() - row.createdAt.getTime()),
+        0,
+      );
+      avgAssignmentMs = sum / assignPairs.length;
+    }
   }
 
-  const completedLifecycle = allCompleted.filter((r) => r.completedAt);
+  const completedLifecycle = allCompleted.filter(
+    (r: KpiCompletedLifecycleRow): r is KpiCompletedLifecycleRow & { completedAt: Date } =>
+      r.completedAt != null,
+  );
   const avgLifecycleMs =
     completedLifecycle.length > 0
       ? completedLifecycle.reduce(
-          (acc, r) => acc + ((r.completedAt as Date).getTime() - r.createdAt.getTime()),
+          (acc: number, r: KpiCompletedLifecycleRow & { completedAt: Date }) =>
+            acc + Math.max(0, r.completedAt.getTime() - r.createdAt.getTime()),
           0,
         ) / completedLifecycle.length
       : null;
@@ -810,12 +855,17 @@ export async function getManagerKpis(options?: { departmentId?: string }) {
       count: s._count._all,
     })),
     byDepartment: byDepartment
-      .map((d: KpiDepartmentCountGroupRow) => ({
-        departmentId: d.departmentId,
-        departmentName: deptMap[d.departmentId] ?? d.departmentId,
-        count: d._count._all,
-      }))
-      .sort((a, b) => b.count - a.count),
+      .map(
+        (d: KpiDepartmentCountGroupRow): KpiDepartmentBucketRow => ({
+          departmentId: d.departmentId,
+          departmentName: deptMap[d.departmentId] ?? d.departmentId,
+          count: d._count._all,
+        }),
+      )
+      .sort(
+        (a: KpiDepartmentBucketRow, b: KpiDepartmentBucketRow) =>
+          b.count - a.count,
+      ),
     byRequestType: byRequestType.map((r: KpiRequestTypeCountGroupRow) => ({
       requestTypeId: r.requestTypeId,
       requestTypeName: typeMap[r.requestTypeId] ?? r.requestTypeId,
@@ -824,13 +874,18 @@ export async function getManagerKpis(options?: { departmentId?: string }) {
     })),
     // Director focus: late / unclosed requests, overall and per section.
     overdueByDepartment: overdueByDepartmentRows
-      .map((d: KpiDepartmentCountGroupRow) => ({
-        departmentId: d.departmentId,
-        departmentName: deptMap[d.departmentId] ?? d.departmentId,
-        count: d._count._all,
-      }))
-      .sort((a, b) => b.count - a.count),
-    overdueList: overdueList.map((r) => ({
+      .map(
+        (d: KpiDepartmentCountGroupRow): KpiDepartmentBucketRow => ({
+          departmentId: d.departmentId,
+          departmentName: deptMap[d.departmentId] ?? d.departmentId,
+          count: d._count._all,
+        }),
+      )
+      .sort(
+        (a: KpiDepartmentBucketRow, b: KpiDepartmentBucketRow) =>
+          b.count - a.count,
+      ),
+    overdueList: overdueList.map((r: KpiOverdueListRow) => ({
       id: r.id,
       title: r.title,
       status: r.status,

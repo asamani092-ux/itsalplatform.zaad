@@ -371,7 +371,7 @@ export async function getReceptionReports(params: {
     if (s.visitAttended) row.attendedScheduled += 1;
   }
 
-  const departmentKpis = [...kpiMap.values(), unassigned].map((k) => ({
+  const departmentKpis = [...kpiMap.values(), unassigned].map((k: DeptKpi) => ({
     ...k,
     attendanceRate:
       k.scheduledVisits > 0
@@ -379,19 +379,41 @@ export async function getReceptionReports(params: {
         : null,
   }));
 
-  const visits = logs.map((log) => ({
-    id: log.id,
-    visitorName: log.visitorName,
-    visitorPhone: log.visitorPhone,
-    organization: log.organization,
-    visitType: log.visitType,
-    visitTarget: log.visitTarget,
-    reason: log.reason,
-    visitTimeSlot: log.visitTimeSlot,
-    visitAt: log.visitAt,
-    departmentName: log.department?.name ?? null,
-    markedByName: log.markedBy?.name ?? null,
-  }));
+  interface ReceptionVisitorLogRow {
+    id: string;
+    visitorName: string;
+    visitorPhone: string;
+    organization: string;
+    visitType: string;
+    visitTarget: string;
+    reason: string;
+    visitTimeSlot: string;
+    visitAt: Date;
+    department: { id: string; name: string } | null;
+    markedBy: { id: string; name: string } | null;
+  }
+
+  interface ScheduledVisitAttendanceRow {
+    id: string;
+    departmentId: string;
+    visitAttended: boolean | null;
+  }
+
+  const visits = (logs as ReceptionVisitorLogRow[]).map(
+    (log: ReceptionVisitorLogRow) => ({
+      id: log.id,
+      visitorName: log.visitorName,
+      visitorPhone: log.visitorPhone,
+      organization: log.organization,
+      visitType: log.visitType,
+      visitTarget: log.visitTarget,
+      reason: log.reason,
+      visitTimeSlot: log.visitTimeSlot,
+      visitAt: log.visitAt,
+      departmentName: log.department?.name ?? null,
+      markedByName: log.markedBy?.name ?? null,
+    }),
+  );
 
   return {
     from: from.toISOString(),
@@ -399,8 +421,12 @@ export async function getReceptionReports(params: {
     totals: {
       loggedVisits: logs.length,
       scheduledVisits: scheduledInRange.length,
-      attendedScheduled: scheduledInRange.filter((s) => s.visitAttended).length,
-      departmentsWithVisits: departmentKpis.filter((k) => k.loggedVisits > 0).length,
+      attendedScheduled: (scheduledInRange as ScheduledVisitAttendanceRow[]).filter(
+        (s: ScheduledVisitAttendanceRow) => s.visitAttended,
+      ).length,
+      departmentsWithVisits: departmentKpis.filter(
+        (k: DeptKpi) => k.loggedVisits > 0,
+      ).length,
     },
     departmentKpis,
     visits,
@@ -440,7 +466,7 @@ export async function createAttendanceEvent(params: {
 }) {
   const title = params.title.trim();
   if (!title) throw new Error("VALIDATION: عنوان القائمة مطلوب");
-  const names = params.names.map((n) => n.trim()).filter(Boolean);
+  const names = params.names.map((n: string) => n.trim()).filter(Boolean);
   if (names.length === 0) throw new Error("VALIDATION: أضف اسماً واحداً على الأقل");
 
   return prisma.attendanceEvent.create({
@@ -475,7 +501,7 @@ export async function addAttendeesBulk(params: {
   eventId: string;
   names: string[];
 }) {
-  const names = params.names.map((n) => n.trim()).filter(Boolean);
+  const names = params.names.map((n: string) => n.trim()).filter(Boolean);
   if (names.length === 0) throw new Error("VALIDATION: لا توجد أسماء للإضافة");
   await prisma.attendanceAttendee.createMany({
     data: names.map((name) => ({ eventId: params.eventId, name })),

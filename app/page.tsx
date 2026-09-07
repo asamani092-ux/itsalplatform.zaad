@@ -8,5 +8,6 @@ export default async function HomePage({
   searchParams: Promise<{ next?: string }>;
 }) {
   const { next } = await searchParams;
-  return <LoginForm nextUrl={next ?? null} />;
+  const showDemoHints = process.env.NODE_ENV !== "production";
+  return <LoginForm nextUrl={next ?? null} showDemoHints={showDemoHints} />;
 }

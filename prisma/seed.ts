@@ -1,5 +1,11 @@
 import "dotenv/config";
-import { PrismaClient, EmployeeRole, RequestStatus } from "../generated/prisma/client";
+import {
+  PrismaClient,
+  EmployeeRole,
+  RequestStatus,
+  type Department,
+  type RequestType,
+} from "../generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 import { hashPassword } from "../lib/auth-service";
@@ -121,7 +127,9 @@ async function main() {
   const departments = await prisma.department.findMany({
     where: { isActive: true },
   });
-  const bySlug = Object.fromEntries(departments.map((d) => [d.slug, d]));
+  const bySlug: Record<string, Department> = Object.fromEntries(
+    departments.map((d: Department) => [d.slug, d]),
+  );
 
   const requestTypes = [
     {
@@ -216,7 +224,9 @@ async function main() {
   });
 
   const types = await prisma.requestType.findMany();
-  const typeBySlug = Object.fromEntries(types.map((t) => [t.slug, t]));
+  const typeBySlug: Record<string, RequestType> = Object.fromEntries(
+    types.map((t: RequestType) => [t.slug, t]),
+  );
 
   const commSection = await prisma.department.findUnique({
     where: { slug: "communications" },
@@ -276,6 +286,7 @@ async function main() {
         passwordHash,
         role: EmployeeRole.EMPLOYEE,
         isActive: true,
+        isReceptionDesk: false,
         departmentId: commSection?.id ?? null,
       },
       create: {
@@ -284,14 +295,14 @@ async function main() {
         phoneNumber: emp.phone,
         passwordHash,
         role: EmployeeRole.EMPLOYEE,
+        isReceptionDesk: false,
         departmentId: commSection?.id ?? null,
       },
     });
     createdEmployees.push(row);
   }
 
-  // Reception is now a regular employee whose section grants desk access
-  // (communications section carries a reception token).
+  // Dedicated reception desk account (explicit flag — not inferred from department token).
   const receptionist = await prisma.commEmployee.upsert({
     where: { email: "reception@zaad.org" },
     update: {
@@ -299,6 +310,7 @@ async function main() {
       passwordHash,
       role: EmployeeRole.EMPLOYEE,
       isActive: true,
+      isReceptionDesk: true,
       departmentId: commSection?.id ?? null,
     },
     create: {
@@ -307,6 +319,7 @@ async function main() {
       phoneNumber: "0500000005",
       passwordHash,
       role: EmployeeRole.EMPLOYEE,
+      isReceptionDesk: true,
       departmentId: commSection?.id ?? null,
     },
   });
@@ -382,6 +395,7 @@ async function main() {
       requiredDate: daysFromNow(5),
       visitDate: null as Date | null,
       visitAttended: null as boolean | null,
+      createdAt: hoursFromNow(-6),
       approvedAt: null as Date | null,
       assignedEmployeeId: null as string | null,
       assignedAt: null as Date | null,
@@ -398,6 +412,7 @@ async function main() {
       requiredDate: daysFromNow(2),
       visitDate: hoursFromNow(2),
       visitAttended: false,
+      createdAt: hoursFromNow(-28),
       approvedAt: hoursFromNow(-20),
       assignedEmployeeId: null,
       assignedAt: null,
@@ -414,6 +429,7 @@ async function main() {
       requiredDate: daysFromNow(1),
       visitDate: hoursFromNow(4),
       visitAttended: false,
+      createdAt: hoursFromNow(-14),
       approvedAt: hoursFromNow(-10),
       assignedEmployeeId: mohammed?.id ?? null,
       assignedAt: hoursFromNow(-8),
@@ -430,6 +446,7 @@ async function main() {
       requiredDate: daysFromNow(1),
       visitDate: hoursFromNow(1),
       visitAttended: false,
+      createdAt: hoursFromNow(-36),
       approvedAt: hoursFromNow(-30),
       assignedEmployeeId: sara?.id ?? null,
       assignedAt: hoursFromNow(-25),
@@ -446,6 +463,7 @@ async function main() {
       requiredDate: daysFromNow(-2),
       visitDate: null,
       visitAttended: null,
+      createdAt: hoursFromNow(-80),
       approvedAt: hoursFromNow(-72),
       assignedEmployeeId: sara?.id ?? null,
       assignedAt: hoursFromNow(-60),
@@ -462,6 +480,7 @@ async function main() {
       requiredDate: daysFromNow(0),
       visitDate: hoursFromNow(-3),
       visitAttended: true,
+      createdAt: hoursFromNow(-56),
       approvedAt: hoursFromNow(-48),
       assignedEmployeeId: mohammed?.id ?? null,
       assignedAt: hoursFromNow(-40),
@@ -485,6 +504,7 @@ async function main() {
         visitDate: r.visitDate,
         visitAttended: r.visitAttended,
         visitMarkedAt: r.visitAttended ? hoursFromNow(-2) : null,
+        createdAt: r.createdAt,
         approvedAt: r.approvedAt,
         assignedEmployeeId: r.assignedEmployeeId,
         assignedAt: r.assignedAt,

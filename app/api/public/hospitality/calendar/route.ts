@@ -30,7 +30,12 @@ export async function GET(request: NextRequest) {
 
     return jsonOk({
       rooms,
-      bookings: bookings.map((b) => ({
+      bookings: bookings.map((b: {
+        roomName: string;
+        meetingDate: Date;
+        startTime: string;
+        endTime: string;
+      }) => ({
         roomName: b.roomName,
         meetingDate: b.meetingDate.toISOString().slice(0, 10),
         startTime: b.startTime,
