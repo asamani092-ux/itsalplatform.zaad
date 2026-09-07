@@ -592,7 +592,10 @@ async function main() {
           "completionDeclaredAt" in r
             ? (r.completionDeclaredAt as Date | null)
             : null,
-        approvalToken: generateApprovalToken(),
+        approvalToken:
+          r.status === RequestStatus.Pending_Manager
+            ? "uat-demo-approval-token"
+            : generateApprovalToken(),
         approvalTokenExpiresAt: daysFromNow(7),
       },
     });
@@ -835,6 +838,7 @@ async function main() {
   console.log(`  Demo requests: ${demoRequests.length}`);
   console.log(`  Visitor logs: 3 | Hospitality: 2 | Forms: 2`);
   console.log(`  Reception token (legacy kiosk): reception-demo-token`);
+  console.log(`  UAT approval: /approve?token=uat-demo-approval-token`);
 }
 
 main()

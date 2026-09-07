@@ -359,6 +359,7 @@ model RequestForm {
   submitLabel    String       @default("تقديم الطلب")
   successTitle   String       @default("تم تقديم الطلب بنجاح")
   successMessage String       @default("سيُرسل رابط الموافقة للمدير المباشر تلقائياً.")
+  successNextSteps String     @default("")
   fields         Json         @default("{}")
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt

@@ -11,7 +11,7 @@ export interface UatSection {
 }
 
 /** Bump when checklist shape changes so browser-saved scores reset cleanly. */
-export const UAT_VERSION = "v1.1.0-prelaunch";
+export const UAT_VERSION = "v1.1.1-prelaunch";
 
 export const UAT_SECTIONS: UatSection[] = [
   {
@@ -33,7 +33,7 @@ export const UAT_SECTIONS: UatSection[] = [
   {
     id: "approval",
     title: "موافقة المدير (رابط الرمز)",
-    path: "/approve?token=",
+    path: "/approve?token=uat-demo-approval-token",
     items: [
       { id: "2.1", label: "فتح الرابط دون تسجيل دخول" },
       { id: "2.2", label: "وضوح بيانات الطلب المعروضة" },

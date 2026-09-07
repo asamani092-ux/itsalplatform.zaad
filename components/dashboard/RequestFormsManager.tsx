@@ -517,6 +517,21 @@ export default function RequestFormsManager({
                   onChange={(e) => patchDraft({ successMessage: e.target.value })}
                 />
               </div>
+              <div className="space-y-1 sm:col-span-2">
+                <label className="label-field" htmlFor="form-success-steps">
+                  الخطوات التالية بعد الإرسال (سطر لكل خطوة)
+                </label>
+                <textarea
+                  id="form-success-steps"
+                  className="input-field min-h-28 w-full"
+                  value={draft.successNextSteps ?? ""}
+                  onChange={(e) => patchDraft({ successNextSteps: e.target.value })}
+                  placeholder="سطر واحد لكل خطوة…"
+                />
+                <p className="text-xs text-brand-gray">
+                  يظهر تحت رسالة النجاح. اتركه فارغاً لاستخدام النص الافتراضي، أو عدّله حسب سياق النموذج.
+                </p>
+              </div>
             </div>
 
             <div className="space-y-3">

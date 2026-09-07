@@ -6,6 +6,7 @@ import { getApiErrorMessage, parseApiResponse } from "@/components/lib/api-types
 import { fetchWithTimeout } from "@/lib/client/fetch-with-timeout";
 import {
   DEFAULT_FORM_SETTINGS,
+  parseSuccessNextSteps,
   type FormSettingsData,
 } from "@/lib/forms/schema";
 import Stepper from "@/components/ui/stepper";
@@ -162,6 +163,8 @@ export default function DynamicSubmitForm({
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [submittedId, setSubmittedId] = useState<string | null>(null);
+  const [approvalUrl, setApprovalUrl] = useState<string | null>(null);
+  const [copyHint, setCopyHint] = useState("");
 
   const selectedType = requestTypes.find((rt) => rt.id === requestTypeId);
   const showHospitalityAvailability =
@@ -202,6 +205,14 @@ export default function DynamicSubmitForm({
   useEffect(() => {
     if (!hasInitial) void loadMeta();
   }, [hasInitial, loadMeta]);
+
+  // Hide/clear visit date when the selected type no longer requires it.
+  useEffect(() => {
+    if (!selectedType?.requiresVisitDate && visitDate) {
+      setVisitDate("");
+      setFieldErrors((prev) => ({ ...prev, visitDate: undefined }));
+    }
+  }, [selectedType?.requiresVisitDate, visitDate]);
 
   // Requester administrations are always loaded (never passed as initial props).
   useEffect(() => {
@@ -279,6 +290,11 @@ export default function DynamicSubmitForm({
         throw new Error(getApiErrorMessage(payload, "فشل التقديم"));
       }
       setSubmittedId(payload.data.id);
+      const rawUrl =
+        typeof payload.data.approvalUrl === "string" && payload.data.approvalUrl
+          ? payload.data.approvalUrl
+          : null;
+      setApprovalUrl(rawUrl);
     } catch (err) {
       setError(err instanceof Error ? err.message : "خطأ");
     } finally {
@@ -306,13 +322,53 @@ export default function DynamicSubmitForm({
             </span>
           </p>
           <p>{settings.successMessage}</p>
-          <p>الخطوات التالية:</p>
-          <ol className="list-decimal space-y-1 ps-5 text-start">
-            <li>سيُرسل رابط الموافقة لمدير القسم المستقبِل تلقائياً.</li>
-            <li>إذا حددت إدارتك، يُشعَر مديرك المباشر بالطلب.</li>
-            <li>بعد الموافقة ينتقل الطلب إلى لوحة القسم المستقبِل.</li>
-            <li>ستصلك تحديثات على البريد المُدخل.</li>
-          </ol>
+          {parseSuccessNextSteps(settings.successNextSteps).length > 0 && (
+            <>
+              <p>الخطوات التالية:</p>
+              <ol className="list-decimal space-y-1 ps-5 text-start">
+                {parseSuccessNextSteps(settings.successNextSteps).map((step) => (
+                  <li key={step}>{step}</li>
+                ))}
+              </ol>
+            </>
+          )}
+          {approvalUrl && (
+            <div className="space-y-2 rounded-md border border-dashed border-surface-border bg-surface-muted p-3 text-start">
+              <p className="text-xs font-semibold text-primary">
+                رابط موافقة المدير للتجربة
+              </p>
+              <p className="break-all font-mono text-[11px]" dir="ltr">
+                {approvalUrl}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className="btn-secondary text-xs"
+                  onClick={() => {
+                    const full =
+                      typeof window !== "undefined"
+                        ? `${window.location.origin}${approvalUrl}`
+                        : approvalUrl;
+                    void navigator.clipboard.writeText(full).then(() => {
+                      setCopyHint("تم نسخ رابط الموافقة");
+                      setTimeout(() => setCopyHint(""), 2000);
+                    });
+                  }}
+                >
+                  نسخ رابط الموافقة
+                </button>
+                <a
+                  href={approvalUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="btn-secondary text-xs"
+                >
+                  فتح رحلة الموافقة
+                </a>
+              </div>
+              {copyHint && <p className="text-xs text-brand-gray">{copyHint}</p>}
+            </div>
+          )}
         </div>
         <Link
           href="/request"
@@ -429,8 +485,17 @@ export default function DynamicSubmitForm({
               className="input-field w-full focus-visible:ring-2 focus-visible:ring-primary/20"
               value={requestTypeId}
               onChange={(e) => {
-                setRequestTypeId(e.target.value);
-                setFieldErrors((prev) => ({ ...prev, requestTypeId: undefined }));
+                const nextTypeId = e.target.value;
+                setRequestTypeId(nextTypeId);
+                const nextType = requestTypes.find((rt) => rt.id === nextTypeId);
+                if (!nextType?.requiresVisitDate) {
+                  setVisitDate("");
+                }
+                setFieldErrors((prev) => ({
+                  ...prev,
+                  requestTypeId: undefined,
+                  visitDate: undefined,
+                }));
               }}
               aria-invalid={Boolean(fieldErrors.requestTypeId)}
               aria-describedby={fieldErrors.requestTypeId ? "requestType-error" : undefined}

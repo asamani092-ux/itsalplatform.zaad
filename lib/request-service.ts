@@ -291,14 +291,15 @@ export async function submitRequest(params: {
     return { request: withSla(created), approvalUrl: null as string | null };
   }
 
-  const approvalUrl = `${getAppUrl()}/approve?token=${approvalToken}`;
+  const approvalPath = `/approve?token=${approvalToken}`;
+  const approvalUrl = `${getAppUrl()}${approvalPath}`;
   await notifyManager({
     managerEmail: department.managerEmail,
     requestTitle: params.title,
     approvalUrl,
   });
 
-  return { request: withSla(created), approvalUrl };
+  return { request: withSla(created), approvalUrl: approvalPath };
 }
 
 export async function approveRequest(token: string) {
@@ -1360,7 +1361,8 @@ export async function regenerateApprovalLink(requestId: string) {
     include: requestInclude,
   });
 
-  const approvalUrl = `${getAppUrl()}/approve?token=${approvalToken}`;
+  const approvalPath = `/approve?token=${approvalToken}`;
+  const approvalUrl = `${getAppUrl()}${approvalPath}`;
   await notifyManager({
     managerEmail: updated.managerEmail,
     requestTitle: updated.title,
@@ -1369,7 +1371,7 @@ export async function regenerateApprovalLink(requestId: string) {
 
   return {
     id: updated.id,
-    approvalUrl,
+    approvalUrl: approvalPath,
     approvalTokenExpiresAt,
   };
 }

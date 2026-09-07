@@ -25,6 +25,7 @@ interface RequestFormRow {
   submitLabel: string;
   successTitle: string;
   successMessage: string;
+  successNextSteps: string;
   fields: Prisma.JsonValue;
 }
 
@@ -61,6 +62,7 @@ function toFormData(row: RequestFormRow): RequestFormData {
     submitLabel: row.submitLabel,
     successTitle: row.successTitle,
     successMessage: row.successMessage,
+    successNextSteps: row.successNextSteps || DEFAULT_FORM_SETTINGS.successNextSteps,
     fields: normalizeFields(row.fields),
   };
 }
@@ -116,6 +118,7 @@ export interface RequestFormInput {
   submitLabel?: string;
   successTitle?: string;
   successMessage?: string;
+  successNextSteps?: string;
   fields?: unknown;
 }
 
@@ -143,6 +146,10 @@ export async function createRequestForm(input: RequestFormInput): Promise<Reques
       successTitle: input.successTitle?.trim() || DEFAULT_FORM_SETTINGS.successTitle,
       successMessage:
         input.successMessage?.trim() || DEFAULT_FORM_SETTINGS.successMessage,
+      successNextSteps:
+        typeof input.successNextSteps === "string"
+          ? input.successNextSteps.trim()
+          : DEFAULT_FORM_SETTINGS.successNextSteps,
       fields: fieldsToJson(normalizeFields(input.fields)),
     },
   });
@@ -188,6 +195,10 @@ export async function updateRequestForm(
       submitLabel: input.submitLabel?.trim() || current.submitLabel,
       successTitle: input.successTitle?.trim() || current.successTitle,
       successMessage: input.successMessage?.trim() || current.successMessage,
+      successNextSteps:
+        typeof input.successNextSteps === "string"
+          ? input.successNextSteps.trim()
+          : current.successNextSteps,
       fields:
         input.fields === undefined
           ? fieldsToJson(current.fields)

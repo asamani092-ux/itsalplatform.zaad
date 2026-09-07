@@ -50,6 +50,10 @@ export default function UatEvaluationForm() {
   const [state, setState] = useState<UatState>(emptyState);
   const [hydrated, setHydrated] = useState(false);
   const [copyStatus, setCopyStatus] = useState("");
+  const [pathHint, setPathHint] = useState("");
+  const [demoApprovalPath, setDemoApprovalPath] = useState(
+    "/approve?token=uat-demo-approval-token",
+  );
   const [openSection, setOpenSection] = useState<string>(UAT_SECTIONS[0].id);
 
   useEffect(() => {
@@ -90,6 +94,38 @@ export default function UatEvaluationForm() {
   const overall = useMemo(() => overallAverage(state.results), [state.results]);
   const progress = Math.round((done / UAT_TOTAL_ITEMS) * 100);
   const report = useMemo(() => buildMarkdownReport(state), [state]);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const res = await fetch("/api/uat/demo-links");
+        const payload = (await res.json()) as {
+          success?: boolean;
+          data?: { approvalPath?: string };
+        };
+        if (payload.success && payload.data?.approvalPath) {
+          setDemoApprovalPath(payload.data.approvalPath);
+        }
+      } catch {
+        // Keep seeded fallback path.
+      }
+    })();
+  }, []);
+
+  async function copyText(text: string, okMsg: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      setPathHint(okMsg);
+    } catch {
+      setPathHint("تعذّر النسخ — انسخ يدوياً");
+    }
+    window.setTimeout(() => setPathHint(""), 3000);
+  }
+
+  function absolutePath(path: string) {
+    if (path.startsWith("http")) return path;
+    return `${window.location.origin}${path.startsWith("/") ? path : `/${path}`}`;
+  }
 
   async function copyReport() {
     try {
@@ -202,6 +238,43 @@ export default function UatEvaluationForm() {
           </div>
         </div>
 
+        <div className="rounded-lg border border-surface-border bg-surface-muted p-3 space-y-2">
+          <p className="text-sm font-semibold text-primary">روابط سريعة للتجربة</p>
+          <p className="text-xs text-brand-gray" dir="ltr">
+            {demoApprovalPath}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              className="btn-secondary text-xs"
+              onClick={() =>
+                void copyText(absolutePath(demoApprovalPath), "تم نسخ رابط موافقة المدير")
+              }
+            >
+              نسخ رحلة موافقة المدير
+            </button>
+            <a
+              href={demoApprovalPath}
+              target="_blank"
+              rel="noreferrer"
+              className="btn-secondary text-xs"
+            >
+              فتح رحلة الموافقة
+            </a>
+            <button
+              type="button"
+              className="btn-secondary text-xs"
+              onClick={() => void copyText(absolutePath("/request"), "تم نسخ مسار النموذج")}
+            >
+              نسخ /request
+            </button>
+            <a href="/request" target="_blank" rel="noreferrer" className="btn-secondary text-xs">
+              فتح النموذج
+            </a>
+          </div>
+          {pathHint && <p className="text-xs text-brand-gray">{pathHint}</p>}
+        </div>
+
         <div>
           <div
             className="h-2 w-full overflow-hidden rounded-full bg-surface-muted"
@@ -268,6 +341,32 @@ export default function UatEvaluationForm() {
 
             {isOpen && (
               <div className="space-y-3 border-t border-surface-border p-4">
+                {section.path && (
+                  <div className="flex flex-wrap items-center gap-2 rounded-md bg-surface-muted px-3 py-2">
+                    <span className="font-mono text-xs text-brand-gray" dir="ltr">
+                      {section.id === "approval" ? demoApprovalPath : section.path}
+                    </span>
+                    <button
+                      type="button"
+                      className="btn-secondary text-xs"
+                      onClick={() => {
+                        const p =
+                          section.id === "approval" ? demoApprovalPath : section.path!;
+                        void copyText(absolutePath(p), "تم نسخ المسار");
+                      }}
+                    >
+                      نسخ المسار
+                    </button>
+                    <a
+                      href={section.id === "approval" ? demoApprovalPath : section.path}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="btn-secondary text-xs"
+                    >
+                      فتح
+                    </a>
+                  </div>
+                )}
                 {section.items.map((item) => {
                   const result = state.results[item.id] ?? EMPTY_ITEM;
                   return (
