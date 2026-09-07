@@ -5,13 +5,12 @@ import {
   setSessionCookie,
 } from "@/lib/auth/session";
 import { handleApiError, jsonError, jsonOk } from "@/lib/api-utils";
+import { checkRateLimit, rateLimitKey } from "@/lib/rate-limit";
 import {
-  checkRateLimit,
   clearAuthFailures,
   getLockRemainingMs,
-  rateLimitKey,
   recordAuthFailure,
-} from "@/lib/rate-limit";
+} from "@/lib/auth/login-lock";
 
 const LOGIN_MAX_FAILURES = 10;
 const LOGIN_LOCK_MS = 20 * 60 * 1000;
@@ -19,15 +18,6 @@ const LOGIN_LOCK_MS = 20 * 60 * 1000;
 export async function POST(request: NextRequest) {
   try {
     const key = rateLimitKey(request, "auth-login");
-    const lockRemaining = getLockRemainingMs(key);
-    if (lockRemaining > 0) {
-      const mins = Math.ceil(lockRemaining / 60_000);
-      return jsonError(
-        `تم قفل تسجيل الدخول مؤقتاً. حاول بعد ${mins} دقيقة.`,
-        "RATE_LIMITED",
-        429,
-      );
-    }
 
     const burst = checkRateLimit(key, 30, 60_000);
     if (!burst.allowed) {
@@ -44,12 +34,10 @@ export async function POST(request: NextRequest) {
       return jsonError("البريد الإلكتروني وكلمة المرور مطلوبان", "VALIDATION", 400);
     }
 
-    // Lock key includes email so counters stay stable across module reloads
-    // and different client IP header shapes in reverse proxies.
     const emailKey = `${key}:${body.email.trim().toLowerCase()}`;
-    const lockRemainingForEmail = getLockRemainingMs(emailKey);
-    if (lockRemainingForEmail > 0) {
-      const mins = Math.ceil(lockRemainingForEmail / 60_000);
+    const lockRemaining = await getLockRemainingMs(emailKey);
+    if (lockRemaining > 0) {
+      const mins = Math.ceil(lockRemaining / 60_000);
       return jsonError(
         `تم قفل تسجيل الدخول مؤقتاً. حاول بعد ${mins} دقيقة.`,
         "RATE_LIMITED",
@@ -59,7 +47,7 @@ export async function POST(request: NextRequest) {
 
     const user = await verifyLogin(body.email, body.password);
     if (!user) {
-      const fail = recordAuthFailure(emailKey, LOGIN_MAX_FAILURES, LOGIN_LOCK_MS);
+      const fail = await recordAuthFailure(emailKey, LOGIN_MAX_FAILURES, LOGIN_LOCK_MS);
       if (fail.locked) {
         return jsonError(
           "تم تجاوز 10 محاولات فاشلة. الحساب مقفل لمدة 20 دقيقة.",
@@ -70,7 +58,7 @@ export async function POST(request: NextRequest) {
       return jsonError("بيانات الدخول غير صحيحة", "INVALID_CREDENTIALS", 401);
     }
 
-    clearAuthFailures(emailKey);
+    await clearAuthFailures(emailKey);
 
     const remember = body.rememberMe === true;
     const token = await createSessionToken(
