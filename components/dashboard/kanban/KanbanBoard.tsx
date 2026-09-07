@@ -11,30 +11,37 @@ import { IconButton } from "@/components/ui/icon-button";
 import FilterBar from "@/components/ui/filter-bar";
 import SlideOver from "@/components/ui/slide-over";
 import { IconRefresh } from "@/components/shared/icons";
+import StatusBadge from "@/components/shared/status-badge";
 
-type BoardTab = "board" | "archive";
+type BoardTab = "board" | "rejected" | "archive";
 
 const COLUMNS = [
   {
     id: "approved",
     status: "Approved_Pending_Assignment",
     title: "جديد",
-    headerClass: "border-secondary bg-[color-mix(in_srgb,var(--zaad-secondary)_18%,white)]",
-    dropTarget: false,
+    headerClass:
+      "border-secondary bg-[color-mix(in_srgb,var(--zaad-secondary)_18%,white)]",
   },
   {
     id: "in_progress",
     status: "In_Progress",
     title: "قيد التنفيذ",
-    headerClass: "border-primary bg-[color-mix(in_srgb,var(--zaad-primary)_10%,white)]",
-    dropTarget: false,
+    headerClass:
+      "border-primary bg-[color-mix(in_srgb,var(--zaad-primary)_10%,white)]",
+  },
+  {
+    id: "pending_review",
+    status: "Pending_Review",
+    title: "بانتظار المراجعة",
+    headerClass:
+      "border-[var(--zaad-warning,#c9a227)] bg-[color-mix(in_srgb,var(--zaad-secondary)_12%,white)]",
   },
   {
     id: "completed",
     status: "Completed",
     title: "مكتمل",
     headerClass: "border-[var(--zaad-success)] bg-[var(--zaad-success-bg)]",
-    dropTarget: true,
   },
 ] as const;
 
@@ -42,23 +49,26 @@ export default function KanbanBoard() {
   const [tab, setTab] = useState<BoardTab>("board");
   const [requests, setRequests] = useState<DashboardRequest[]>([]);
   const [archiveRequests, setArchiveRequests] = useState<DashboardRequest[]>([]);
+  const [rejectedRequests, setRejectedRequests] = useState<DashboardRequest[]>([]);
   const [employees, setEmployees] = useState<CommEmployee[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [draggingId, setDraggingId] = useState<string | null>(null);
-  const [dropHighlight, setDropHighlight] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [detailId, setDetailId] = useState<string | null>(null);
+  const [detailExtra, setDetailExtra] = useState<DashboardRequest | null>(null);
+  const [returnModalId, setReturnModalId] = useState<string | null>(null);
+  const [returnNote, setReturnNote] = useState("");
 
   const loadData = useCallback(async () => {
     setLoading(true);
     setError(null);
 
     try {
-      const [allRes, archiveRes, empRes] = await Promise.all([
+      const [allRes, archiveRes, rejectedRes, empRes] = await Promise.all([
         fetch("/api/manager/tickets?view=all"),
         fetch("/api/manager/tickets?view=archive"),
+        fetch("/api/manager/tickets?status=Rejected"),
         fetch("/api/manager/team"),
       ]);
 
@@ -68,6 +78,9 @@ export default function KanbanBoard() {
       const archivePayload = await parseApiResponse<{
         requests: DashboardRequest[];
       }>(archiveRes);
+      const rejectedPayload = await parseApiResponse<{
+        requests: DashboardRequest[];
+      }>(rejectedRes);
       const empPayload = await parseApiResponse<{ employees: CommEmployee[] }>(
         empRes,
       );
@@ -82,6 +95,9 @@ export default function KanbanBoard() {
       setRequests(allPayload.data.requests);
       setArchiveRequests(
         archivePayload.success ? archivePayload.data.requests : [],
+      );
+      setRejectedRequests(
+        rejectedPayload.success ? rejectedPayload.data.requests : [],
       );
       setEmployees(
         empPayload.data.employees.filter((e: CommEmployee) => e.role === "EMPLOYEE"),
@@ -110,35 +126,7 @@ export default function KanbanBoard() {
       if (!response.ok || !payload.success) {
         throw new Error(getApiErrorMessage(payload, "فشلت العملية"));
       }
-      const updated =
-        payload.data?.request ??
-        (payload.data?.id && payload.data?.status ? payload.data : null);
-      if (updated) {
-        setRequests((prev) => {
-          const next = prev.filter((r) => r.id !== updated.id);
-          if (
-            updated.status === "Approved_Pending_Assignment" ||
-            updated.status === "In_Progress" ||
-            updated.status === "Completed"
-          ) {
-            if (updated.status !== "Completed" || tab === "board") {
-              // keep completed on board until archived view refresh
-            }
-            next.push(updated);
-          }
-          return next;
-        });
-        setArchiveRequests((prev) => {
-          if (updated.status === "Archived" || updated.status === "Completed") {
-            const without = prev.filter((r) => r.id !== updated.id);
-            if (updated.status === "Archived") return [...without, updated];
-            return without;
-          }
-          return prev.filter((r) => r.id !== updated.id);
-        });
-      } else {
-        await loadData();
-      }
+      await loadData();
     } catch (actionError) {
       setError(
         actionError instanceof Error ? actionError.message : "فشلت العملية",
@@ -168,12 +156,10 @@ export default function KanbanBoard() {
     );
   }
 
-  function handleComplete(requestId: string) {
+  function handleApproveCompletion(requestId: string) {
     return runAction(() =>
-      fetch(`/api/manager/tickets/${requestId}/status`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "Completed" }),
+      fetch(`/api/manager/tickets/${requestId}/approve-completion`, {
+        method: "POST",
       }),
     );
   }
@@ -188,63 +174,82 @@ export default function KanbanBoard() {
     );
   }
 
-  function handleDropOnCompleted(requestId?: string | null) {
-    const id = requestId ?? draggingId;
-    if (!id) return;
-    const dragged = requests.find((r) => r.id === id);
-    if (!dragged || dragged.status !== "In_Progress") {
-      setError("يمكن سحب الطلبات قيد التنفيذ فقط إلى عمود مكتمل");
-      setDraggingId(null);
-      setDropHighlight(null);
+  function submitReturn() {
+    if (!returnModalId || !returnNote.trim()) {
+      setError("ملاحظة الإرجاع مطلوبة");
       return;
     }
-    setDraggingId(null);
-    setDropHighlight(null);
-    void handleComplete(id);
+    const id = returnModalId;
+    const note = returnNote.trim();
+    setReturnModalId(null);
+    setReturnNote("");
+    void runAction(() =>
+      fetch(`/api/manager/tickets/${id}/return`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reviewNote: note }),
+      }),
+    );
   }
 
-  function bindDropZoneHandlers(columnId: string, isDropTarget: boolean) {
-    return {
-      onDragOver: (e: React.DragEvent) => {
-        if (!isDropTarget) return;
-        e.preventDefault();
-        e.stopPropagation();
-        e.dataTransfer.dropEffect = "move";
-        setDropHighlight(columnId);
-      },
-      onDragLeave: (e: React.DragEvent) => {
-        if (!isDropTarget) return;
-        const next = e.relatedTarget as Node | null;
-        if (next && e.currentTarget.contains(next)) return;
-        setDropHighlight(null);
-      },
-      onDrop: (e: React.DragEvent) => {
-        if (!isDropTarget) return;
-        e.preventDefault();
-        e.stopPropagation();
-        const fromTransfer = e.dataTransfer.getData("text/plain");
-        handleDropOnCompleted(fromTransfer || draggingId);
-      },
-    };
+  async function openDetail(id: string) {
+    setDetailId(id);
+    setDetailExtra(null);
+    try {
+      const res = await fetch(`/api/manager/tickets?view=all`);
+      // Prefer dedicated detail when available — fall back to list row.
+      const fromList =
+        requests.find((r) => r.id === id) ??
+        rejectedRequests.find((r) => r.id === id) ??
+        archiveRequests.find((r) => r.id === id) ??
+        null;
+      setDetailExtra(fromList);
+      void res;
+    } catch {
+      setDetailExtra(requests.find((r) => r.id === id) ?? null);
+    }
   }
+
+  const matchesQuery = (r: DashboardRequest) =>
+    !query.trim() ||
+    r.title.includes(query.trim()) ||
+    r.contactEmail.includes(query.trim());
 
   const boardRequests = requests.filter(
     (r) =>
       (r.status === "Approved_Pending_Assignment" ||
         r.status === "In_Progress" ||
+        r.status === "Pending_Review" ||
         r.status === "Completed") &&
-      (!query.trim() ||
-        r.title.includes(query.trim()) ||
-        r.contactEmail.includes(query.trim())),
+      matchesQuery(r),
   );
 
-  const detailRequest = requests.find((r) => r.id === detailId) ?? null;
+  const detailRequest =
+    detailExtra ??
+    requests.find((r) => r.id === detailId) ??
+    rejectedRequests.find((r) => r.id === detailId) ??
+    null;
+
+  const notesTimeline: Array<{ label: string; text: string }> = [];
+  if (detailRequest?.rejectionReason) {
+    notesTimeline.push({ label: "سبب الرفض", text: detailRequest.rejectionReason });
+  }
+  if (detailRequest?.reviewNote) {
+    notesTimeline.push({ label: "ملاحظة الإرجاع", text: detailRequest.reviewNote });
+  }
+  if (detailRequest?.employeeNote) {
+    notesTimeline.push({
+      label: "ملاحظة الموظف",
+      text: detailRequest.employeeNote,
+    });
+  }
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-brand-gray">
-          من «قيد التنفيذ»: اسحب المقبض ⋮⋮ إلى «مكتمل»، أو زر «وضع علامة مكتمل». من «جديد»: الإسناد فقط.
+          بعد إعلان الموظف للانتهاء تظهر التذكرة في «بانتظار المراجعة» لاعتمادها أو
+          إرجاعها.
         </p>
         <IconButton
           label={loading ? "جاري التحديث..." : "تحديث اللوحة"}
@@ -264,6 +269,15 @@ export default function KanbanBoard() {
           onClick={() => setTab("board")}
         >
           اللوحة
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === "rejected"}
+          data-active={tab === "rejected" ? "true" : "false"}
+          onClick={() => setTab("rejected")}
+        >
+          مرفوضة ({rejectedRequests.length})
         </button>
         <button
           type="button"
@@ -304,7 +318,7 @@ export default function KanbanBoard() {
           <p className="text-sm text-brand-gray">جاري تحميل اللوحة...</p>
         </div>
       ) : tab === "board" ? (
-        <div className="grid gap-4 lg:grid-cols-3">
+        <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-4">
           {COLUMNS.map((column) => {
             const columnRequests = boardRequests.filter(
               (r) => r.status === column.status,
@@ -313,13 +327,8 @@ export default function KanbanBoard() {
             return (
               <section
                 key={column.id}
-                className={`flex min-h-[360px] flex-col rounded-xl border-2 border-surface-border bg-surface transition-colors ${
-                  dropHighlight === column.id
-                    ? "border-primary bg-[color-mix(in_srgb,var(--zaad-primary)_8%,transparent)]"
-                    : ""
-                }`}
+                className="flex min-h-[360px] flex-col rounded-xl border-2 border-surface-border bg-surface"
                 aria-label={`${column.title} — ${columnRequests.length} بطاقة`}
-                {...bindDropZoneHandlers(column.id, column.dropTarget)}
               >
                 <header
                   className={`flex items-center justify-between border-b-2 px-4 py-3 ${column.headerClass}`}
@@ -330,9 +339,11 @@ export default function KanbanBoard() {
                   </span>
                 </header>
 
-                <div className="flex-1 space-y-2 p-2" {...bindDropZoneHandlers(column.id, column.dropTarget)}>
+                <div className="flex-1 space-y-2 p-2">
                   {columnRequests.length === 0 ? (
-                    <p className="py-12 text-center text-xs text-brand-gray">لا توجد بطاقات</p>
+                    <p className="py-12 text-center text-xs text-brand-gray">
+                      لا توجد بطاقات
+                    </p>
                   ) : (
                     columnRequests.map((request) => (
                       <div key={request.id} className="space-y-1">
@@ -341,29 +352,18 @@ export default function KanbanBoard() {
                           employees={employees}
                           onAssign={handleAssign}
                           onReassign={handleReassign}
-                          onComplete={handleComplete}
-                          onArchive={handleArchive}
-                          onDragStart={setDraggingId}
-                          onDragEnd={() => {
-                            setDraggingId(null);
-                            setDropHighlight(null);
+                          onApproveCompletion={handleApproveCompletion}
+                          onReturn={(id) => {
+                            setReturnModalId(id);
+                            setReturnNote("");
                           }}
+                          onArchive={handleArchive}
                           busy={busy}
                         />
-                        {request.status === "In_Progress" && (
-                          <button
-                            type="button"
-                            className="btn-secondary w-full text-xs"
-                            disabled={busy}
-                            onClick={() => void handleComplete(request.id)}
-                          >
-                            نقل إلى مكتمل
-                          </button>
-                        )}
                         <button
                           type="button"
                           className="btn-secondary w-full text-xs"
-                          onClick={() => setDetailId(request.id)}
+                          onClick={() => void openDetail(request.id)}
                         >
                           التفاصيل
                         </button>
@@ -374,6 +374,34 @@ export default function KanbanBoard() {
               </section>
             );
           })}
+        </div>
+      ) : tab === "rejected" ? (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {rejectedRequests.filter(matchesQuery).length === 0 ? (
+            <p className="text-sm text-brand-gray">لا توجد طلبات مرفوضة.</p>
+          ) : (
+            rejectedRequests.filter(matchesQuery).map((request) => (
+              <div key={request.id} className="space-y-1">
+                <RequestCard
+                  request={request}
+                  employees={employees}
+                  onAssign={handleAssign}
+                  onReassign={handleReassign}
+                  onApproveCompletion={handleApproveCompletion}
+                  onReturn={() => undefined}
+                  onArchive={handleArchive}
+                  busy={busy}
+                />
+                <button
+                  type="button"
+                  className="btn-secondary w-full text-xs"
+                  onClick={() => void openDetail(request.id)}
+                >
+                  التفاصيل
+                </button>
+              </div>
+            ))
+          )}
         </div>
       ) : (
         <div className="card overflow-x-auto p-0">
@@ -391,9 +419,7 @@ export default function KanbanBoard() {
                 <tr key={request.id}>
                   <td className="font-semibold text-primary">{request.title}</td>
                   <td>
-                    <span className="badge-warning text-xs">
-                      {request.status === "Archived" ? "مؤرشف" : "مكتمل"}
-                    </span>
+                    <StatusBadge status={request.status} />
                   </td>
                   <td>{request.assignedEmployee?.name ?? "—"}</td>
                   <td className="text-xs font-semibold text-primary">
@@ -406,10 +432,51 @@ export default function KanbanBoard() {
         </div>
       )}
 
+      {returnModalId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="card w-full max-w-md space-y-3">
+            <h3 className="text-lg font-bold text-primary">إرجاع للموظف</h3>
+            <p className="text-sm text-brand-gray">
+              أدخل ملاحظة الإرجاع (مطلوبة) ليطّلع عليها الموظف.
+            </p>
+            <textarea
+              className="input-field min-h-[100px]"
+              value={returnNote}
+              onChange={(e) => setReturnNote(e.target.value)}
+              placeholder="مثال: يرجى إرفاق ملف الإثبات وتصحيح العنوان"
+              aria-label="ملاحظة الإرجاع"
+            />
+            <div className="flex gap-2">
+              <button
+                type="button"
+                className="btn-primary flex-1"
+                disabled={busy || !returnNote.trim()}
+                onClick={submitReturn}
+              >
+                تأكيد الإرجاع
+              </button>
+              <button
+                type="button"
+                className="btn-secondary flex-1"
+                onClick={() => {
+                  setReturnModalId(null);
+                  setReturnNote("");
+                }}
+              >
+                إلغاء
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <SlideOver
         open={Boolean(detailRequest)}
         title={detailRequest?.title ?? "تفاصيل الطلب"}
-        onClose={() => setDetailId(null)}
+        onClose={() => {
+          setDetailId(null);
+          setDetailExtra(null);
+        }}
       >
         {detailRequest && (
           <div className="zad-detail-card space-y-3">
@@ -417,7 +484,9 @@ export default function KanbanBoard() {
             <dl>
               <div>
                 <dt>الحالة</dt>
-                <dd>{detailRequest.status}</dd>
+                <dd>
+                  <StatusBadge status={detailRequest.status} />
+                </dd>
               </div>
               <div>
                 <dt>القسم</dt>
@@ -436,6 +505,23 @@ export default function KanbanBoard() {
                 <dd>{detailRequest.assignedEmployee?.name ?? "غير مسند"}</dd>
               </div>
             </dl>
+
+            {notesTimeline.length > 0 && (
+              <div className="space-y-2 border-t border-surface-border pt-3">
+                <h4 className="text-sm font-bold text-primary">خط زمني للملاحظات</h4>
+                <ul className="space-y-2">
+                  {notesTimeline.map((n) => (
+                    <li
+                      key={n.label}
+                      className="rounded-md bg-surface-muted p-2 text-xs text-brand-gray"
+                    >
+                      <span className="font-semibold text-primary">{n.label}: </span>
+                      {n.text}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         )}
       </SlideOver>

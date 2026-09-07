@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { EmployeeRole } from "../../generated/prisma/client";
-import { SESSION_COOKIE, verifySessionToken } from "./session";
+import {
+  SESSION_COOKIE,
+  verifySessionToken,
+  type SessionPayload,
+} from "./session";
+import { getRequestById } from "@/lib/request-service";
 
 export async function getRouteSession() {
   const cookieStore = await cookies();
@@ -61,4 +66,23 @@ export async function requireReceptionDeskSession() {
     return { error: forbidden("صلاحيات الاستقبال مطلوبة") };
   }
   return { session };
+}
+
+/**
+ * SECTION_MANAGER may only act on tickets in their section.
+ * DIRECTOR is unrestricted. Throws FORBIDDEN when out of scope.
+ */
+export async function assertManagerTicketAccess(
+  session: SessionPayload,
+  requestId: string,
+) {
+  const ticket = await getRequestById(requestId);
+  if (
+    session.role === EmployeeRole.SECTION_MANAGER &&
+    session.departmentId &&
+    ticket.departmentId !== session.departmentId
+  ) {
+    throw new Error("FORBIDDEN: هذا الطلب خارج نطاق قسمك");
+  }
+  return ticket;
 }

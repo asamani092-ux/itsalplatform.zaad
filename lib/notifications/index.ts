@@ -17,6 +17,7 @@ export async function notify(params: {
   channel: NotifyChannel;
   emailKind?: EmailTemplateKind;
   reference?: string;
+  note?: string;
 }): Promise<void> {
   try {
     if (params.channel === "inapp" || params.channel === "both") {
@@ -37,6 +38,7 @@ export async function notify(params: {
         title: params.title,
         link: params.link,
         reference: params.reference,
+        note: params.note,
       });
       await sendEmail({
         to: params.recipientEmail,
@@ -136,11 +138,14 @@ export async function notifySubmitter(params: {
   requestTitle: string;
   message: string;
   reference?: string;
+  emailKind?: EmailTemplateKind;
+  note?: string;
 }): Promise<void> {
   try {
-    const template = buildEmailTemplate("completed", {
+    const template = buildEmailTemplate(params.emailKind ?? "completed", {
       title: params.requestTitle,
       reference: params.reference,
+      note: params.note,
     });
     await sendEmail({
       to: params.contactEmail,

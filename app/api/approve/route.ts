@@ -1,6 +1,10 @@
 import { NextRequest } from "next/server";
 import { handleApiError, jsonError, jsonOk } from "@/lib/api-utils";
-import { approveRequest, getRequestByToken } from "@/lib/request-service";
+import {
+  approveRequest,
+  getRequestByToken,
+  rejectRequestByToken,
+} from "@/lib/request-service";
 
 export async function GET(request: NextRequest) {
   try {
@@ -21,6 +25,7 @@ export async function GET(request: NextRequest) {
       status: existing.status,
       approvedAt: existing.approvedAt,
       approvalTokenExpiresAt: existing.approvalTokenExpiresAt,
+      rejectionReason: existing.rejectionReason,
       department: existing.department,
       requestType: existing.requestType,
       visitDate: existing.visitDate,
@@ -32,12 +37,28 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const token =
-      request.nextUrl.searchParams.get("token") ??
-      ((await request.json().catch(() => ({}))) as { token?: string }).token;
+    const tokenFromQuery = request.nextUrl.searchParams.get("token");
+    const body = (await request.json().catch(() => ({}))) as {
+      token?: string;
+      action?: "approve" | "reject";
+      reason?: string;
+    };
+    const token = tokenFromQuery ?? body.token;
 
     if (!token) {
       return jsonError("رمز الموافقة مطلوب", "MISSING_TOKEN", 400);
+    }
+
+    if (body.action === "reject") {
+      if (!body.reason?.trim()) {
+        return jsonError("سبب الرفض مطلوب", "VALIDATION", 400);
+      }
+      const updated = await rejectRequestByToken(token, body.reason);
+      return jsonOk({
+        id: updated.id,
+        status: updated.status,
+        message: "تم رفض الطلب",
+      });
     }
 
     const updated = await approveRequest(token);

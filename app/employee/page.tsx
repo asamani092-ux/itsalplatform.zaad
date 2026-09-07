@@ -6,6 +6,7 @@ import EmptyState from "@/components/shared/empty-state";
 import Skeleton from "@/components/ui/skeleton";
 import { getApiErrorMessage, parseApiResponse } from "@/components/lib/api-types";
 import SlaDisplay from "@/components/shared/sla-display";
+import StatusBadge from "@/components/shared/status-badge";
 import type { SlaMetrics } from "@/lib/sla";
 
 interface Ticket {
@@ -77,7 +78,7 @@ export default function EmployeeTicketsPage() {
           >
             <div className="flex items-start justify-between gap-2">
               <h2 className="font-bold text-primary">{ticket.title}</h2>
-              <span className="badge-primary text-[10px]">قيد التنفيذ</span>
+              <StatusBadge status={ticket.status} />
             </div>
             <p className="text-xs text-brand-gray">
               {ticket.department?.name} — {ticket.requestType?.name}

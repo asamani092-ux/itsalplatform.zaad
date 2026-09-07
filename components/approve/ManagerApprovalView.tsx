@@ -5,7 +5,6 @@ import Link from "next/link";
 import { getApiErrorMessage, parseApiResponse } from "@/components/lib/api-types";
 import { fetchWithTimeout } from "@/lib/client/fetch-with-timeout";
 import BrandLogo from "@/components/shared/brand-logo";
-import ConfirmDialog from "@/components/ui/confirm-dialog";
 import Skeleton from "@/components/ui/skeleton";
 
 interface TokenSummary {
@@ -34,6 +33,7 @@ interface RequestDetails {
   managerEmail: string;
   status: string;
   approvedAt: string | null;
+  rejectionReason?: string | null;
   department?: { name: string };
   requestType?: { name: string };
   visitDate: string | null;
@@ -53,6 +53,9 @@ const STATUS_LABELS: Record<string, string> = {
   Pending_Manager: "بانتظار موافقتك",
   Approved_Pending_Assignment: "معتمد — بانتظار الإسناد",
   In_Progress: "قيد التنفيذ",
+  Pending_Review: "بانتظار المراجعة",
+  Returned: "مُعادة للموظف",
+  Rejected: "مرفوضة",
   Completed: "مكتمل",
   Archived: "مؤرشف",
 };
@@ -79,6 +82,7 @@ export default function ManagerApprovalView({
     null,
   );
   const [showRejectConfirm, setShowRejectConfirm] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
 
   const loadRequest = useCallback(async (approvalToken: string) => {
     setViewState("loading");
@@ -156,11 +160,51 @@ export default function ManagerApprovalView({
     }
   }
 
-  function handleRejectConfirm() {
+  async function handleRejectConfirm() {
+    if (!token || !rejectReason.trim()) {
+      setErrorMessage("سبب الرفض مطلوب");
+      return;
+    }
     setActionLoading("reject");
-    setShowRejectConfirm(false);
-    setViewState("rejected_info");
-    setActionLoading(null);
+    setErrorMessage("");
+
+    try {
+      const response = await fetch(
+        `/api/approve?token=${encodeURIComponent(token)}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "reject",
+            reason: rejectReason.trim(),
+          }),
+        },
+      );
+      const payload = await parseApiResponse<{ message: string; status: string }>(
+        response,
+      );
+
+      if (!response.ok || !payload.success) {
+        if (!payload.success && payload.error.code === "TOKEN_EXPIRED") {
+          setViewState("expired");
+          return;
+        }
+        setErrorMessage(getApiErrorMessage(payload, "تعذّر رفض الطلب"));
+        return;
+      }
+
+      setDetails((prev) =>
+        prev
+          ? { ...prev, status: "Rejected", rejectionReason: rejectReason.trim() }
+          : prev,
+      );
+      setShowRejectConfirm(false);
+      setViewState("rejected_info");
+    } catch {
+      setErrorMessage("حدث خطأ أثناء الرفض.");
+    } finally {
+      setActionLoading(null);
+    }
   }
 
   return (
@@ -316,13 +360,12 @@ export default function ManagerApprovalView({
               {viewState === "rejected_info" && (
                 <div className="card-section space-y-2 text-sm text-brand-gray">
                   <p className="font-semibold text-[var(--zaad-danger)]">
-                    لم تتم الموافقة على الطلب.
+                    تم رفض الطلب وتسجيل السبب في النظام.
                   </p>
-                  <p>
-                    لا يُسجّل الرفض آلياً في النظام حالياً. يُرجى إبلاغ{" "}
-                    <span dir="ltr">{details.contactEmail}</span> أو{" "}
-                    <span dir="ltr">{details.contactPhone}</span> مباشرةً بقرارك.
-                  </p>
+                  {details.rejectionReason && (
+                    <p>السبب: {details.rejectionReason}</p>
+                  )}
+                  <p>أُخطر مقدّم الطلب بالبريد.</p>
                 </div>
               )}
 
@@ -346,15 +389,41 @@ export default function ManagerApprovalView({
                 </div>
               )}
 
-              <ConfirmDialog
-                open={showRejectConfirm && viewState === "ready"}
-                title="تأكيد الرفض"
-                body="لن يُرسل الطلب لقسم الاتصال. هل تريد المتابعة؟"
-                confirmLabel="نعم، رفض"
-                destructive
-                onConfirm={handleRejectConfirm}
-                onCancel={() => setShowRejectConfirm(false)}
-              />
+              {showRejectConfirm && viewState === "ready" && (
+                <div className="card space-y-3 border border-[var(--zaad-danger)]">
+                  <h3 className="font-bold text-[var(--zaad-danger)]">تأكيد الرفض</h3>
+                  <p className="text-sm text-brand-gray">
+                    لن يُرسل الطلب لقسم الاتصال. أدخل سبب الرفض (مطلوب).
+                  </p>
+                  <textarea
+                    className="input-field min-h-[90px]"
+                    value={rejectReason}
+                    onChange={(e) => setRejectReason(e.target.value)}
+                    placeholder="سبب الرفض..."
+                    aria-label="سبب الرفض"
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      className="btn-primary flex-1 bg-[var(--zaad-danger)]"
+                      disabled={actionLoading !== null || !rejectReason.trim()}
+                      onClick={() => void handleRejectConfirm()}
+                    >
+                      {actionLoading === "reject" ? "جاري الرفض..." : "تأكيد الرفض"}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-secondary flex-1"
+                      onClick={() => {
+                        setShowRejectConfirm(false);
+                        setRejectReason("");
+                      }}
+                    >
+                      إلغاء
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
