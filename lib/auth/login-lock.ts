@@ -1,11 +1,10 @@
 /**
  * Persistent login failure lockouts (10 fails → 20 minutes).
- * Uses raw SQL for both read and write — Prisma Json upsert was not
- * persisting settings updates under the pg adapter in this runtime.
+ * Uses a dedicated pg Pool so counters commit outside Prisma request txns.
  */
 import "server-only";
 
-import { prisma } from "@/lib/prisma";
+import { Pool } from "pg";
 
 const AUTH_LOCKS_KEY = "auth-locks";
 
@@ -16,12 +15,26 @@ interface LockEntry {
 
 type LockMap = Record<string, LockEntry>;
 
+const globalStore = globalThis as typeof globalThis & {
+  __zaadAuthLockPool?: Pool;
+};
+
+function getPool(): Pool {
+  if (!globalStore.__zaadAuthLockPool) {
+    globalStore.__zaadAuthLockPool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      max: 2,
+    });
+  }
+  return globalStore.__zaadAuthLockPool;
+}
+
 async function readLocks(): Promise<LockMap> {
-  const rows = await prisma.$queryRawUnsafe<Array<{ settings: unknown }>>(
+  const result = await getPool().query<{ settings: unknown }>(
     `SELECT settings FROM "PlatformModule" WHERE key = $1 LIMIT 1`,
-    AUTH_LOCKS_KEY,
+    [AUTH_LOCKS_KEY],
   );
-  let raw: unknown = rows[0]?.settings;
+  let raw: unknown = result.rows[0]?.settings;
   if (typeof raw === "string") {
     try {
       raw = JSON.parse(raw);
@@ -35,7 +48,7 @@ async function readLocks(): Promise<LockMap> {
 
 async function writeLocks(locks: LockMap): Promise<void> {
   const payload = JSON.stringify(locks);
-  await prisma.$executeRawUnsafe(
+  await getPool().query(
     `
     INSERT INTO "PlatformModule" (id, key, "isEnabled", "sortOrder", settings, "createdAt", "updatedAt")
     VALUES ($1, $2, true, 999, $3::jsonb, NOW(), NOW())
@@ -43,9 +56,7 @@ async function writeLocks(locks: LockMap): Promise<void> {
       settings = EXCLUDED.settings,
       "updatedAt" = NOW()
     `,
-    `pm_${AUTH_LOCKS_KEY}`,
-    AUTH_LOCKS_KEY,
-    payload,
+    [`pm_${AUTH_LOCKS_KEY}`, AUTH_LOCKS_KEY, payload],
   );
 }
 
@@ -66,12 +77,7 @@ export async function recordAuthFailure(
   key: string,
   maxFailures: number,
   lockMs: number,
-): Promise<{
-  locked: boolean;
-  retryAfterMs?: number;
-  failures: number;
-  verifiedFailures?: number;
-}> {
+): Promise<{ locked: boolean; retryAfterMs?: number; failures: number }> {
   const now = Date.now();
   const locks = await readLocks();
   const existing = locks[key];
@@ -95,12 +101,7 @@ export async function recordAuthFailure(
   }
   locks[key] = { failures, lockedUntil: 0 };
   await writeLocks(locks);
-  const verified = await readLocks();
-  return {
-    locked: false,
-    failures,
-    verifiedFailures: verified[key]?.failures ?? -1,
-  };
+  return { locked: false, failures };
 }
 
 export async function clearAuthFailures(key: string): Promise<void> {
