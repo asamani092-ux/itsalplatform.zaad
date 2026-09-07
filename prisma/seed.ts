@@ -4,6 +4,7 @@ import {
   EmployeeRole,
   RequestStatus,
   type Department,
+  type RequestType,
 } from "../generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
@@ -223,7 +224,9 @@ async function main() {
   });
 
   const types = await prisma.requestType.findMany();
-  const typeBySlug = Object.fromEntries(types.map((t) => [t.slug, t]));
+  const typeBySlug: Record<string, RequestType> = Object.fromEntries(
+    types.map((t: RequestType) => [t.slug, t]),
+  );
 
   const commSection = await prisma.department.findUnique({
     where: { slug: "communications" },

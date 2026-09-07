@@ -466,7 +466,7 @@ export async function createAttendanceEvent(params: {
 }) {
   const title = params.title.trim();
   if (!title) throw new Error("VALIDATION: عنوان القائمة مطلوب");
-  const names = params.names.map((n) => n.trim()).filter(Boolean);
+  const names = params.names.map((n: string) => n.trim()).filter(Boolean);
   if (names.length === 0) throw new Error("VALIDATION: أضف اسماً واحداً على الأقل");
 
   return prisma.attendanceEvent.create({
@@ -501,7 +501,7 @@ export async function addAttendeesBulk(params: {
   eventId: string;
   names: string[];
 }) {
-  const names = params.names.map((n) => n.trim()).filter(Boolean);
+  const names = params.names.map((n: string) => n.trim()).filter(Boolean);
   if (names.length === 0) throw new Error("VALIDATION: لا توجد أسماء للإضافة");
   await prisma.attendanceAttendee.createMany({
     data: names.map((name) => ({ eventId: params.eventId, name })),
