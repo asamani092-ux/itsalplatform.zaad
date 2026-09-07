@@ -55,7 +55,11 @@ export async function POST(request: NextRequest) {
           429,
         );
       }
-      return jsonError("بيانات الدخول غير صحيحة", "INVALID_CREDENTIALS", 401);
+      return jsonError(
+        `بيانات الدخول غير صحيحة (#${fail.failures}/v=${(fail as { verifiedFailures?: number }).verifiedFailures ?? "?"})`,
+        "INVALID_CREDENTIALS",
+        401,
+      );
     }
 
     await clearAuthFailures(emailKey);

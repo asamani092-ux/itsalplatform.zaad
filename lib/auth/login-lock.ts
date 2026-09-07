@@ -66,7 +66,12 @@ export async function recordAuthFailure(
   key: string,
   maxFailures: number,
   lockMs: number,
-): Promise<{ locked: boolean; retryAfterMs?: number; failures: number }> {
+): Promise<{
+  locked: boolean;
+  retryAfterMs?: number;
+  failures: number;
+  verifiedFailures?: number;
+}> {
   const now = Date.now();
   const locks = await readLocks();
   const existing = locks[key];
@@ -81,7 +86,8 @@ export async function recordAuthFailure(
   const expiredLock = Boolean(
     existing && existing.lockedUntil > 0 && existing.lockedUntil <= now,
   );
-  const failures = (expiredLock ? 0 : existing?.failures ?? 0) + 1;
+  const prior = Number(existing?.failures ?? 0);
+  const failures = (expiredLock ? 0 : Number.isFinite(prior) ? prior : 0) + 1;
   if (failures >= maxFailures) {
     locks[key] = { failures: 0, lockedUntil: now + lockMs };
     await writeLocks(locks);
@@ -89,7 +95,12 @@ export async function recordAuthFailure(
   }
   locks[key] = { failures, lockedUntil: 0 };
   await writeLocks(locks);
-  return { locked: false, failures };
+  const verified = await readLocks();
+  return {
+    locked: false,
+    failures,
+    verifiedFailures: verified[key]?.failures ?? -1,
+  };
 }
 
 export async function clearAuthFailures(key: string): Promise<void> {
