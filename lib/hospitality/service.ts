@@ -24,6 +24,10 @@ export interface BookingInput {
   attendeesCount: number;
   notes: string;
   cateringRequests?: string;
+  /** Contact name shown on the underlying communication request (defaults to requesterName). */
+  contactName?: string;
+  /** Requester's administration — used to notify their line manager. */
+  requesterAdministrationId?: string | null;
 }
 
 export async function findBookingConflict(input: {
@@ -93,8 +97,9 @@ export async function createBookingWithRequest(input: BookingInput) {
     visitDate.setHours(hours, minutes, 0, 0);
   }
 
-  const { request } = await submitRequest({
+  const { request, approvalUrl } = await submitRequest({
     title: `حجز قاعة: ${input.roomName}`,
+    contactName: input.contactName?.trim() || input.requesterName,
     description:
       `${input.notes || "حجز قاعة"}\n` +
       `القاعة: ${input.roomName}\n` +
@@ -108,6 +113,7 @@ export async function createBookingWithRequest(input: BookingInput) {
     contactPhone: input.requesterPhone || "0500000000",
     departmentId: requestType.departmentId,
     requestTypeId: requestType.id,
+    requesterAdministrationId: input.requesterAdministrationId ?? null,
     visitDate,
   });
 
@@ -127,5 +133,5 @@ export async function createBookingWithRequest(input: BookingInput) {
     },
   });
 
-  return { booking, requestId: request.id };
+  return { booking, requestId: request.id, request, approvalUrl };
 }

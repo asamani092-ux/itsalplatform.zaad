@@ -54,6 +54,7 @@ export async function createEmployee(params: {
   password: string;
   role?: EmployeeRole;
   departmentId?: string | null;
+  isReceptionDesk?: boolean;
 }) {
   const passwordHash = await hashPassword(params.password);
   const phone = params.phoneNumber?.trim() || null;
@@ -66,6 +67,7 @@ export async function createEmployee(params: {
       passwordHash,
       role: params.role ?? EmployeeRole.EMPLOYEE,
       departmentId,
+      isReceptionDesk: params.isReceptionDesk === true,
     },
     select: {
       id: true,
@@ -74,6 +76,7 @@ export async function createEmployee(params: {
       phoneNumber: true,
       role: true,
       isActive: true,
+      isReceptionDesk: true,
       departmentId: true,
       department: { select: { id: true, name: true } },
       createdAt: true,
@@ -91,6 +94,7 @@ export async function updateEmployee(
     role?: EmployeeRole;
     isActive?: boolean;
     departmentId?: string | null;
+    isReceptionDesk?: boolean;
   },
 ) {
   const data: {
@@ -101,6 +105,7 @@ export async function updateEmployee(
     role?: EmployeeRole;
     isActive?: boolean;
     departmentId?: string | null;
+    isReceptionDesk?: boolean;
   } = {};
 
   if (params.name !== undefined) data.name = params.name.trim();
@@ -112,6 +117,9 @@ export async function updateEmployee(
   if (params.isActive !== undefined) data.isActive = params.isActive;
   if (params.departmentId !== undefined) {
     data.departmentId = params.departmentId?.trim() || null;
+  }
+  if (params.isReceptionDesk !== undefined) {
+    data.isReceptionDesk = params.isReceptionDesk;
   }
   if (params.password) data.passwordHash = await hashPassword(params.password);
 
@@ -125,6 +133,7 @@ export async function updateEmployee(
       phoneNumber: true,
       role: true,
       isActive: true,
+      isReceptionDesk: true,
       departmentId: true,
       department: { select: { id: true, name: true } },
       updatedAt: true,

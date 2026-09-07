@@ -36,7 +36,14 @@ export interface DashboardRequest {
   employeeNote?: string | null;
   assignedEmployee: AssignedEmployee | null;
   department?: { name: string };
-  requestType?: { name: string };
+  requestType?: { name: string; slug?: string };
+  hospitalityBooking?: {
+    roomName: string;
+    meetingDate: string;
+    startTime: string;
+    endTime: string;
+    attendeesCount?: number;
+  } | null;
   sla: SlaMetrics;
   statusHistory?: Array<{
     id: string;
@@ -104,6 +111,14 @@ export default function RequestCard({
         <p className="text-[10px] text-brand-gray">
           {request.department.name}
           {request.requestType ? ` — ${request.requestType.name}` : ""}
+        </p>
+      )}
+
+      {request.hospitalityBooking && (
+        <p className="rounded-md bg-surface-muted px-2 py-1 text-[11px] text-primary">
+          {request.hospitalityBooking.roomName}
+          {" · "}
+          {request.hospitalityBooking.startTime}–{request.hospitalityBooking.endTime}
         </p>
       )}
 

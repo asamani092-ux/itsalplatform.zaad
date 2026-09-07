@@ -24,7 +24,10 @@ export interface SessionPayload {
 
 assertSessionSecret();
 
-export async function createSessionToken(payload: SessionPayload): Promise<string> {
+export async function createSessionToken(
+  payload: SessionPayload,
+  remember = false,
+): Promise<string> {
   return new SignJWT({
     name: payload.name,
     email: payload.email,
@@ -36,7 +39,7 @@ export async function createSessionToken(payload: SessionPayload): Promise<strin
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(payload.sub)
     .setIssuedAt()
-    .setExpirationTime("7d")
+    .setExpirationTime(remember ? "365d" : "1d")
     .sign(getSessionSecretKey());
 }
 
@@ -70,7 +73,8 @@ export async function getSession(): Promise<SessionPayload | null> {
 }
 
 const SESSION_MAX_AGE = 60 * 60 * 24;
-const REMEMBERED_MAX_AGE = 60 * 60 * 24 * 30;
+/** Remember-me: long-lived cookie until explicit logout. */
+const REMEMBERED_MAX_AGE = 60 * 60 * 24 * 365;
 
 export async function setSessionCookie(token: string, remember = false) {
   const cookieStore = await cookies();

@@ -179,7 +179,7 @@ export default function DashboardKpiPage() {
             <KpiCard
               label="نسبة الإكمال"
               value={`${Math.round(kpis.completionRate * 100)}%`}
-              hint={`${kpis.completed} مكتمل`}
+              hint={`مكتمل ÷ الإجمالي (${kpis.completed})`}
               tone={kpis.completionRate >= 0.5 ? "good" : "warn"}
             />
             <KpiCard
@@ -212,7 +212,7 @@ export default function DashboardKpiPage() {
             <KpiCard
               label="متوسط دورة الحياة"
               value={formatDurationMs(kpis.avgLifecycleMs)}
-              hint={`إسناد: ${formatDurationMs(kpis.avgAssignmentMs)}`}
+              hint={`من الإنشاء حتى الإكمال · إسناد: ${formatDurationMs(kpis.avgAssignmentMs)}`}
             />
             <KpiCard
               label="حجوزات قادمة (30 يوم)"
@@ -238,7 +238,7 @@ export default function DashboardKpiPage() {
           <div className="card space-y-3">
             <Progress
               value={Math.round(kpis.completionRate * 100)}
-              label="نسبة إنجاز الطلبات"
+              label="شريط تقدم نسبة الإكمال (نفس مؤشر البطاقة)"
             />
           </div>
 

@@ -36,14 +36,26 @@ function resetEmailHtml(name: string, url: string): string {
 }
 
 /**
- * Always resolves successfully so the endpoint cannot be used to discover
- * which emails exist.
+ * Returns whether an active account exists for the given email.
+ */
+export async function accountExistsForReset(email: string): Promise<boolean> {
+  const employee = await prisma.commEmployee.findUnique({
+    where: { email: email.trim().toLowerCase() },
+    select: { id: true, isActive: true },
+  });
+  return Boolean(employee?.isActive);
+}
+
+/**
+ * Sends a reset email when the account exists and is active.
  */
 export async function requestPasswordReset(email: string): Promise<void> {
   const employee = await prisma.commEmployee.findUnique({
     where: { email: email.trim().toLowerCase() },
   });
-  if (!employee || !employee.isActive) return;
+  if (!employee || !employee.isActive) {
+    throw new Error("NOT_FOUND: الحساب غير مسجل");
+  }
 
   const token = randomBytes(32).toString("base64url");
   await prisma.passwordResetToken.create({

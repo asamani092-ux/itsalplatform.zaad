@@ -2,6 +2,8 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { handleApiError, jsonError, jsonOk } from "@/lib/api-utils";
 import { checkRateLimit, rateLimitKey } from "@/lib/rate-limit";
+import { getHospitalitySettings } from "@/lib/app-settings";
+import { computeAvailableSlots } from "@/lib/hospitality/availability";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -14,6 +16,7 @@ export async function GET(request: NextRequest) {
 
     const room = request.nextUrl.searchParams.get("room")?.trim() ?? "";
     const date = request.nextUrl.searchParams.get("date")?.trim() ?? "";
+    const durationHoursParam = request.nextUrl.searchParams.get("durationHours");
 
     if (!room) {
       return jsonError("اسم القاعة مطلوب", "VALIDATION", 400);
@@ -28,18 +31,21 @@ export async function GET(request: NextRequest) {
       return jsonError("تاريخ غير صالح", "VALIDATION", 400);
     }
 
-    const bookings = await prisma.hospitalityBooking.findMany({
-      where: {
-        roomName: room,
-        meetingDate: { gte: dayStart, lte: dayEnd },
-      },
-      select: {
-        startTime: true,
-        endTime: true,
-        requesterName: true,
-      },
-      orderBy: { startTime: "asc" },
-    });
+    const [bookings, hospitalitySettings] = await Promise.all([
+      prisma.hospitalityBooking.findMany({
+        where: {
+          roomName: room,
+          meetingDate: { gte: dayStart, lte: dayEnd },
+        },
+        select: {
+          startTime: true,
+          endTime: true,
+          requesterName: true,
+        },
+        orderBy: { startTime: "asc" },
+      }),
+      getHospitalitySettings(),
+    ]);
 
     const slots = bookings.map((b: {
       startTime: string;
@@ -51,7 +57,26 @@ export async function GET(request: NextRequest) {
       requesterName: b.requesterName || undefined,
     }));
 
-    return jsonOk({ slots });
+    let availableSlots: { startTime: string; endTime: string }[] | undefined;
+    if (durationHoursParam !== null) {
+      const durationHours = Number(durationHoursParam);
+      if (!Number.isFinite(durationHours) || durationHours < 1 || durationHours > 5) {
+        return jsonError("مدة الحجز يجب أن تكون بين 1 و5 ساعات", "VALIDATION", 400);
+      }
+      availableSlots = computeAvailableSlots({
+        dayStart: hospitalitySettings.dayStart,
+        dayEnd: hospitalitySettings.dayEnd,
+        durationHours,
+        booked: slots.map((s) => ({ start: s.startTime, end: s.endTime })),
+      });
+    }
+
+    return jsonOk({
+      slots,
+      dayStart: hospitalitySettings.dayStart,
+      dayEnd: hospitalitySettings.dayEnd,
+      ...(availableSlots ? { availableSlots } : {}),
+    });
   } catch (error) {
     return handleApiError(error);
   }

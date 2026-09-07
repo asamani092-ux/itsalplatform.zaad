@@ -499,12 +499,25 @@ export default function KanbanBoard() {
               <div>
                 <dt>مقدّم الطلب</dt>
                 <dd>
-                  {(detailRequest as { contactName?: string }).contactName
-                    ? `${(detailRequest as { contactName?: string }).contactName} — `
-                    : ""}
+                  {detailRequest.contactName ? `${detailRequest.contactName} — ` : ""}
                   <span dir="ltr">{detailRequest.contactEmail}</span>
                 </dd>
               </div>
+              {detailRequest.hospitalityBooking && (
+                <>
+                  <div>
+                    <dt>القاعة</dt>
+                    <dd>{detailRequest.hospitalityBooking.roomName}</dd>
+                  </div>
+                  <div>
+                    <dt>وقت الحجز</dt>
+                    <dd dir="ltr">
+                      {detailRequest.hospitalityBooking.startTime} —{" "}
+                      {detailRequest.hospitalityBooking.endTime}
+                    </dd>
+                  </div>
+                </>
+              )}
               <div>
                 <dt>المسند إليه</dt>
                 <dd>{detailRequest.assignedEmployee?.name ?? "غير مسند"}</dd>

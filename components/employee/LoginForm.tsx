@@ -27,6 +27,7 @@ export default function LoginForm({
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -94,15 +95,26 @@ export default function LoginForm({
           placeholder="name@zaad.org"
           required
         />
-        <Input
-          id="password"
-          label="كلمة المرور"
-          type="password"
-          autoComplete="current-password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-        />
+        <div className="space-y-1">
+          <Input
+            id="password"
+            label="كلمة المرور"
+            type={showPassword ? "text" : "password"}
+            autoComplete="current-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+          />
+          <label className="inline-flex cursor-pointer items-center gap-2 text-xs text-brand-gray">
+            <input
+              type="checkbox"
+              className="h-3.5 w-3.5 accent-[var(--zaad-primary)]"
+              checked={showPassword}
+              onChange={(e) => setShowPassword(e.target.checked)}
+            />
+            إظهار كلمة المرور
+          </label>
+        </div>
 
         <div className="flex flex-wrap items-center justify-between gap-2">
           <label
@@ -116,7 +128,7 @@ export default function LoginForm({
               checked={rememberMe}
               onChange={(e) => setRememberMe(e.target.checked)}
             />
-            تذكرني
+            تذكرني (حتى تسجيل الخروج)
           </label>
           <Link href="/forgot-password" className="zad-touch inline-flex items-center text-sm text-primary underline">
             نسيت كلمة المرور؟

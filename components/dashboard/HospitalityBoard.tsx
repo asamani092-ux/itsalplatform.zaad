@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getApiErrorMessage, parseApiResponse } from "@/components/lib/api-types";
 import { timesOverlap } from "@/lib/hospitality/conflict";
+import { minutesToTime, timeToMinutes } from "@/lib/hospitality/availability";
 import { IconButton } from "@/components/ui/icon-button";
 import { IconChevron, IconPlus, IconX } from "@/components/shared/icons";
 import EmptyState from "@/components/shared/empty-state";
@@ -158,6 +159,7 @@ export default function HospitalityBoard() {
     attendeesCount: 2,
     cateringRequests: "",
   });
+  const [durationHelper, setDurationHelper] = useState<number | "">("");
 
   const calendarDays = useMemo(() => buildMonthGrid(viewMonth), [viewMonth]);
 
@@ -439,14 +441,18 @@ export default function HospitalityBoard() {
                       }`}
                     >
                       <div className="flex items-start justify-between gap-2">
-                        <h3 className="font-bold text-primary">{booking.roomName}</h3>
+                        <h3 className="text-base font-bold text-primary">{booking.roomName}</h3>
                         {conflict ? (
                           <span className="badge-danger">تعارض</span>
                         ) : (
                           <span className="badge-success">مؤكد</span>
                         )}
                       </div>
-                      <p className="text-sm font-semibold text-brand-gray" dir="ltr">
+                      <p
+                        className="text-sm font-bold text-primary"
+                        dir="ltr"
+                      >
+                        {dualDateFmt.format(new Date(booking.meetingDate)).split("،")[0]} ·{" "}
                         {booking.startTime} — {booking.endTime}
                       </p>
                       <p className="text-sm text-brand-gray">
@@ -459,16 +465,16 @@ export default function HospitalityBoard() {
                         الحضور: {booking.attendeesCount}
                       </p>
                       {booking.request && (
-                        <p className="text-xs">
+                        <div className="flex flex-wrap items-center gap-2 text-xs">
                           <span className="badge-primary">
                             {STATUS_LABELS[booking.request.status] ?? booking.request.status}
                           </span>
-                          {booking.request.assignedEmployee && (
-                            <span className="ms-2 text-brand-gray">
-                              المسؤول: {booking.request.assignedEmployee.name}
-                            </span>
-                          )}
-                        </p>
+                          <span className="font-bold text-primary">
+                            {booking.request.assignedEmployee
+                              ? `الموظف المسؤول: ${booking.request.assignedEmployee.name}`
+                              : "بدون موظف مسؤول بعد"}
+                          </span>
+                        </div>
                       )}
                       {conflict && (
                         <p className="text-xs font-semibold text-[var(--zaad-danger)]">
@@ -567,9 +573,47 @@ export default function HospitalityBoard() {
                   className="input-field w-full"
                   dir="ltr"
                   value={form.startTime}
-                  onChange={(e) => setForm({ ...form, startTime: e.target.value })}
+                  onChange={(e) => {
+                    const startTime = e.target.value;
+                    setForm((prev) => {
+                      if (!durationHelper) return { ...prev, startTime };
+                      const endMinutes =
+                        timeToMinutes(startTime) + Number(durationHelper) * 60;
+                      return { ...prev, startTime, endTime: minutesToTime(endMinutes) };
+                    });
+                  }}
                   required
                 />
+              </div>
+              <div className="space-y-1">
+                <label className="label-field" htmlFor="durationHelper">
+                  المدة (اختياري)
+                </label>
+                <select
+                  id="durationHelper"
+                  className="input-field w-full"
+                  dir="ltr"
+                  value={durationHelper}
+                  onChange={(e) => {
+                    const value = e.target.value ? Number(e.target.value) : "";
+                    setDurationHelper(value);
+                    if (value) {
+                      setForm((prev) => ({
+                        ...prev,
+                        endTime: minutesToTime(
+                          timeToMinutes(prev.startTime) + Number(value) * 60,
+                        ),
+                      }));
+                    }
+                  }}
+                >
+                  <option value="">تحديد يدوي</option>
+                  {[1, 2, 3, 4, 5].map((h) => (
+                    <option key={h} value={h}>
+                      {h} {h === 1 ? "ساعة" : "ساعات"}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div className="space-y-1">
                 <label className="label-field" htmlFor="endTime">
@@ -581,7 +625,10 @@ export default function HospitalityBoard() {
                   className="input-field w-full"
                   dir="ltr"
                   value={form.endTime}
-                  onChange={(e) => setForm({ ...form, endTime: e.target.value })}
+                  onChange={(e) => {
+                    setDurationHelper("");
+                    setForm({ ...form, endTime: e.target.value });
+                  }}
                   required
                 />
               </div>
