@@ -11,11 +11,18 @@ interface Administration {
   name: string;
   slug: string;
   managerEmail: string;
+  managerName: string;
   kind: "INTERNAL" | "EXTERNAL";
   isActive: boolean;
 }
 
-const EMPTY = { name: "", slug: "", managerEmail: "", kind: "EXTERNAL" as const };
+const EMPTY = {
+  name: "",
+  slug: "",
+  managerEmail: "",
+  managerName: "",
+  kind: "EXTERNAL" as const,
+};
 
 export default function AdministrationsManager() {
   const [items, setItems] = useState<Administration[]>([]);
@@ -26,6 +33,7 @@ export default function AdministrationsManager() {
     name: string;
     slug: string;
     managerEmail: string;
+    managerName: string;
     kind: "INTERNAL" | "EXTERNAL";
   }>(EMPTY);
   const [saving, setSaving] = useState(false);
@@ -128,7 +136,7 @@ export default function AdministrationsManager() {
         </p>
       )}
 
-      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-6">
         <input
           className="input-field"
           placeholder="اسم الإدارة"
@@ -141,6 +149,12 @@ export default function AdministrationsManager() {
           placeholder="المعرّف (slug)"
           value={form.slug}
           onChange={(e) => setForm({ ...form, slug: e.target.value })}
+        />
+        <input
+          className="input-field"
+          placeholder="اسم المدير"
+          value={form.managerName}
+          onChange={(e) => setForm({ ...form, managerName: e.target.value })}
         />
         <input
           className="input-field"
@@ -175,7 +189,8 @@ export default function AdministrationsManager() {
             <tr>
               <th>الإدارة</th>
               <th>النوع</th>
-              <th>مدير الإدارة</th>
+              <th>اسم المدير</th>
+              <th>بريد المدير</th>
               <th>الحالة</th>
               <th>إجراءات</th>
             </tr>
@@ -183,7 +198,7 @@ export default function AdministrationsManager() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={5} className="py-6">
+                <td colSpan={6} className="py-6">
                   <Skeleton lines={3} />
                 </td>
               </tr>
@@ -192,6 +207,7 @@ export default function AdministrationsManager() {
                 <tr key={item.id}>
                   <td className="font-semibold">{item.name}</td>
                   <td>{item.kind === "INTERNAL" ? "داخلية" : "خارجية"}</td>
+                  <td className="text-sm">{item.managerName || "—"}</td>
                   <td dir="ltr" className="text-sm">
                     {item.managerEmail}
                   </td>

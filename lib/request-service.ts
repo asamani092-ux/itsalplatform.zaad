@@ -31,6 +31,15 @@ const requestInclude = {
   requestType: {
     select: { id: true, name: true, slug: true, requiresVisitDate: true },
   },
+  hospitalityBooking: {
+    select: {
+      roomName: true,
+      meetingDate: true,
+      startTime: true,
+      endTime: true,
+      attendeesCount: true,
+    },
+  },
 } as const;
 
 function withSla<T extends {
@@ -167,6 +176,7 @@ export async function recordAssignment(params: {
 
 export async function submitRequest(params: {
   title: string;
+  contactName?: string;
   description: string;
   requiredDate: Date;
   contactEmail: string;
@@ -185,11 +195,15 @@ export async function submitRequest(params: {
 
   // Resolve the submitter's line manager from their (external) administration so
   // the request can notify their own manager — independent of the handling section.
-  let requesterAdministration: { id: string; managerEmail: string } | null = null;
+  let requesterAdministration: {
+    id: string;
+    managerEmail: string;
+    managerName: string;
+  } | null = null;
   if (params.requesterAdministrationId) {
     requesterAdministration = await prisma.administration.findFirst({
       where: { id: params.requesterAdministrationId, isActive: true },
-      select: { id: true, managerEmail: true },
+      select: { id: true, managerEmail: true, managerName: true },
     });
     if (!requesterAdministration) {
       throw new Error("NOT_FOUND: إدارة مقدّم الطلب غير موجودة");
@@ -219,6 +233,7 @@ export async function submitRequest(params: {
   const created = await prisma.communicationRequest.create({
     data: {
       title: params.title,
+      contactName: params.contactName?.trim() || "",
       description: params.description,
       requiredDate: params.requiredDate,
       contactEmail: params.contactEmail,

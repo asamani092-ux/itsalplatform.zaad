@@ -108,7 +108,7 @@ export const PLATFORM_MODULES: PlatformModuleDef[] = [
     href: "/dashboard/requests",
     category: "operations",
     icon: "list",
-    core: true,
+    core: false,
     defaultEnabled: true,
     sortOrder: 25,
   },

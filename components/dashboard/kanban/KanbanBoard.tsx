@@ -498,12 +498,32 @@ export default function KanbanBoard() {
               </div>
               <div>
                 <dt>مقدّم الطلب</dt>
-                <dd dir="ltr">{detailRequest.contactEmail}</dd>
+                <dd>
+                  {(detailRequest as { contactName?: string }).contactName
+                    ? `${(detailRequest as { contactName?: string }).contactName} — `
+                    : ""}
+                  <span dir="ltr">{detailRequest.contactEmail}</span>
+                </dd>
               </div>
               <div>
                 <dt>المسند إليه</dt>
                 <dd>{detailRequest.assignedEmployee?.name ?? "غير مسند"}</dd>
               </div>
+              {(detailRequest as { proofFileUrl?: string | null }).proofFileUrl && (
+                <div>
+                  <dt>مرفق الإثبات</dt>
+                  <dd>
+                    <a
+                      className="text-primary underline"
+                      href={(detailRequest as { proofFileUrl?: string }).proofFileUrl!}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      فتح المرفق للمراجعة
+                    </a>
+                  </dd>
+                </div>
+              )}
             </dl>
 
             {notesTimeline.length > 0 && (

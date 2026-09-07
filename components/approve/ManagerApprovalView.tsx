@@ -10,6 +10,7 @@ import Skeleton from "@/components/ui/skeleton";
 interface TokenSummary {
   id: string;
   title: string;
+  contactName: string;
   description: string;
   requiredDate: string;
   contactEmail: string;
@@ -26,6 +27,7 @@ interface TokenSummary {
 interface RequestDetails {
   id: string;
   title: string;
+  contactName: string;
   description: string;
   requiredDate: string;
   contactEmail: string;
@@ -333,8 +335,14 @@ export default function ManagerApprovalView({
                   </div>
                   <div className="flex justify-between gap-4">
                     <dt className="text-brand-gray">مقدّم الطلب</dt>
-                    <dd className="font-semibold" dir="ltr">
-                      {details.contactEmail}
+                    <dd className="text-end">
+                      <span className="font-semibold text-primary">
+                        {details.contactName || "—"}
+                      </span>
+                      <br />
+                      <span className="text-xs text-brand-gray" dir="ltr">
+                        {details.contactEmail}
+                      </span>
                     </dd>
                   </div>
                   <div className="flex justify-between gap-4">

@@ -6,7 +6,7 @@ export async function GET() {
   try {
     const administrations = await prisma.administration.findMany({
       where: { isActive: true, kind: "EXTERNAL" },
-      select: { id: true, name: true, slug: true },
+      select: { id: true, name: true, slug: true, managerName: true, managerEmail: true },
       orderBy: { name: "asc" },
     });
     return jsonOk({ administrations });

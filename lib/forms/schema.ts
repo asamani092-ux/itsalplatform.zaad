@@ -11,6 +11,7 @@ export const LOCKED_FIELDS = [
   "department",
   "requestType",
   "title",
+  "contactName",
   "contactEmail",
 ] as const;
 
@@ -18,6 +19,7 @@ export const FORM_FIELD_KEYS = [
   "department",
   "requestType",
   "title",
+  "contactName",
   "description",
   "requiredDate",
   "visitDate",
@@ -90,6 +92,12 @@ const DEFAULT_FIELDS: FormFieldsConfig = {
     required: true,
     label: "عنوان الطلب",
     placeholder: "مثال: طلب تغطية إعلامية",
+  },
+  contactName: {
+    enabled: true,
+    required: true,
+    label: "اسم مقدّم الطلب",
+    placeholder: "الاسم الكامل",
   },
   description: {
     enabled: true,
