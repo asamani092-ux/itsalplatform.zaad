@@ -44,9 +44,22 @@ export async function POST(request: NextRequest) {
       return jsonError("البريد الإلكتروني وكلمة المرور مطلوبان", "VALIDATION", 400);
     }
 
+    // Lock key includes email so counters stay stable across module reloads
+    // and different client IP header shapes in reverse proxies.
+    const emailKey = `${key}:${body.email.trim().toLowerCase()}`;
+    const lockRemainingForEmail = getLockRemainingMs(emailKey);
+    if (lockRemainingForEmail > 0) {
+      const mins = Math.ceil(lockRemainingForEmail / 60_000);
+      return jsonError(
+        `تم قفل تسجيل الدخول مؤقتاً. حاول بعد ${mins} دقيقة.`,
+        "RATE_LIMITED",
+        429,
+      );
+    }
+
     const user = await verifyLogin(body.email, body.password);
     if (!user) {
-      const fail = recordAuthFailure(key, LOGIN_MAX_FAILURES, LOGIN_LOCK_MS);
+      const fail = recordAuthFailure(emailKey, LOGIN_MAX_FAILURES, LOGIN_LOCK_MS);
       if (fail.locked) {
         return jsonError(
           "تم تجاوز 10 محاولات فاشلة. الحساب مقفل لمدة 20 دقيقة.",
@@ -57,7 +70,7 @@ export async function POST(request: NextRequest) {
       return jsonError("بيانات الدخول غير صحيحة", "INVALID_CREDENTIALS", 401);
     }
 
-    clearAuthFailures(key);
+    clearAuthFailures(emailKey);
 
     const remember = body.rememberMe === true;
     const token = await createSessionToken(

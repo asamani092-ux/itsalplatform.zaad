@@ -1,6 +1,8 @@
 /**
  * In-memory sliding-window rate limiter + failure lockouts.
  * Suitable for single-instance deployments; replace with Redis for multi-instance.
+ *
+ * Maps hang off globalThis so Next.js route-module re-evaluations share state.
  */
 
 interface WindowEntry {
@@ -12,8 +14,17 @@ interface LockEntry {
   lockedUntil: number;
 }
 
-const store = new Map<string, WindowEntry>();
-const locks = new Map<string, LockEntry>();
+const globalStore = globalThis as typeof globalThis & {
+  __zaadRateLimitStore?: Map<string, WindowEntry>;
+  __zaadAuthLocks?: Map<string, LockEntry>;
+};
+
+const store =
+  globalStore.__zaadRateLimitStore ??
+  (globalStore.__zaadRateLimitStore = new Map<string, WindowEntry>());
+const locks =
+  globalStore.__zaadAuthLocks ??
+  (globalStore.__zaadAuthLocks = new Map<string, LockEntry>());
 
 export interface RateLimitResult {
   allowed: boolean;
@@ -64,7 +75,9 @@ export function recordAuthFailure(
 
   // lockedUntil === 0 means "counting failures, not locked".
   // Only reset the counter when a previous lock window has expired.
-  const expiredLock = Boolean(existing && existing.lockedUntil > 0 && existing.lockedUntil <= now);
+  const expiredLock = Boolean(
+    existing && existing.lockedUntil > 0 && existing.lockedUntil <= now,
+  );
   const failures = (expiredLock ? 0 : existing?.failures ?? 0) + 1;
   if (failures >= maxFailures) {
     locks.set(key, { failures: 0, lockedUntil: now + lockMs });
