@@ -1,6 +1,7 @@
 /**
  * Persistent login failure lockouts (10 fails → 20 minutes).
- * Stored in PlatformModule settings so state survives route-module isolation.
+ * Reads via raw SQL (Prisma Json select was returning stale/empty objects
+ * under the pg adapter in this runtime); writes via upsert.
  */
 import "server-only";
 
@@ -16,24 +17,25 @@ interface LockEntry {
 type LockMap = Record<string, LockEntry>;
 
 async function readLocks(): Promise<LockMap> {
-  const row = await prisma.platformModule.findUnique({
-    where: { key: AUTH_LOCKS_KEY },
-    select: { settings: true },
-  });
-  const raw = row?.settings;
+  const rows = await prisma.$queryRawUnsafe<Array<{ settings: unknown }>>(
+    `SELECT settings FROM "PlatformModule" WHERE key = $1 LIMIT 1`,
+    AUTH_LOCKS_KEY,
+  );
+  const raw = rows[0]?.settings;
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
-  return raw as unknown as LockMap;
+  return { ...(raw as LockMap) };
 }
 
 async function writeLocks(locks: LockMap): Promise<void> {
+  const payload = JSON.parse(JSON.stringify(locks)) as object;
   await prisma.platformModule.upsert({
     where: { key: AUTH_LOCKS_KEY },
-    update: { settings: locks as object, isEnabled: true },
+    update: { settings: payload, isEnabled: true },
     create: {
       key: AUTH_LOCKS_KEY,
       isEnabled: true,
       sortOrder: 999,
-      settings: locks as object,
+      settings: payload,
     },
   });
 }
