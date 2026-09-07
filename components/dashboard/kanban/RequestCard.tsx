@@ -23,6 +23,7 @@ export interface DashboardRequest {
   description: string;
   status: string;
   requiredDate: string;
+  contactName?: string;
   contactEmail: string;
   contactPhone: string;
   createdAt: string;

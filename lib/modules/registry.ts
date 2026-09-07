@@ -32,7 +32,8 @@ export type ModuleIconKey =
   | "folder"
   | "form"
   | "desk"
-  | "grant";
+  | "grant"
+  | "list";
 
 /** Paths follow the official brand guide icon set (24x24, stroke 2, round). */
 export const MODULE_ICON_PATHS: Record<ModuleIconKey, string[]> = {
@@ -67,6 +68,14 @@ export const MODULE_ICON_PATHS: Record<ModuleIconKey, string[]> = {
     "M12 6v12",
     "M14.5 9a2.5 2.5 0 0 0-2.5-1.5c-1.5 0-2.5.8-2.5 2s1 1.8 2.5 2 2.5.8 2.5 2-1 2-2.5 2A2.5 2.5 0 0 1 9.5 16",
   ],
+  list: [
+    "M8 6h13",
+    "M8 12h13",
+    "M8 18h13",
+    "M3 6h.01",
+    "M3 12h.01",
+    "M3 18h.01",
+  ],
 };
 
 export const PLATFORM_MODULES: PlatformModuleDef[] = [
@@ -91,6 +100,17 @@ export const PLATFORM_MODULES: PlatformModuleDef[] = [
     core: true,
     defaultEnabled: true,
     sortOrder: 20,
+  },
+  {
+    key: "all-requests",
+    label: "كل الطلبات",
+    description: "عرض جميع الطلبات بما فيها بانتظار المدير",
+    href: "/dashboard/requests",
+    category: "operations",
+    icon: "list",
+    core: true,
+    defaultEnabled: true,
+    sortOrder: 25,
   },
   {
     key: "team",

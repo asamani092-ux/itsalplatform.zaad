@@ -56,9 +56,17 @@ export async function listRequests(options: {
   departmentId?: string;
   requestTypeId?: string;
   assignedEmployeeId?: string;
+  /** When true, skip the default Pending_Manager hiding applied to view=all. */
+  includePendingManager?: boolean;
 }) {
-  const { view = "all", status, departmentId, requestTypeId, assignedEmployeeId } =
-    options;
+  const {
+    view = "all",
+    status,
+    departmentId,
+    requestTypeId,
+    assignedEmployeeId,
+    includePendingManager = false,
+  } = options;
 
   let statusFilter: RequestStatus[] | undefined;
   if (status) {
@@ -69,7 +77,7 @@ export async function listRequests(options: {
     statusFilter = ARCHIVE_STATUSES;
   }
 
-  const hidePendingManager = view === "all" && !status;
+  const hidePendingManager = view === "all" && !status && !includePendingManager;
 
   const requests = await prisma.communicationRequest.findMany({
     where: {
