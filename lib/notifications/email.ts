@@ -40,11 +40,18 @@ function wrapArabicEmail(title: string, bodyHtml: string, ctaLabel?: string, cta
 </html>`;
 }
 
-export type EmailTemplateKind = "approval_needed" | "assigned" | "completed";
+export type EmailTemplateKind =
+  | "approval_needed"
+  | "assigned"
+  | "completed"
+  | "rejected"
+  | "pending_review"
+  | "returned"
+  | "reassignment_request";
 
 export function buildEmailTemplate(
   kind: EmailTemplateKind,
-  data: { title: string; link?: string; reference?: string },
+  data: { title: string; link?: string; reference?: string; note?: string },
 ): { subject: string; html: string } {
   if (kind === "approval_needed") {
     return {
@@ -67,6 +74,56 @@ export function buildEmailTemplate(
         `<p>تم إسناد الطلب: <strong style="color:#8B1538">${data.title}</strong> إليك.</p>
          <p>يمكنك متابعة التذكرة من مساحة الموظف.</p>`,
         "فتح التذكرة",
+        data.link,
+      ),
+    };
+  }
+
+  if (kind === "rejected") {
+    return {
+      subject: "لم يُقبل طلبك",
+      html: wrapArabicEmail(
+        "لم يُقبل طلبك",
+        `<p>لم يُقبل طلبك: <strong style="color:#8B1538">${data.title}</strong>.</p>
+         ${data.note ? `<p>السبب: ${data.note}</p>` : ""}`,
+      ),
+    };
+  }
+
+  if (kind === "pending_review") {
+    return {
+      subject: "تذكرة بانتظار مراجعتك",
+      html: wrapArabicEmail(
+        "تذكرة بانتظار مراجعتك",
+        `<p>أعلن الموظف انتهاء العمل على: <strong style="color:#8B1538">${data.title}</strong>.</p>
+         <p>يرجى اعتماد الإكمال أو إرجاع التذكرة.</p>`,
+        "فتح لوحة العمل",
+        data.link,
+      ),
+    };
+  }
+
+  if (kind === "returned") {
+    return {
+      subject: "أُعيدت التذكرة إليك",
+      html: wrapArabicEmail(
+        "أُعيدت التذكرة إليك",
+        `<p>أُعيدت التذكرة: <strong style="color:#8B1538">${data.title}</strong> للمراجعة والتصحيح.</p>
+         ${data.note ? `<p>ملاحظة المدير: ${data.note}</p>` : ""}`,
+        "فتح التذكرة",
+        data.link,
+      ),
+    };
+  }
+
+  if (kind === "reassignment_request") {
+    return {
+      subject: "رفض إسناد / طلب إعادة إسناد",
+      html: wrapArabicEmail(
+        "رفض إسناد / طلب إعادة إسناد",
+        `<p>رفض الموظف التذكرة: <strong style="color:#8B1538">${data.title}</strong> وطلب إعادة الإسناد.</p>
+         ${data.note ? `<p>ملاحظة الموظف: ${data.note}</p>` : ""}`,
+        "فتح لوحة العمل",
         data.link,
       ),
     };

@@ -570,6 +570,51 @@ export async function updateRequestStatus(params: {
   return withSla(updated);
 }
 
+async function notifyManagersBoth(
+  managerEmail: string,
+  type: string,
+  title: string,
+  body: string,
+  link: string,
+  emailKind?: import("./notifications/email").EmailTemplateKind,
+  note?: string,
+): Promise<void> {
+  try {
+    const manager = await prisma.commEmployee.findFirst({
+      where: { email: managerEmail, isActive: true },
+    });
+    if (manager) {
+      await notify({
+        recipientId: manager.id,
+        recipientEmail: manager.email,
+        type,
+        title,
+        body,
+        link,
+        channel: "both",
+        emailKind,
+        note,
+      });
+      return;
+    }
+    if (emailKind) {
+      const { buildEmailTemplate, sendEmail } = await import("./notifications/email");
+      const template = buildEmailTemplate(emailKind, {
+        title,
+        link,
+        note,
+      });
+      await sendEmail({
+        to: managerEmail,
+        subject: template.subject,
+        html: template.html,
+      });
+    }
+  } catch (error) {
+    console.error("[request-service] notifyManagersBoth failed", error);
+  }
+}
+
 export async function completeEmployeeTicket(params: {
   requestId: string;
   employeeId: string;
@@ -582,27 +627,281 @@ export async function completeEmployeeTicket(params: {
   }
 
   if (existing.status !== RequestStatus.In_Progress) {
-    throw new Error("INVALID_STATE: يمكن إكمال الطلبات قيد التنفيذ فقط");
+    throw new Error("INVALID_STATE: يمكن إعلان الانتهاء للطلبات قيد التنفيذ فقط");
+  }
+
+  assertTransition(existing.status, RequestStatus.Pending_Review);
+  const now = new Date();
+
+  const updated = await prisma.communicationRequest.update({
+    where: { id: params.requestId },
+    data: {
+      status: RequestStatus.Pending_Review,
+      completionDeclaredAt: now,
+      ...(params.proofFileUrl ? { proofFileUrl: params.proofFileUrl } : {}),
+    },
+    include: requestInclude,
+  });
+
+  await recordStatusChange({
+    requestId: params.requestId,
+    fromStatus: existing.status,
+    toStatus: RequestStatus.Pending_Review,
+    changedBy: params.employeeId,
+    note: "إعلان الانتهاء من مساحة الموظف",
+  });
+
+  await notifyManagersBoth(
+    updated.managerEmail,
+    "pending_review",
+    "تذكرة بانتظار مراجعتك",
+    `أعلن الموظف انتهاء العمل على: ${updated.title}`,
+    "/dashboard/kanban",
+    "pending_review",
+  );
+
+  return withSla(updated);
+}
+
+export async function rejectRequest(params: {
+  requestId: string;
+  managerId: string;
+  reason: string;
+}) {
+  const reason = params.reason.trim();
+  if (!reason) {
+    throw new Error("VALIDATION: سبب الرفض مطلوب");
+  }
+
+  const existing = await getRequestById(params.requestId);
+  if (existing.status !== RequestStatus.Pending_Manager) {
+    throw new Error("INVALID_STATE: يمكن رفض الطلبات بانتظار موافقة المدير فقط");
+  }
+
+  assertTransition(existing.status, RequestStatus.Rejected);
+
+  const updated = await prisma.communicationRequest.update({
+    where: { id: params.requestId },
+    data: {
+      status: RequestStatus.Rejected,
+      rejectionReason: reason,
+    },
+    include: requestInclude,
+  });
+
+  await recordStatusChange({
+    requestId: params.requestId,
+    fromStatus: RequestStatus.Pending_Manager,
+    toStatus: RequestStatus.Rejected,
+    changedBy: params.managerId,
+    note: reason,
+  });
+
+  try {
+    const { notifySubmitter } = await import("./notifications");
+    await notifySubmitter({
+      contactEmail: updated.contactEmail,
+      contactPhone: updated.contactPhone,
+      requestTitle: updated.title,
+      message: `لم يُقبل طلبك: ${reason}`,
+      emailKind: "rejected",
+      note: reason,
+    });
+  } catch (error) {
+    console.error("[request-service] rejectRequest notify failed", error);
+  }
+
+  return withSla(updated);
+}
+
+export async function approveCompletion(params: {
+  requestId: string;
+  managerId: string;
+}) {
+  const existing = await getRequestById(params.requestId);
+  if (existing.status !== RequestStatus.Pending_Review) {
+    throw new Error("INVALID_STATE: يمكن اعتماد الإكمال للتذاكر بانتظار المراجعة فقط");
   }
 
   const completed = await updateRequestStatus({
     requestId: params.requestId,
     status: RequestStatus.Completed,
-    changedBy: params.employeeId,
-    note: "إكمال من مساحة الموظف",
-    proofFileUrl: params.proofFileUrl,
+    changedBy: params.managerId,
+    note: "اعتماد إكمال من المدير",
   });
 
-  const { notifySubmitter } = await import("./notifications");
-  await notifySubmitter({
-    contactEmail: completed.contactEmail,
-    contactPhone: completed.contactPhone,
-    requestTitle: completed.title,
-    message: `تم إكمال طلبك "${completed.title}".`,
-    reference: completed.id.slice(-8).toUpperCase(),
-  });
+  try {
+    const { notifySubmitter } = await import("./notifications");
+    await notifySubmitter({
+      contactEmail: completed.contactEmail,
+      contactPhone: completed.contactPhone,
+      requestTitle: completed.title,
+      message: `تم إكمال طلبك "${completed.title}".`,
+      reference: completed.id.slice(-8).toUpperCase(),
+      emailKind: "completed",
+    });
+  } catch (error) {
+    console.error("[request-service] approveCompletion notify failed", error);
+  }
 
   return completed;
+}
+
+export async function returnToEmployee(params: {
+  requestId: string;
+  managerId: string;
+  reviewNote: string;
+}) {
+  const reviewNote = params.reviewNote.trim();
+  if (!reviewNote) {
+    throw new Error("VALIDATION: ملاحظة الإرجاع مطلوبة");
+  }
+
+  const existing = await getRequestById(params.requestId);
+  if (existing.status !== RequestStatus.Pending_Review) {
+    throw new Error("INVALID_STATE: يمكن إرجاع التذاكر بانتظار المراجعة فقط");
+  }
+  if (!existing.assignedEmployeeId || !existing.assignedEmployee) {
+    throw new Error("INVALID_STATE: لا يوجد موظف مسند لإرجاع التذكرة إليه");
+  }
+
+  assertTransition(existing.status, RequestStatus.Returned);
+
+  const updated = await prisma.communicationRequest.update({
+    where: { id: params.requestId },
+    data: {
+      status: RequestStatus.Returned,
+      reviewNote,
+    },
+    include: requestInclude,
+  });
+
+  await recordStatusChange({
+    requestId: params.requestId,
+    fromStatus: RequestStatus.Pending_Review,
+    toStatus: RequestStatus.Returned,
+    changedBy: params.managerId,
+    note: reviewNote,
+  });
+
+  try {
+    const assignee = existing.assignedEmployee;
+    await notify({
+      recipientId: assignee.id,
+      recipientEmail: assignee.email,
+      type: "returned",
+      title: "أُعيدت التذكرة",
+      body: `أُعيدت التذكرة "${updated.title}": ${reviewNote}`,
+      link: `/employee/tickets/${updated.id}`,
+      channel: "both",
+      emailKind: "returned",
+      note: reviewNote,
+    });
+  } catch (error) {
+    console.error("[request-service] returnToEmployee notify failed", error);
+  }
+
+  return withSla(updated);
+}
+
+export async function redeclareAfterReturn(params: {
+  requestId: string;
+  employeeId: string;
+  proofFileUrl?: string;
+}) {
+  const existing = await getRequestById(params.requestId);
+
+  if (existing.assignedEmployeeId !== params.employeeId) {
+    throw new Error("FORBIDDEN: هذا الطلب غير مسند إليك");
+  }
+  if (existing.status !== RequestStatus.Returned) {
+    throw new Error("INVALID_STATE: يمكن إعادة الإعلان للتذاكر المُعادة فقط");
+  }
+
+  assertTransition(existing.status, RequestStatus.Pending_Review);
+  const now = new Date();
+
+  const updated = await prisma.communicationRequest.update({
+    where: { id: params.requestId },
+    data: {
+      status: RequestStatus.Pending_Review,
+      completionDeclaredAt: now,
+      ...(params.proofFileUrl ? { proofFileUrl: params.proofFileUrl } : {}),
+    },
+    include: requestInclude,
+  });
+
+  await recordStatusChange({
+    requestId: params.requestId,
+    fromStatus: RequestStatus.Returned,
+    toStatus: RequestStatus.Pending_Review,
+    changedBy: params.employeeId,
+    note: "إعادة إعلان بعد التصحيح",
+  });
+
+  await notifyManagersBoth(
+    updated.managerEmail,
+    "pending_review",
+    "تذكرة بانتظار مراجعتك",
+    `أعاد الموظف إعلان الانتهاء على: ${updated.title}`,
+    "/dashboard/kanban",
+    "pending_review",
+  );
+
+  return withSla(updated);
+}
+
+export async function employeeRejectAssignment(params: {
+  requestId: string;
+  employeeId: string;
+  employeeNote: string;
+}) {
+  const employeeNote = params.employeeNote.trim();
+  if (!employeeNote) {
+    throw new Error("VALIDATION: ملاحظة رفض الإسناد مطلوبة");
+  }
+
+  const existing = await getRequestById(params.requestId);
+
+  if (existing.assignedEmployeeId !== params.employeeId) {
+    throw new Error("FORBIDDEN: هذا الطلب غير مسند إليك");
+  }
+  if (existing.status !== RequestStatus.In_Progress) {
+    throw new Error("INVALID_STATE: يمكن رفض الإسناد للتذاكر قيد التنفيذ فقط");
+  }
+
+  assertTransition(existing.status, RequestStatus.Approved_Pending_Assignment);
+
+  const updated = await prisma.communicationRequest.update({
+    where: { id: params.requestId },
+    data: {
+      status: RequestStatus.Approved_Pending_Assignment,
+      employeeNote,
+      assignedEmployeeId: null,
+      assignedAt: null,
+    },
+    include: requestInclude,
+  });
+
+  await recordStatusChange({
+    requestId: params.requestId,
+    fromStatus: RequestStatus.In_Progress,
+    toStatus: RequestStatus.Approved_Pending_Assignment,
+    changedBy: params.employeeId,
+    note: employeeNote,
+  });
+
+  await notifyManagersBoth(
+    updated.managerEmail,
+    "reassignment_request",
+    "رفض / طلب إعادة إسناد",
+    `رفض الموظف التذكرة "${updated.title}": ${employeeNote}`,
+    "/dashboard/kanban",
+    "reassignment_request",
+    employeeNote,
+  );
+
+  return withSla(updated);
 }
 
 interface KpiDepartmentNameRow {

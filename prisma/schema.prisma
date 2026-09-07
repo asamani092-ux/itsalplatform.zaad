@@ -11,6 +11,9 @@ enum RequestStatus {
   Pending_Manager
   Approved_Pending_Assignment
   In_Progress
+  Pending_Review
+  Returned
+  Rejected
   Completed
   Archived
 }
@@ -179,7 +182,11 @@ model CommunicationRequest {
   approvedAt         DateTime?
   assignedAt         DateTime?
   completedAt        DateTime?
+  completionDeclaredAt DateTime?
   proofFileUrl       String?
+  rejectionReason    String?
+  reviewNote         String?
+  employeeNote       String?
   visitDate          DateTime?
   visitAttended      Boolean?
   visitMarkedAt      DateTime?
