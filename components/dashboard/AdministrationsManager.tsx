@@ -18,7 +18,6 @@ interface Administration {
 
 const EMPTY = {
   name: "",
-  slug: "",
   managerEmail: "",
   managerName: "",
   kind: "EXTERNAL" as const,
@@ -31,7 +30,6 @@ export default function AdministrationsManager() {
   const [status, setStatus] = useState("");
   const [form, setForm] = useState<{
     name: string;
-    slug: string;
     managerEmail: string;
     managerName: string;
     kind: "INTERNAL" | "EXTERNAL";
@@ -59,8 +57,8 @@ export default function AdministrationsManager() {
   }, [load]);
 
   async function addAdministration() {
-    if (!form.name.trim() || !form.slug.trim() || !form.managerEmail.trim()) {
-      setError("الاسم والمعرّف والبريد مطلوبة");
+    if (!form.name.trim() || !form.managerEmail.trim()) {
+      setError("الاسم وبريد المدير مطلوبان");
       return;
     }
     setSaving(true);
@@ -136,19 +134,12 @@ export default function AdministrationsManager() {
         </p>
       )}
 
-      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-6">
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
         <input
           className="input-field"
           placeholder="اسم الإدارة"
           value={form.name}
           onChange={(e) => setForm({ ...form, name: e.target.value })}
-        />
-        <input
-          className="input-field"
-          dir="ltr"
-          placeholder="المعرّف (slug)"
-          value={form.slug}
-          onChange={(e) => setForm({ ...form, slug: e.target.value })}
         />
         <input
           className="input-field"

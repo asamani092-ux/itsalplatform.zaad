@@ -3,6 +3,22 @@ import { prisma } from "@/lib/prisma";
 import { requireManagerSession } from "@/lib/auth/route-guard";
 import { handleApiError, jsonError, jsonOk } from "@/lib/api-utils";
 import { AdministrationKind } from "@/generated/prisma/client";
+import { slugFromDisplayName } from "@/lib/slug";
+
+/** Ensure slug is unique; append -2, -3, ... on collision. O(k) lookups. */
+async function uniqueAdministrationSlug(base: string): Promise<string> {
+  let candidate = base;
+  let suffix = 2;
+  while (await prisma.administration.findUnique({ where: { slug: candidate } })) {
+    candidate = `${base.slice(0, 36)}-${suffix}`;
+    suffix += 1;
+    if (suffix > 50) {
+      candidate = `${base.slice(0, 30)}-${Date.now().toString(36)}`;
+      break;
+    }
+  }
+  return candidate;
+}
 
 /** Directory of administrations (الإدارات) and their managers. */
 export async function GET() {
@@ -32,14 +48,19 @@ export async function POST(request: NextRequest) {
       kind?: AdministrationKind;
     };
 
-    if (!body.name?.trim() || !body.slug?.trim() || !body.managerEmail?.trim()) {
-      return jsonError("الاسم والمعرّف والبريد مطلوبة", "VALIDATION", 400);
+    if (!body.name?.trim() || !body.managerEmail?.trim()) {
+      return jsonError("الاسم وبريد المدير مطلوبان", "VALIDATION", 400);
     }
+
+    const baseSlug = body.slug?.trim()
+      ? slugFromDisplayName(body.slug)
+      : slugFromDisplayName(body.name);
+    const slug = await uniqueAdministrationSlug(baseSlug);
 
     const administration = await prisma.administration.create({
       data: {
         name: body.name.trim(),
-        slug: body.slug.trim(),
+        slug,
         managerEmail: body.managerEmail.trim(),
         managerName: body.managerName?.trim() || "",
         kind: body.kind === "INTERNAL" ? "INTERNAL" : "EXTERNAL",
