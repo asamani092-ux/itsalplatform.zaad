@@ -1,7 +1,8 @@
 import { NextRequest } from "next/server";
 import { requireEmployeeSession } from "@/lib/auth/route-guard";
-import { handleApiError, jsonError, jsonOk } from "@/lib/api-utils";
+import { handleApiError, jsonOk } from "@/lib/api-utils";
 import { employeeRejectAssignment } from "@/lib/request-service";
+import { requireTrimmedText } from "@/lib/validation/input";
 
 export async function POST(
   request: NextRequest,
@@ -13,14 +14,15 @@ export async function POST(
 
     const { id } = await params;
     const body = (await request.json()) as { employeeNote?: string };
-    if (!body.employeeNote?.trim()) {
-      return jsonError("ملاحظة رفض الإسناد مطلوبة", "VALIDATION", 400);
-    }
+    const employeeNote = requireTrimmedText(
+      body.employeeNote,
+      "ملاحظة رفض الإسناد",
+    );
 
     const ticket = await employeeRejectAssignment({
       requestId: id,
       employeeId: auth.session.sub,
-      employeeNote: body.employeeNote,
+      employeeNote,
     });
 
     return jsonOk({ ticket });

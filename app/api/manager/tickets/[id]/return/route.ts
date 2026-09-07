@@ -3,8 +3,9 @@ import {
   assertManagerTicketAccess,
   requireManagerSession,
 } from "@/lib/auth/route-guard";
-import { handleApiError, jsonError, jsonOk } from "@/lib/api-utils";
+import { handleApiError, jsonOk } from "@/lib/api-utils";
 import { returnToEmployee } from "@/lib/request-service";
+import { requireTrimmedText } from "@/lib/validation/input";
 
 export async function POST(
   request: NextRequest,
@@ -18,14 +19,12 @@ export async function POST(
     await assertManagerTicketAccess(auth.session, id);
 
     const body = (await request.json()) as { reviewNote?: string };
-    if (!body.reviewNote?.trim()) {
-      return jsonError("ملاحظة الإرجاع مطلوبة", "VALIDATION", 400);
-    }
+    const reviewNote = requireTrimmedText(body.reviewNote, "ملاحظة الإرجاع");
 
     const updated = await returnToEmployee({
       requestId: id,
       managerId: auth.session.sub,
-      reviewNote: body.reviewNote,
+      reviewNote,
     });
 
     return jsonOk({ request: updated });
