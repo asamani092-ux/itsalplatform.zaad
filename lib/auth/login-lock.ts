@@ -22,18 +22,18 @@ async function readLocks(): Promise<LockMap> {
   });
   const raw = row?.settings;
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
-  return raw as LockMap;
+  return raw as unknown as LockMap;
 }
 
 async function writeLocks(locks: LockMap): Promise<void> {
   await prisma.platformModule.upsert({
     where: { key: AUTH_LOCKS_KEY },
-    update: { settings: locks, isEnabled: true },
+    update: { settings: locks as object, isEnabled: true },
     create: {
       key: AUTH_LOCKS_KEY,
       isEnabled: true,
       sortOrder: 999,
-      settings: locks,
+      settings: locks as object,
     },
   });
 }
