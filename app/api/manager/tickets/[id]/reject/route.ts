@@ -3,8 +3,9 @@ import {
   assertManagerTicketAccess,
   requireManagerSession,
 } from "@/lib/auth/route-guard";
-import { handleApiError, jsonError, jsonOk } from "@/lib/api-utils";
+import { handleApiError, jsonOk } from "@/lib/api-utils";
 import { rejectRequest } from "@/lib/request-service";
+import { requireTrimmedText } from "@/lib/validation/input";
 
 export async function POST(
   request: NextRequest,
@@ -18,14 +19,12 @@ export async function POST(
     await assertManagerTicketAccess(auth.session, id);
 
     const body = (await request.json()) as { reason?: string };
-    if (!body.reason?.trim()) {
-      return jsonError("سبب الرفض مطلوب", "VALIDATION", 400);
-    }
+    const reason = requireTrimmedText(body.reason, "سبب الرفض");
 
     const updated = await rejectRequest({
       requestId: id,
       managerId: auth.session.sub,
-      reason: body.reason,
+      reason,
     });
 
     return jsonOk({ request: updated });

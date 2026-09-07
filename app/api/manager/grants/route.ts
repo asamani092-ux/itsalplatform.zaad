@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { requireDirectorSession } from "@/lib/auth/route-guard";
 import { handleApiError, jsonError, jsonOk } from "@/lib/api-utils";
 import { createGrant, getGrantKpis, listGrants } from "@/lib/grants/service";
+import { requireNonNegativeNumber } from "@/lib/validation/input";
 
 export async function GET() {
   try {
@@ -32,13 +33,20 @@ export async function POST(request: NextRequest) {
     if (!body.title?.trim() || !body.donorName?.trim()) {
       return jsonError("اسم المنحة والمانح مطلوبان", "VALIDATION", 400);
     }
-    const amount = Number(body.amount);
-    if (!Number.isFinite(amount) || amount <= 0) {
-      return jsonError("مبلغ المنحة غير صحيح", "VALIDATION", 400);
+
+    const amount = requireNonNegativeNumber(body.amount, "مبلغ المنحة", {
+      allowZero: false,
+    });
+    const stageCount = requireNonNegativeNumber(
+      body.stageCount === undefined || body.stageCount === null
+        ? 0
+        : body.stageCount,
+      "عدد المراحل",
+      { allowZero: true, integer: true },
+    );
+    if (stageCount > 48) {
+      return jsonError("عدد المراحل يتجاوز الحد المسموح", "VALIDATION", 400);
     }
-    const stageCount = Number.isFinite(Number(body.stageCount))
-      ? Number(body.stageCount)
-      : 0;
 
     const grant = await createGrant({
       title: body.title,

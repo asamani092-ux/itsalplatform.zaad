@@ -1,5 +1,8 @@
 import { NextRequest } from "next/server";
-import { requireManagerSession } from "@/lib/auth/route-guard";
+import {
+  assertManagerTicketAccess,
+  requireManagerSession,
+} from "@/lib/auth/route-guard";
 import { handleApiError, jsonError, jsonOk } from "@/lib/api-utils";
 import { updateRequestStatus } from "@/lib/request-service";
 import { RequestStatus } from "@/generated/prisma/client";
@@ -16,6 +19,8 @@ export async function PATCH(
     if (auth.error) return auth.error;
 
     const { id } = await params;
+    await assertManagerTicketAccess(auth.session, id);
+
     const body = (await request.json()) as {
       status?: RequestStatus;
       note?: string;

@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { requireManagerSession } from "@/lib/auth/route-guard";
 import { handleApiError, jsonOk } from "@/lib/api-utils";
 import { listRequests } from "@/lib/request-service";
-import { RequestStatus } from "@/generated/prisma/client";
+import { EmployeeRole, RequestStatus } from "@/generated/prisma/client";
 
 export async function GET(request: NextRequest) {
   const auth = await requireManagerSession();
@@ -17,9 +17,15 @@ export async function GET(request: NextRequest) {
     const statusParam = request.nextUrl.searchParams.get("status");
     const status = statusParam ? (statusParam as RequestStatus) : undefined;
 
+    const departmentId =
+      auth.session.role === EmployeeRole.SECTION_MANAGER
+        ? (auth.session.departmentId ?? undefined)
+        : (request.nextUrl.searchParams.get("departmentId") ?? undefined);
+
     const requests = await listRequests({
       view: view ?? "all",
       status,
+      departmentId,
     });
 
     return jsonOk({ requests, count: requests.length });

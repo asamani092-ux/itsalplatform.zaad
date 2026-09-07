@@ -28,6 +28,17 @@ interface Grant {
   stages: GrantStage[];
 }
 
+interface OverdueGrantStageRow {
+  stageId: string;
+  label: string;
+  index: number;
+  amount: number | null;
+  dueDate: string | null;
+  grantId: string;
+  grantTitle: string;
+  donorName: string;
+}
+
 interface GrantKpis {
   totalGrants: number;
   openGrants: number;
@@ -35,6 +46,7 @@ interface GrantKpis {
   totalAmount: number;
   openAmount: number;
   overdueStages: number;
+  overdueStagesList?: OverdueGrantStageRow[];
 }
 
 function formatAmount(value: number) {
@@ -223,6 +235,39 @@ export default function GrantsManager() {
               {kpis.overdueStages > 0 ? "تحتاج متابعة" : "منتظمة"}
             </span>
           </div>
+        </div>
+      )}
+
+      {kpis && (kpis.overdueStagesList?.length ?? 0) > 0 && (
+        <div className="card space-y-3 p-4">
+          <h2 className="text-lg font-bold text-primary">
+            مراحل منح تحتاج متابعة
+          </h2>
+          <p className="text-xs text-brand-gray">
+            مراحل معلّقة تجاوز تاريخ استحقاقها — حدّث حالتها يدوياً من بطاقة المنحة.
+          </p>
+          <ul className="space-y-2">
+            {(kpis.overdueStagesList ?? []).map((row: OverdueGrantStageRow) => (
+              <li
+                key={row.stageId}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-surface-muted px-3 py-2 text-sm"
+              >
+                <div>
+                  <p className="font-semibold text-primary">{row.grantTitle}</p>
+                  <p className="text-xs text-brand-gray">
+                    {row.label}
+                    {row.donorName ? ` · ${row.donorName}` : ""}
+                    {row.amount != null ? ` · ${formatAmount(row.amount)}` : ""}
+                  </p>
+                </div>
+                <span className="badge-danger text-[10px]" dir="ltr">
+                  {row.dueDate
+                    ? new Date(row.dueDate).toLocaleDateString("ar-SA")
+                    : "—"}
+                </span>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 

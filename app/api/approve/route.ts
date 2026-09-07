@@ -50,10 +50,14 @@ export async function POST(request: NextRequest) {
     }
 
     if (body.action === "reject") {
-      if (!body.reason?.trim()) {
+      const reason = typeof body.reason === "string" ? body.reason.trim() : "";
+      if (!reason) {
         return jsonError("سبب الرفض مطلوب", "VALIDATION", 400);
       }
-      const updated = await rejectRequestByToken(token, body.reason);
+      if (reason.length > 2000) {
+        return jsonError("سبب الرفض يتجاوز الحد الأقصى", "VALIDATION", 400);
+      }
+      const updated = await rejectRequestByToken(token, reason);
       return jsonOk({
         id: updated.id,
         status: updated.status,

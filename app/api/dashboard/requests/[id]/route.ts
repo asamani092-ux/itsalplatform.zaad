@@ -1,5 +1,7 @@
-import { requireManagerSession } from "@/lib/auth/route-guard";
-import { getRequestById } from "@/lib/request-service";
+import {
+  assertManagerTicketAccess,
+  requireManagerSession,
+} from "@/lib/auth/route-guard";
 import { handleApiError, jsonOk } from "@/lib/api-utils";
 
 export async function GET(
@@ -11,7 +13,7 @@ export async function GET(
 
   try {
     const { id } = await params;
-    const request = await getRequestById(id);
+    const request = await assertManagerTicketAccess(auth.session, id);
     return jsonOk(request);
   } catch (error) {
     return handleApiError(error);
