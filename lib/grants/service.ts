@@ -103,13 +103,57 @@ export async function deleteGrant(id: string) {
   return { id, deleted: true };
 }
 
+export async function listOverdueGrantStages() {
+  const now = new Date();
+  const rows = await prisma.grantStage.findMany({
+    where: {
+      status: "Pending",
+      dueDate: { lt: now },
+      grant: { status: "Open" },
+    },
+    select: {
+      id: true,
+      label: true,
+      amount: true,
+      dueDate: true,
+      index: true,
+      grant: { select: { id: true, title: true, donorName: true } },
+    },
+    orderBy: { dueDate: "asc" },
+    take: 50,
+  });
+
+  return rows.map((s: {
+    id: string;
+    label: string;
+    amount: number | null;
+    dueDate: Date | null;
+    index: number;
+    grant: { id: string; title: string; donorName: string };
+  }) => ({
+    stageId: s.id,
+    label: s.label,
+    index: s.index,
+    amount: s.amount,
+    dueDate: s.dueDate,
+    grantId: s.grant.id,
+    grantTitle: s.grant.title,
+    donorName: s.grant.donorName,
+  }));
+}
+
 export async function getGrantKpis() {
   const now = new Date();
-  const [grants, overdueStages] = await Promise.all([
+  const [grants, overdueStages, overdueStagesList] = await Promise.all([
     prisma.grant.findMany({ select: { amount: true, status: true } }),
     prisma.grantStage.count({
-      where: { status: "Pending", dueDate: { lt: now } },
+      where: {
+        status: "Pending",
+        dueDate: { lt: now },
+        grant: { status: "Open" },
+      },
     }),
+    listOverdueGrantStages(),
   ]);
 
   type GrantKpiRow = { amount: number; status: string };
@@ -128,5 +172,6 @@ export async function getGrantKpis() {
     totalAmount,
     openAmount,
     overdueStages,
+    overdueStagesList,
   };
 }

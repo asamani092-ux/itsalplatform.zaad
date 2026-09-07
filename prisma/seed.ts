@@ -486,6 +486,80 @@ async function main() {
       assignedAt: hoursFromNow(-40),
       completedAt: hoursFromNow(-2),
     },
+    {
+      title: "تصميم بانر فعالية — بانتظار المراجعة",
+      description: "الموظف أعلن انتهاء التصميم وبانتظار اعتماد المدير",
+      contactEmail: "review@demo.zaad.org",
+      contactPhone: "0551000007",
+      departmentId: bySlug.communications!.id,
+      requestTypeId: typeBySlug["design-request"]!.id,
+      status: RequestStatus.Pending_Review,
+      requiredDate: daysFromNow(1),
+      visitDate: null,
+      visitAttended: null,
+      createdAt: hoursFromNow(-48),
+      approvedAt: hoursFromNow(-40),
+      assignedEmployeeId: sara?.id ?? null,
+      assignedAt: hoursFromNow(-36),
+      completedAt: null,
+      employeeNote: "اكتمل التصميم وفق الهوية البصرية",
+      completionDeclaredAt: hoursFromNow(-4),
+    },
+    {
+      title: "تغطية يوم مفتوح — مُعادة للموظف",
+      description: "أُعيدت للمراجعة مع ملاحظة تصحيح",
+      contactEmail: "returned@demo.zaad.org",
+      contactPhone: "0551000008",
+      departmentId: bySlug.communications!.id,
+      requestTypeId: typeBySlug["media-coverage"]!.id,
+      status: RequestStatus.Returned,
+      requiredDate: daysFromNow(2),
+      visitDate: hoursFromNow(-10),
+      visitAttended: true,
+      createdAt: hoursFromNow(-72),
+      approvedAt: hoursFromNow(-60),
+      assignedEmployeeId: mohammed?.id ?? null,
+      assignedAt: hoursFromNow(-54),
+      completedAt: null,
+      employeeNote: "رُفعت المسودة الأولى",
+      reviewNote: "يرجى إضافة لقطات من القاعة الرئيسية",
+      completionDeclaredAt: hoursFromNow(-20),
+    },
+    {
+      title: "طلب تصميم مرفوض — خارج النطاق",
+      description: "طلب خارج اختصاص القسم",
+      contactEmail: "rejected@demo.zaad.org",
+      contactPhone: "0551000009",
+      departmentId: bySlug.communications!.id,
+      requestTypeId: typeBySlug["design-request"]!.id,
+      status: RequestStatus.Rejected,
+      requiredDate: daysFromNow(3),
+      visitDate: null,
+      visitAttended: null,
+      createdAt: hoursFromNow(-30),
+      approvedAt: null,
+      assignedEmployeeId: null,
+      assignedAt: null,
+      completedAt: null,
+      rejectionReason: "الطلب يخص جهة أخرى وغير قابل للتنفيذ من القسم",
+    },
+    {
+      title: "طلب عام مؤرشف",
+      description: "طلب مكتمل وأُرشف للأرشيف",
+      contactEmail: "archived@demo.zaad.org",
+      contactPhone: "0551000010",
+      departmentId: bySlug.general!.id,
+      requestTypeId: typeBySlug["general-request"]!.id,
+      status: RequestStatus.Archived,
+      requiredDate: daysFromNow(-10),
+      visitDate: null,
+      visitAttended: null,
+      createdAt: hoursFromNow(-200),
+      approvedAt: hoursFromNow(-190),
+      assignedEmployeeId: sara?.id ?? null,
+      assignedAt: hoursFromNow(-180),
+      completedAt: hoursFromNow(-100),
+    },
   ];
 
   const createdRequestIds: string[] = [];
@@ -509,6 +583,15 @@ async function main() {
         assignedEmployeeId: r.assignedEmployeeId,
         assignedAt: r.assignedAt,
         completedAt: r.completedAt,
+        rejectionReason:
+          "rejectionReason" in r ? (r.rejectionReason as string | null) : null,
+        reviewNote: "reviewNote" in r ? (r.reviewNote as string | null) : null,
+        employeeNote:
+          "employeeNote" in r ? (r.employeeNote as string | null) : null,
+        completionDeclaredAt:
+          "completionDeclaredAt" in r
+            ? (r.completionDeclaredAt as Date | null)
+            : null,
         approvalToken: generateApprovalToken(),
         approvalTokenExpiresAt: daysFromNow(7),
       },
@@ -642,7 +725,7 @@ async function main() {
     });
   }
 
-  // Demo grant with follow-up stages for the financial-resources section.
+  // Demo grants for the financial-resources section (overdue stage + stageCount=0).
   const financialSection = await prisma.department.findUnique({
     where: { slug: "financial-resources" },
   });
@@ -661,9 +744,56 @@ async function main() {
         createdById: director.id,
         stages: {
           create: [
-            { index: 1, label: "المرحلة 1", amount: 16667, status: "Done", note: "استلام الدفعة الأولى" },
-            { index: 2, label: "المرحلة 2", amount: 16667 },
-            { index: 3, label: "المرحلة 3", amount: 16666 },
+            {
+              index: 1,
+              label: "المرحلة 1",
+              amount: 16667,
+              status: "Done",
+              note: "استلام الدفعة الأولى",
+              dueDate: daysFromNow(-40),
+            },
+            {
+              index: 2,
+              label: "المرحلة 2",
+              amount: 16667,
+              status: "Pending",
+              dueDate: daysFromNow(-7),
+            },
+            {
+              index: 3,
+              label: "المرحلة 3",
+              amount: 16666,
+              status: "Pending",
+              dueDate: daysFromNow(30),
+            },
+          ],
+        },
+      },
+    });
+  }
+
+  const existingClosureGrant = await prisma.grant.findFirst({
+    where: { title: "منحة إغلاق مباشر — دعم لوجستي" },
+  });
+  if (!existingClosureGrant) {
+    await prisma.grant.create({
+      data: {
+        title: "منحة إغلاق مباشر — دعم لوجستي",
+        donorName: "صندوق المجتمع",
+        amount: 12000,
+        details: "منحة بمرحلة إغلاق واحدة (stageCount=0)",
+        stageCount: 0,
+        departmentId: financialSection?.id ?? null,
+        createdById: director.id,
+        stages: {
+          create: [
+            {
+              index: 1,
+              label: "مرحلة الإغلاق",
+              amount: 12000,
+              status: "Pending",
+              dueDate: daysFromNow(14),
+            },
           ],
         },
       },

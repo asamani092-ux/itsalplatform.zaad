@@ -1,5 +1,8 @@
 import { NextRequest } from "next/server";
-import { requireManagerSession } from "@/lib/auth/route-guard";
+import {
+  assertManagerTicketAccess,
+  requireManagerSession,
+} from "@/lib/auth/route-guard";
 import { handleApiError, jsonOk } from "@/lib/api-utils";
 import { regenerateApprovalLink } from "@/lib/request-service";
 
@@ -12,6 +15,7 @@ export async function POST(
 
   try {
     const { id } = await params;
+    await assertManagerTicketAccess(auth.session, id);
     const result = await regenerateApprovalLink(id);
     return jsonOk(result);
   } catch (error) {

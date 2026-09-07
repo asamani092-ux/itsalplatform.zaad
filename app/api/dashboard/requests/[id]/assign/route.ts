@@ -1,5 +1,8 @@
 import { NextRequest } from "next/server";
-import { requireManagerSession } from "@/lib/auth/route-guard";
+import {
+  assertManagerTicketAccess,
+  requireManagerSession,
+} from "@/lib/auth/route-guard";
 import { handleApiError, jsonOk } from "@/lib/api-utils";
 import { assignRequest } from "@/lib/request-service";
 
@@ -12,6 +15,8 @@ export async function POST(
 
   try {
     const { id } = await params;
+    await assertManagerTicketAccess(auth.session, id);
+
     const body = (await request.json()) as {
       employeeId?: string;
       assignedBy?: string;
@@ -25,7 +30,7 @@ export async function POST(
     const updated = await assignRequest({
       requestId: id,
       employeeId: body.employeeId,
-      assignedBy: body.assignedBy ?? "dashboard",
+      assignedBy: body.assignedBy ?? auth.session.sub,
       note: body.note,
     });
 
