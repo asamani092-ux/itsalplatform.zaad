@@ -1,7 +1,7 @@
 /**
  * Persistent login failure lockouts (10 fails → 20 minutes).
- * Reads via raw SQL (Prisma Json select was returning stale/empty objects
- * under the pg adapter in this runtime); writes via upsert.
+ * Uses raw SQL for both read and write — Prisma Json upsert was not
+ * persisting settings updates under the pg adapter in this runtime.
  */
 import "server-only";
 
@@ -34,17 +34,19 @@ async function readLocks(): Promise<LockMap> {
 }
 
 async function writeLocks(locks: LockMap): Promise<void> {
-  const payload = JSON.parse(JSON.stringify(locks)) as object;
-  await prisma.platformModule.upsert({
-    where: { key: AUTH_LOCKS_KEY },
-    update: { settings: payload, isEnabled: true },
-    create: {
-      key: AUTH_LOCKS_KEY,
-      isEnabled: true,
-      sortOrder: 999,
-      settings: payload,
-    },
-  });
+  const payload = JSON.stringify(locks);
+  await prisma.$executeRawUnsafe(
+    `
+    INSERT INTO "PlatformModule" (id, key, "isEnabled", "sortOrder", settings, "createdAt", "updatedAt")
+    VALUES ($1, $2, true, 999, $3::jsonb, NOW(), NOW())
+    ON CONFLICT (key) DO UPDATE SET
+      settings = EXCLUDED.settings,
+      "updatedAt" = NOW()
+    `,
+    `pm_${AUTH_LOCKS_KEY}`,
+    AUTH_LOCKS_KEY,
+    payload,
+  );
 }
 
 export async function getLockRemainingMs(key: string): Promise<number> {
