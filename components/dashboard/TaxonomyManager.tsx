@@ -214,24 +214,37 @@ export function DepartmentsManager() {
               <th>المعرّف</th>
               <th>بريد المدير</th>
               <th>رمز الاستقبال</th>
+              <th>الحالة</th>
               <th>إجراءات</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={5} className="py-8 text-center">
+                <td colSpan={6} className="py-8 text-center">
                   جاري التحميل...
                 </td>
               </tr>
             ) : (
               items.map((d) => (
-                <tr key={d.id}>
+                <tr
+                  key={d.id}
+                  className={d.isActive === false ? "opacity-55" : undefined}
+                >
                   <td className="font-semibold">{d.name}</td>
                   <td dir="ltr">{d.slug}</td>
                   <td dir="ltr">{d.managerEmail}</td>
                   <td dir="ltr" className="text-xs">
                     {d.receptionToken ?? "—"}
+                  </td>
+                  <td>
+                    <span
+                      className={
+                        d.isActive === false ? "badge-danger" : "badge-success"
+                      }
+                    >
+                      {d.isActive === false ? "معطّل" : "نشط"}
+                    </span>
                   </td>
                   <td>
                     <div className="flex flex-wrap gap-1">
@@ -535,22 +548,35 @@ export function RequestTypesManager({
               <th>النوع</th>
               <th>المعرّف</th>
               <th>يتطلب زيارة</th>
+              <th>الحالة</th>
               <th>إجراءات</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={4} className="py-8 text-center">
+                <td colSpan={5} className="py-8 text-center">
                   جاري التحميل...
                 </td>
               </tr>
             ) : (
               items.map((rt) => (
-                <tr key={rt.id}>
+                <tr
+                  key={rt.id}
+                  className={rt.isActive === false ? "opacity-55" : undefined}
+                >
                   <td className="font-semibold">{rt.name}</td>
                   <td dir="ltr">{rt.slug}</td>
                   <td>{rt.requiresVisitDate ? "نعم" : "لا"}</td>
+                  <td>
+                    <span
+                      className={
+                        rt.isActive === false ? "badge-danger" : "badge-success"
+                      }
+                    >
+                      {rt.isActive === false ? "معطّل" : "نشط"}
+                    </span>
+                  </td>
                   <td>
                     <div className="flex flex-wrap gap-1">
                       <IconButton

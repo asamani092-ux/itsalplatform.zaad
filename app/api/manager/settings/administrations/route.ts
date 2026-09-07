@@ -28,6 +28,7 @@ export async function POST(request: NextRequest) {
       name?: string;
       slug?: string;
       managerEmail?: string;
+      managerName?: string;
       kind?: AdministrationKind;
     };
 
@@ -40,6 +41,7 @@ export async function POST(request: NextRequest) {
         name: body.name.trim(),
         slug: body.slug.trim(),
         managerEmail: body.managerEmail.trim(),
+        managerName: body.managerName?.trim() || "",
         kind: body.kind === "INTERNAL" ? "INTERNAL" : "EXTERNAL",
       },
     });
@@ -59,6 +61,7 @@ export async function PATCH(request: NextRequest) {
       id?: string;
       name?: string;
       managerEmail?: string;
+      managerName?: string;
       kind?: AdministrationKind;
       isActive?: boolean;
     };
@@ -73,6 +76,9 @@ export async function PATCH(request: NextRequest) {
         ...(body.name !== undefined ? { name: body.name.trim() } : {}),
         ...(body.managerEmail !== undefined
           ? { managerEmail: body.managerEmail.trim() }
+          : {}),
+        ...(body.managerName !== undefined
+          ? { managerName: body.managerName.trim() }
           : {}),
         ...(body.kind !== undefined ? { kind: body.kind } : {}),
         ...(body.isActive !== undefined ? { isActive: body.isActive } : {}),

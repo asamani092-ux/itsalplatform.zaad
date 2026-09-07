@@ -26,6 +26,7 @@ interface Employee {
   phoneNumber: string | null;
   role: string;
   isActive: boolean;
+  isReceptionDesk?: boolean;
   departmentId?: string | null;
   department?: { id: string; name: string } | null;
 }
@@ -37,6 +38,7 @@ interface MemberForm {
   password: string;
   role: string;
   departmentId: string;
+  isReceptionDesk: boolean;
 }
 
 const EMPTY_FORM: MemberForm = {
@@ -46,6 +48,7 @@ const EMPTY_FORM: MemberForm = {
   password: "",
   role: "EMPLOYEE",
   departmentId: "",
+  isReceptionDesk: false,
 };
 
 function mergeEmployee(employees: Employee[], next: Employee): Employee[] {
@@ -194,6 +197,20 @@ function MemberModal({
               ))}
             </select>
           </div>
+          <div className="flex items-center gap-2 sm:col-span-2">
+            <input
+              id="member-reception-desk"
+              type="checkbox"
+              className="h-4 w-4 accent-[var(--zaad-primary)]"
+              checked={form.isReceptionDesk}
+              onChange={(e) =>
+                setForm({ ...form, isReceptionDesk: e.target.checked })
+              }
+            />
+            <label className="text-sm text-primary" htmlFor="member-reception-desk">
+              حساب مكتب الاستقبال
+            </label>
+          </div>
 
           {error && (
             <p className="text-sm text-[var(--zaad-danger)] sm:col-span-2" role="alert">
@@ -281,6 +298,7 @@ export default function DashboardTeamPage() {
       password: "",
       role: employee.role,
       departmentId: employee.departmentId ?? "",
+      isReceptionDesk: employee.isReceptionDesk === true,
     });
     setEditingId(employee.id);
     setModalError("");
@@ -301,6 +319,7 @@ export default function DashboardTeamPage() {
             phoneNumber: form.phoneNumber,
             role: form.role,
             departmentId,
+            isReceptionDesk: form.isReceptionDesk,
             ...(form.password ? { password: form.password } : {}),
           }
         : {
@@ -310,6 +329,7 @@ export default function DashboardTeamPage() {
             password: form.password,
             role: form.role,
             departmentId,
+            isReceptionDesk: form.isReceptionDesk,
           };
 
       const res = await fetch("/api/manager/team", {
@@ -443,6 +463,7 @@ export default function DashboardTeamPage() {
               <th>البريد</th>
               <th>الهاتف</th>
               <th>الدور</th>
+              <th>الاستقبال</th>
               <th>الحالة</th>
               <th>إجراءات</th>
             </tr>
@@ -450,7 +471,7 @@ export default function DashboardTeamPage() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={6} className="py-6">
+                <td colSpan={7} className="py-6">
                   <Skeleton lines={3} />
                 </td>
               </tr>
@@ -468,6 +489,13 @@ export default function DashboardTeamPage() {
                       : emp.role === "SECTION_MANAGER"
                         ? "مدير قسم"
                         : "موظف"}
+                  </td>
+                  <td>
+                    {emp.isReceptionDesk ? (
+                      <span className="badge-primary">مكتب استقبال</span>
+                    ) : (
+                      "—"
+                    )}
                   </td>
                   <td>
                     <span className={emp.isActive ? "badge-success" : "badge-danger"}>

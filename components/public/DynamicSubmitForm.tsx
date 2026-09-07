@@ -10,7 +10,9 @@ import {
   type FormSettingsData,
 } from "@/lib/forms/schema";
 import Stepper from "@/components/ui/stepper";
-import RoomAvailabilityCalendar from "@/components/public/RoomAvailabilityCalendar";
+import HallBookingFields, {
+  type HallBookingSelection,
+} from "@/components/public/HallBookingFields";
 
 /** Client-safe duplicate of lib/hospitality HOSPITALITY_TYPE_SLUG (server-only module). */
 const HOSPITALITY_TYPE_SLUG = "hospitality-booking";
@@ -34,17 +36,21 @@ interface Administration {
   id: string;
   name: string;
   slug: string;
+  managerName?: string;
+  managerEmail?: string;
 }
 
 interface FieldErrors {
   departmentId?: string;
   requestTypeId?: string;
   title?: string;
+  contactName?: string;
   description?: string;
   requiredDate?: string;
   visitDate?: string;
   contactEmail?: string;
   contactPhone?: string;
+  hallBooking?: string;
 }
 
 function resolveSlugDefaults(
@@ -69,12 +75,15 @@ function validateFields(
     departmentId: string;
     requestTypeId: string;
     title: string;
+    contactName: string;
     description: string;
     requiredDate: string;
     visitDate: string;
     contactEmail: string;
     contactPhone: string;
     needsVisit: boolean;
+    needsHallBooking: boolean;
+    hallBooking: HallBookingSelection | null;
   },
   settings: FormSettingsData,
 ): FieldErrors {
@@ -85,6 +94,10 @@ function validateFields(
   if (!values.requestTypeId) errors.requestTypeId = "اختر نوع الطلب";
   if (!values.title.trim()) errors.title = "العنوان مطلوب";
 
+  if (f.contactName.enabled && f.contactName.required && !values.contactName.trim()) {
+    errors.contactName = "اسم مقدّم الطلب مطلوب";
+  }
+
   if (f.description.enabled && f.description.required && !values.description.trim()) {
     errors.description = "الوصف مطلوب";
   }
@@ -93,6 +106,10 @@ function validateFields(
   }
   if (values.needsVisit && f.visitDate.enabled && !values.visitDate) {
     errors.visitDate = "تاريخ الزيارة مطلوب";
+  }
+
+  if (values.needsHallBooking && !values.hallBooking) {
+    errors.hallBooking = "اختر موعداً متاحاً للقاعة";
   }
 
   if (!values.contactEmail.trim()) {
@@ -153,11 +170,13 @@ export default function DynamicSubmitForm({
     pinnedRequestTypeId ?? defaults.requestTypeId,
   );
   const [title, setTitle] = useState("");
+  const [contactName, setContactName] = useState("");
   const [description, setDescription] = useState("");
   const [requiredDate, setRequiredDate] = useState("");
   const [visitDate, setVisitDate] = useState("");
   const [contactEmail, setContactEmail] = useState("");
   const [contactPhone, setContactPhone] = useState("");
+  const [hallBooking, setHallBooking] = useState<HallBookingSelection | null>(null);
   const [loading, setLoading] = useState(!hasInitial);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -167,6 +186,9 @@ export default function DynamicSubmitForm({
   const [copyHint, setCopyHint] = useState("");
 
   const selectedType = requestTypes.find((rt) => rt.id === requestTypeId);
+  const selectedAdministration = administrations.find(
+    (a) => a.id === requesterAdministrationId,
+  );
   const showHospitalityAvailability =
     selectedType?.slug === HOSPITALITY_TYPE_SLUG || slug === HOSPITALITY_TYPE_SLUG;
 
@@ -251,12 +273,15 @@ export default function DynamicSubmitForm({
         departmentId,
         requestTypeId,
         title,
+        contactName,
         description,
         requiredDate,
         visitDate,
         contactEmail,
         contactPhone,
         needsVisit: Boolean(selectedType?.requiresVisitDate),
+        needsHallBooking: showHospitalityAvailability,
+        hallBooking,
       },
       settings,
     );
@@ -266,24 +291,43 @@ export default function DynamicSubmitForm({
     setSubmitting(true);
 
     try {
-      const res = await fetchWithTimeout("/api/public/requests", {
+      const endpoint = showHospitalityAvailability
+        ? "/api/public/hospitality/book"
+        : "/api/public/requests";
+      const body = showHospitalityAvailability && hallBooking
+        ? {
+            roomName: hallBooking.roomName,
+            meetingDate: hallBooking.meetingDate,
+            startTime: hallBooking.startTime,
+            endTime: hallBooking.endTime,
+            durationHours: hallBooking.durationHours,
+            contactName: contactName.trim(),
+            contactEmail: contactEmail.trim(),
+            contactPhone: contactPhone.trim(),
+            title: title.trim(),
+            description: description.trim(),
+            requesterAdministrationId: requesterAdministrationId || undefined,
+          }
+        : {
+            title: title.trim(),
+            contactName: contactName.trim(),
+            description: description.trim(),
+            requiredDate,
+            contactEmail: contactEmail.trim(),
+            contactPhone: contactPhone.trim(),
+            departmentId,
+            requestTypeId,
+            requesterAdministrationId: requesterAdministrationId || undefined,
+            formSlug: slug,
+            visitDate:
+              selectedType?.requiresVisitDate && fields.visitDate.enabled
+                ? visitDate
+                : undefined,
+          };
+      const res = await fetchWithTimeout(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: title.trim(),
-          description: description.trim(),
-          requiredDate,
-          contactEmail: contactEmail.trim(),
-          contactPhone: contactPhone.trim(),
-          departmentId,
-          requestTypeId,
-          requesterAdministrationId: requesterAdministrationId || undefined,
-          formSlug: slug,
-          visitDate:
-            selectedType?.requiresVisitDate && fields.visitDate.enabled
-              ? visitDate
-              : undefined,
-        }),
+        body: JSON.stringify(body),
       });
       const payload = await parseApiResponse<{ id: string; approvalUrl: string }>(res);
       if (!res.ok || !payload.success) {
@@ -440,6 +484,23 @@ export default function DynamicSubmitForm({
               <p className="text-xs text-brand-gray">
                 يُستخدم لإشعار مديرك المباشر بالطلب. الحقول أدناه تخص القسم المستقبِل للطلب.
               </p>
+              {selectedAdministration &&
+                (selectedAdministration.managerName ||
+                  selectedAdministration.managerEmail) && (
+                  <div className="mt-2 rounded-md border border-surface-border bg-surface p-2 text-xs text-brand-gray">
+                    <p>
+                      مديرك المباشر:{" "}
+                      <span className="font-semibold text-primary">
+                        {selectedAdministration.managerName || "—"}
+                      </span>
+                    </p>
+                    {selectedAdministration.managerEmail && (
+                      <p dir="ltr" className="font-mono">
+                        {selectedAdministration.managerEmail}
+                      </p>
+                    )}
+                  </div>
+                )}
             </div>
           )}
 
@@ -540,6 +601,30 @@ export default function DynamicSubmitForm({
             )}
           </div>
 
+          <div className="space-y-1">
+            <label className="label-field" htmlFor="contactName">
+              {fields.contactName.label}
+            </label>
+            <input
+              id="contactName"
+              className="input-field w-full focus-visible:ring-2 focus-visible:ring-primary/20"
+              placeholder={fields.contactName.placeholder}
+              value={contactName}
+              onChange={(e) => {
+                setContactName(e.target.value);
+                setFieldErrors((prev) => ({ ...prev, contactName: undefined }));
+              }}
+              aria-invalid={Boolean(fieldErrors.contactName)}
+              aria-describedby={fieldErrors.contactName ? "contactName-error" : undefined}
+              required
+            />
+            {fieldErrors.contactName && (
+              <p id="contactName-error" className="text-xs text-[var(--zaad-danger)]">
+                {fieldErrors.contactName}
+              </p>
+            )}
+          </div>
+
           {fields.description.enabled && (
             <div className="space-y-1">
               <label className="label-field" htmlFor="description">
@@ -569,7 +654,7 @@ export default function DynamicSubmitForm({
             </div>
           )}
 
-          {fields.requiredDate.enabled && (
+          {fields.requiredDate.enabled && !showHospitalityAvailability && (
             <div className="space-y-1">
               <label className="label-field" htmlFor="requiredDate">
                 {fields.requiredDate.label}
@@ -601,13 +686,19 @@ export default function DynamicSubmitForm({
           )}
 
           {showHospitalityAvailability && (
-            <RoomAvailabilityCalendar
-              date={requiredDate}
-              onDateChange={(next) => {
-                setRequiredDate(next);
-                setFieldErrors((prev) => ({ ...prev, requiredDate: undefined }));
-              }}
-            />
+            <div className="space-y-1">
+              <HallBookingFields
+                onSelect={(selection) => {
+                  setHallBooking(selection);
+                  setFieldErrors((prev) => ({ ...prev, hallBooking: undefined }));
+                }}
+              />
+              {fieldErrors.hallBooking && (
+                <p className="text-xs text-[var(--zaad-danger)]" role="alert">
+                  {fieldErrors.hallBooking}
+                </p>
+              )}
+            </div>
           )}
 
           {selectedType?.requiresVisitDate && fields.visitDate.enabled && (

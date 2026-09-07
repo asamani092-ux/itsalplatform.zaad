@@ -36,6 +36,7 @@ async function main() {
     update: {
       name: "إدارة الاتصال المؤسسي",
       managerEmail: "director@zaad.org",
+      managerName: "مدير الإدارة",
       kind: "INTERNAL",
       isActive: true,
     },
@@ -43,6 +44,7 @@ async function main() {
       name: "إدارة الاتصال المؤسسي",
       slug: "corporate-comm",
       managerEmail: "director@zaad.org",
+      managerName: "مدير الإدارة",
       kind: "INTERNAL",
     },
   });
@@ -50,16 +52,48 @@ async function main() {
   // External administrations (الإدارات الأخرى) — their employees submit requests;
   // managerEmail is the submitter's line manager notified on submission.
   const externalAdministrations = [
-    { slug: "hr", name: "إدارة الموارد البشرية", managerEmail: "hr.manager@zaad.org" },
-    { slug: "finance", name: "الإدارة المالية", managerEmail: "finance.manager@zaad.org" },
-    { slug: "it", name: "إدارة تقنية المعلومات", managerEmail: "it.manager@zaad.org" },
-    { slug: "programs", name: "إدارة البرامج والمشاريع", managerEmail: "programs.manager@zaad.org" },
+    {
+      slug: "hr",
+      name: "إدارة الموارد البشرية",
+      managerEmail: "hr.manager@zaad.org",
+      managerName: "عبدالله الحربي",
+    },
+    {
+      slug: "finance",
+      name: "الإدارة المالية",
+      managerEmail: "finance.manager@zaad.org",
+      managerName: "خالد العمري",
+    },
+    {
+      slug: "it",
+      name: "إدارة تقنية المعلومات",
+      managerEmail: "it.manager@zaad.org",
+      managerName: "بندر السهلي",
+    },
+    {
+      slug: "programs",
+      name: "إدارة البرامج والمشاريع",
+      managerEmail: "programs.manager@zaad.org",
+      managerName: "ريم القرني",
+    },
   ];
   for (const adm of externalAdministrations) {
     await prisma.administration.upsert({
       where: { slug: adm.slug },
-      update: { name: adm.name, managerEmail: adm.managerEmail, kind: "EXTERNAL", isActive: true },
-      create: { name: adm.name, slug: adm.slug, managerEmail: adm.managerEmail, kind: "EXTERNAL" },
+      update: {
+        name: adm.name,
+        managerEmail: adm.managerEmail,
+        managerName: adm.managerName,
+        kind: "EXTERNAL",
+        isActive: true,
+      },
+      create: {
+        name: adm.name,
+        slug: adm.slug,
+        managerEmail: adm.managerEmail,
+        managerName: adm.managerName,
+        kind: "EXTERNAL",
+      },
     });
   }
 
@@ -386,6 +420,7 @@ async function main() {
   const demoRequests = [
     {
       title: "تصميم منشور توعوي للحملة",
+      contactName: "فاطمة الزهراني",
       description: "طلب تصميم منشور لوسائل التواصل ضمن حملة التطوع",
       contactEmail: "fatima@demo.zaad.org",
       contactPhone: "0551000001",
@@ -403,6 +438,7 @@ async function main() {
     },
     {
       title: "تغطية ملتقى المتطوعين",
+      contactName: "علي المطيري",
       description: "تغطية إعلامية لملتقى المتطوعين في المقر",
       contactEmail: "ali@demo.zaad.org",
       contactPhone: "0551000002",
@@ -420,6 +456,7 @@ async function main() {
     },
     {
       title: "زيارة وفد وزارة الإعلام",
+      contactName: "ممثل وزارة الإعلام",
       description: "استقبال وفد الوزارة للاطلاع على البرامج",
       contactEmail: "visit@demo.zaad.org",
       contactPhone: "0551000003",
@@ -437,6 +474,7 @@ async function main() {
     },
     {
       title: "زيارة شريك — مؤسسة الإحسان",
+      contactName: "ممثل مؤسسة الإحسان",
       description: "اجتماع تنسيقي حول الشراكة المجتمعية",
       contactEmail: "partner@demo.zaad.org",
       contactPhone: "0551000004",
@@ -454,6 +492,7 @@ async function main() {
     },
     {
       title: "طلب تصميم منشور توعوي",
+      contactName: "سلمى الدوسري",
       description: "تصميم منشور لوسائل التواصل",
       contactEmail: "design@demo.zaad.org",
       contactPhone: "0551000005",
@@ -471,6 +510,7 @@ async function main() {
     },
     {
       title: "زيارة صباحية — متبرع",
+      contactName: "متبرع كريم",
       description: "زيارة متبرع للاطلاع على المشاريع",
       contactEmail: "donor@demo.zaad.org",
       contactPhone: "0551000006",
@@ -488,6 +528,7 @@ async function main() {
     },
     {
       title: "تصميم بانر فعالية — بانتظار المراجعة",
+      contactName: "فريق الفعاليات",
       description: "الموظف أعلن انتهاء التصميم وبانتظار اعتماد المدير",
       contactEmail: "review@demo.zaad.org",
       contactPhone: "0551000007",
@@ -507,6 +548,7 @@ async function main() {
     },
     {
       title: "تغطية يوم مفتوح — مُعادة للموظف",
+      contactName: "منسق اليوم المفتوح",
       description: "أُعيدت للمراجعة مع ملاحظة تصحيح",
       contactEmail: "returned@demo.zaad.org",
       contactPhone: "0551000008",
@@ -527,6 +569,7 @@ async function main() {
     },
     {
       title: "طلب تصميم مرفوض — خارج النطاق",
+      contactName: "مقدّم طلب مرفوض",
       description: "طلب خارج اختصاص القسم",
       contactEmail: "rejected@demo.zaad.org",
       contactPhone: "0551000009",
@@ -545,6 +588,7 @@ async function main() {
     },
     {
       title: "طلب عام مؤرشف",
+      contactName: "مقدّم طلب مؤرشف",
       description: "طلب مكتمل وأُرشف للأرشيف",
       contactEmail: "archived@demo.zaad.org",
       contactPhone: "0551000010",
@@ -567,6 +611,7 @@ async function main() {
     const row = await prisma.communicationRequest.create({
       data: {
         title: r.title,
+        contactName: r.contactName,
         description: r.description,
         contactEmail: r.contactEmail,
         contactPhone: r.contactPhone,

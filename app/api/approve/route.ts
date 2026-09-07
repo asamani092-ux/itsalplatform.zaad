@@ -17,6 +17,7 @@ export async function GET(request: NextRequest) {
     return jsonOk({
       id: existing.id,
       title: existing.title,
+      contactName: existing.contactName,
       description: existing.description,
       requiredDate: existing.requiredDate,
       contactEmail: existing.contactEmail,

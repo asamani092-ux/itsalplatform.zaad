@@ -42,6 +42,7 @@ const FIELD_TITLES: Record<FormFieldKey, string> = {
   department: "القسم",
   requestType: "نوع الطلب",
   title: "عنوان الطلب",
+  contactName: "اسم مقدّم الطلب",
   description: "الوصف",
   requiredDate: "التاريخ المطلوب",
   visitDate: "تاريخ الزيارة",

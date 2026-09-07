@@ -49,6 +49,7 @@ model Administration {
   name              String
   slug              String                 @unique
   managerEmail      String
+  managerName       String                 @default("")
   kind              AdministrationKind     @default(EXTERNAL)
   isActive          Boolean                @default(true)
   departments       Department[]
@@ -162,6 +163,7 @@ model Notification {
 model CommunicationRequest {
   id                 String              @id @default(cuid())
   title              String
+  contactName        String              @default("")
   description        String
   requiredDate       DateTime
   contactEmail       String

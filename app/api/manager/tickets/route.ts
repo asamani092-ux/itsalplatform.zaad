@@ -17,6 +17,7 @@ export async function GET(request: NextRequest) {
     const statusParam = request.nextUrl.searchParams.get("status");
     const requestedDeptId = request.nextUrl.searchParams.get("departmentId") ?? undefined;
     const requestTypeId = request.nextUrl.searchParams.get("requestTypeId") ?? undefined;
+    const includePending = request.nextUrl.searchParams.get("includePending") === "1";
 
     // Section managers are locked to their own section; directors may filter freely.
     const departmentId =
@@ -31,6 +32,7 @@ export async function GET(request: NextRequest) {
       status,
       departmentId,
       requestTypeId,
+      includePendingManager: includePending,
     });
 
     return jsonOk({ requests, count: requests.length });

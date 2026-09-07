@@ -1,0 +1,2 @@
+ALTER TABLE "CommunicationRequest" ADD COLUMN IF NOT EXISTS "contactName" TEXT NOT NULL DEFAULT '';
+ALTER TABLE "Administration" ADD COLUMN IF NOT EXISTS "managerName" TEXT NOT NULL DEFAULT '';

@@ -49,6 +49,8 @@ export default function DashboardSettingsClient({
   const [error, setError] = useState("");
   const [skipApproval, setSkipApproval] = useState(false);
   const [roomsText, setRoomsText] = useState("");
+  const [dayStart, setDayStart] = useState("08:00");
+  const [dayEnd, setDayEnd] = useState("16:00");
   const [appSaving, setAppSaving] = useState(false);
   const [appStatus, setAppStatus] = useState("");
 
@@ -62,6 +64,7 @@ export default function DashboardSettingsClient({
       const deptPayload = await parseApiResponse<{ departments: Department[] }>(deptRes);
       const appPayload = await parseApiResponse<{
         workflow: { skipDepartmentApproval: boolean };
+        hospitality: { rooms: string[]; dayStart: string; dayEnd: string };
         rooms: string[];
       }>(appRes);
 
@@ -70,7 +73,9 @@ export default function DashboardSettingsClient({
       }
       if (appPayload.success) {
         setSkipApproval(appPayload.data.workflow.skipDepartmentApproval);
-        setRoomsText(appPayload.data.rooms.join("\n"));
+        setRoomsText(appPayload.data.hospitality.rooms.join("\n"));
+        setDayStart(appPayload.data.hospitality.dayStart);
+        setDayEnd(appPayload.data.hospitality.dayEnd);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "خطأ");
@@ -113,13 +118,17 @@ export default function DashboardSettingsClient({
       const res = await fetch("/api/manager/settings/app", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rooms }),
+        body: JSON.stringify({ hospitality: { rooms, dayStart, dayEnd } }),
       });
-      const payload = await parseApiResponse<{ rooms: string[] }>(res);
+      const payload = await parseApiResponse<{
+        hospitality: { rooms: string[]; dayStart: string; dayEnd: string };
+      }>(res);
       if (!res.ok || !payload.success) {
         throw new Error(getApiErrorMessage(payload, "فشل حفظ القاعات"));
       }
-      setRoomsText(payload.data.rooms.join("\n"));
+      setRoomsText(payload.data.hospitality.rooms.join("\n"));
+      setDayStart(payload.data.hospitality.dayStart);
+      setDayEnd(payload.data.hospitality.dayEnd);
       setAppStatus("تم حفظ القاعات");
     } catch (e) {
       setError(e instanceof Error ? e.message : "خطأ");
@@ -211,6 +220,37 @@ export default function DashboardSettingsClient({
               value={roomsText}
               onChange={(e) => setRoomsText(e.target.value)}
             />
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1">
+                <label className="label-field" htmlFor="dayStart">
+                  بداية ساعات العمل
+                </label>
+                <input
+                  id="dayStart"
+                  type="time"
+                  className="input-field w-full"
+                  dir="ltr"
+                  value={dayStart}
+                  onChange={(e) => setDayStart(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="label-field" htmlFor="dayEnd">
+                  نهاية ساعات العمل
+                </label>
+                <input
+                  id="dayEnd"
+                  type="time"
+                  className="input-field w-full"
+                  dir="ltr"
+                  value={dayEnd}
+                  onChange={(e) => setDayEnd(e.target.value)}
+                />
+              </div>
+            </div>
+            <p className="text-xs text-brand-gray">
+              تُستخدم ساعات العمل لحساب المواعيد المتاحة للحجز في نموذج الضيافة العام.
+            </p>
             <button
               type="button"
               className="btn-primary text-sm"

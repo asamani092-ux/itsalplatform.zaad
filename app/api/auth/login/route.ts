@@ -5,17 +5,32 @@ import {
   setSessionCookie,
 } from "@/lib/auth/session";
 import { handleApiError, jsonError, jsonOk } from "@/lib/api-utils";
-import { checkRateLimit, rateLimitKey } from "@/lib/rate-limit";
+import {
+  checkRateLimit,
+  clearAuthFailures,
+  getLockRemainingMs,
+  rateLimitKey,
+  recordAuthFailure,
+} from "@/lib/rate-limit";
+
+const LOGIN_MAX_FAILURES = 10;
+const LOGIN_LOCK_MS = 20 * 60 * 1000;
 
 export async function POST(request: NextRequest) {
   try {
-    const loginLimit = process.env.NODE_ENV === "production" ? 5 : 20;
-    const limit = checkRateLimit(
-      rateLimitKey(request, "auth-login"),
-      loginLimit,
-      60_000,
-    );
-    if (!limit.allowed) {
+    const key = rateLimitKey(request, "auth-login");
+    const lockRemaining = getLockRemainingMs(key);
+    if (lockRemaining > 0) {
+      const mins = Math.ceil(lockRemaining / 60_000);
+      return jsonError(
+        `تم قفل تسجيل الدخول مؤقتاً. حاول بعد ${mins} دقيقة.`,
+        "RATE_LIMITED",
+        429,
+      );
+    }
+
+    const burst = checkRateLimit(key, 30, 60_000);
+    if (!burst.allowed) {
       return jsonError("تم تجاوز عدد المحاولات المسموح. حاول لاحقاً.", "RATE_LIMITED", 429);
     }
 
@@ -31,20 +46,34 @@ export async function POST(request: NextRequest) {
 
     const user = await verifyLogin(body.email, body.password);
     if (!user) {
+      const fail = recordAuthFailure(key, LOGIN_MAX_FAILURES, LOGIN_LOCK_MS);
+      if (fail.locked) {
+        return jsonError(
+          "تم تجاوز 10 محاولات فاشلة. الحساب مقفل لمدة 20 دقيقة.",
+          "RATE_LIMITED",
+          429,
+        );
+      }
       return jsonError("بيانات الدخول غير صحيحة", "INVALID_CREDENTIALS", 401);
     }
 
-    const token = await createSessionToken({
-      sub: user.id,
-      name: user.name,
-      email: user.email,
-      phoneNumber: user.phoneNumber ?? "",
-      role: user.role,
-      departmentId: user.departmentId,
-      deskAccess: user.deskAccess,
-    });
+    clearAuthFailures(key);
 
-    await setSessionCookie(token, body.rememberMe === true);
+    const remember = body.rememberMe === true;
+    const token = await createSessionToken(
+      {
+        sub: user.id,
+        name: user.name,
+        email: user.email,
+        phoneNumber: user.phoneNumber ?? "",
+        role: user.role,
+        departmentId: user.departmentId,
+        deskAccess: user.deskAccess,
+      },
+      remember,
+    );
+
+    await setSessionCookie(token, remember);
 
     return jsonOk({
       user: {

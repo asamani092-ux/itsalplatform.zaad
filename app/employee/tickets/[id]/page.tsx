@@ -16,6 +16,7 @@ interface TicketDetail {
   description: string;
   status: string;
   requiredDate: string;
+  contactName?: string;
   contactEmail: string;
   contactPhone: string;
   createdAt: string;
@@ -167,7 +168,10 @@ export default function EmployeeTicketDetailPage() {
         <dl className="grid gap-2 text-sm">
           <div className="flex justify-between gap-4">
             <dt className="text-brand-gray">مقدّم الطلب</dt>
-            <dd dir="ltr">{ticket.contactEmail}</dd>
+            <dd>
+              {ticket.contactName ? `${ticket.contactName} — ` : ""}
+              <span dir="ltr">{ticket.contactEmail}</span>
+            </dd>
           </div>
           <div className="flex justify-between gap-4">
             <dt className="text-brand-gray">الجوال</dt>

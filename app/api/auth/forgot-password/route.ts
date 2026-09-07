@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { handleApiError, jsonError, jsonOk } from "@/lib/api-utils";
 import { checkRateLimit, rateLimitKey } from "@/lib/rate-limit";
-import { requestPasswordReset } from "@/lib/auth/password-reset";
+import { requestPasswordReset, accountExistsForReset } from "@/lib/auth/password-reset";
 
 export async function POST(request: NextRequest) {
   try {
@@ -15,11 +15,15 @@ export async function POST(request: NextRequest) {
       return jsonError("البريد الإلكتروني مطلوب", "VALIDATION", 400);
     }
 
+    const exists = await accountExistsForReset(body.email);
+    if (!exists) {
+      return jsonError("الحساب غير مسجل", "NOT_FOUND", 404);
+    }
+
     await requestPasswordReset(body.email);
 
-    // Same response whether or not the account exists.
     return jsonOk({
-      message: "إذا كان البريد مسجلاً، فقد أُرسل رابط إعادة التعيين إليه.",
+      message: "تم إرسال رابط إعادة تعيين كلمة المرور إلى بريدك إن كان مفعّلاً.",
     });
   } catch (error) {
     return handleApiError(error);

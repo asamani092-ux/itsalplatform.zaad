@@ -19,6 +19,7 @@ const employeeSelect = {
   phoneNumber: true,
   role: true,
   isActive: true,
+  isReceptionDesk: true,
   departmentId: true,
   department: { select: { id: true, name: true } },
   createdAt: true,
@@ -56,6 +57,7 @@ export async function POST(request: NextRequest) {
       password?: string;
       role?: EmployeeRole;
       departmentId?: string | null;
+      isReceptionDesk?: boolean;
     };
 
     if (!body.name?.trim() || !body.email?.trim() || !body.password) {
@@ -74,6 +76,7 @@ export async function POST(request: NextRequest) {
       password: body.password,
       role,
       departmentId,
+      isReceptionDesk: body.isReceptionDesk === true,
     });
 
     return jsonOk(employee, 201);
@@ -96,6 +99,7 @@ export async function PATCH(request: NextRequest) {
       role?: EmployeeRole;
       isActive?: boolean;
       departmentId?: string | null;
+      isReceptionDesk?: boolean;
     };
 
     if (!body.id) {
@@ -149,15 +153,21 @@ export async function DELETE(request: NextRequest) {
     const assigned = await prisma.communicationRequest.count({
       where: { assignedEmployeeId: id },
     });
+    const historyCount = await prisma.assignmentHistory.count({
+      where: { employeeId: id },
+    });
+    const grantCount = await prisma.grant.count({
+      where: { createdById: id },
+    });
 
-    if (assigned > 0) {
+    if (assigned > 0 || historyCount > 0 || grantCount > 0) {
       const deactivated = await updateEmployee(id, { isActive: false });
       return jsonOk({
         id,
         deleted: false,
         deactivated: true,
         employee: deactivated,
-        message: "للموظف طلبات مرتبطة — تم تعطيل الحساب بدل حذفه",
+        message: "للموظف سجلات مرتبطة — تم تعطيل الحساب بدل حذفه",
       });
     }
 
