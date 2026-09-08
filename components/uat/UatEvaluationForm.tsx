@@ -14,8 +14,7 @@ import {
   type UatState,
   type UatWorks,
 } from "@/lib/uat/report";
-
-const STORAGE_KEY = `zaad-uat-${UAT_VERSION}`;
+import { loadUatDraft, saveUatDraft } from "@/lib/uat/storage";
 
 const RATINGS: { value: UatRating; label: string }[] = [
   { value: "5", label: "5" },
@@ -49,6 +48,7 @@ function emptyState(): UatState {
 export default function UatEvaluationForm() {
   const [state, setState] = useState<UatState>(emptyState);
   const [hydrated, setHydrated] = useState(false);
+  const [restoredNotice, setRestoredNotice] = useState("");
   const [copyStatus, setCopyStatus] = useState("");
   const [pathHint, setPathHint] = useState("");
   const [demoApprovalPath, setDemoApprovalPath] = useState(
@@ -58,9 +58,12 @@ export default function UatEvaluationForm() {
 
   useEffect(() => {
     try {
-      const saved = window.localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        setState(JSON.parse(saved) as UatState);
+      const { state: restored, migratedFrom } = loadUatDraft();
+      if (restored) {
+        setState(restored);
+        if (migratedFrom) {
+          setRestoredNotice("تمت استعادة مسودة التقييم السابقة من إصدار أقدم في هذا المتصفح.");
+        }
       }
     } catch {
       // Corrupted local draft — start fresh
@@ -71,7 +74,7 @@ export default function UatEvaluationForm() {
   useEffect(() => {
     if (!hydrated) return;
     try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      saveUatDraft(state);
     } catch {
       // Storage unavailable (private mode) — evaluation still works in memory
     }
@@ -155,6 +158,14 @@ export default function UatEvaluationForm() {
 
   return (
     <div className="space-y-6">
+      {restoredNotice && (
+        <p
+          className="rounded-md border border-[color-mix(in_srgb,var(--zaad-primary)_25%,white)] bg-[color-mix(in_srgb,var(--zaad-primary)_8%,white)] px-3 py-2 text-sm text-primary"
+          role="status"
+        >
+          {restoredNotice}
+        </p>
+      )}
       <section className="card space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
