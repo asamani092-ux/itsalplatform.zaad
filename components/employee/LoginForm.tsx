@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { getApiErrorMessage, parseApiResponse } from "@/components/lib/api-types";
 import { fetchWithTimeout } from "@/lib/client/fetch-with-timeout";
 import BrandLogo from "@/components/shared/brand-logo";
+import { IconEye, IconEyeOff } from "@/components/shared/icons";
 
 const DEMO_ACCOUNTS = [
   { role: "مدير الإدارة", email: "director@zaad.org" },
@@ -96,24 +97,29 @@ export default function LoginForm({
           required
         />
         <div className="space-y-1">
-          <Input
-            id="password"
-            label="كلمة المرور"
-            type={showPassword ? "text" : "password"}
-            autoComplete="current-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
-          <label className="inline-flex cursor-pointer items-center gap-2 text-xs text-brand-gray">
-            <input
-              type="checkbox"
-              className="h-3.5 w-3.5 accent-[var(--zaad-primary)]"
-              checked={showPassword}
-              onChange={(e) => setShowPassword(e.target.checked)}
-            />
-            إظهار كلمة المرور
+          <label className="label-field" htmlFor="password">
+            كلمة المرور
           </label>
+          <div className="relative">
+            <input
+              id="password"
+              className="input-field w-full rounded-lg ps-11 focus:ring-2 focus:ring-primary/20"
+              type={showPassword ? "text" : "password"}
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+            <button
+              type="button"
+              className="absolute left-2 top-1/2 inline-flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-md text-brand-gray/55 transition-colors hover:bg-surface-muted hover:text-brand-gray focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+              aria-label={showPassword ? "إخفاء كلمة المرور" : "إظهار كلمة المرور"}
+              aria-pressed={showPassword}
+              onClick={() => setShowPassword((v) => !v)}
+            >
+              {showPassword ? <IconEyeOff size={18} /> : <IconEye size={18} />}
+            </button>
+          </div>
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-2">

@@ -124,14 +124,17 @@
 .zad-toast-host {
   position: fixed;
   inset-inline-end: var(--space-4);
-  inset-block-end: var(--space-4);
-  z-index: var(--z-toast);
+  inset-block-start: var(--space-4);
+  inset-block-end: auto;
+  z-index: calc(var(--z-modal) + 20);
+  pointer-events: none;
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
   max-width: min(24rem, calc(100vw - var(--space-8)));
 }
 .zad-toast {
+  pointer-events: auto;
   border-radius: var(--radius-lg);
   border: var(--border-hairline) solid var(--border-default);
   background: var(--surface-raised);

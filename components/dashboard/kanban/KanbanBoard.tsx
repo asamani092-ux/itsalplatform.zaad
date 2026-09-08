@@ -60,8 +60,8 @@ export default function KanbanBoard() {
   const [returnModalId, setReturnModalId] = useState<string | null>(null);
   const [returnNote, setReturnNote] = useState("");
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
+  const loadData = useCallback(async (opts?: { soft?: boolean }) => {
+    if (!opts?.soft) setLoading(true);
     setError(null);
 
     try {
@@ -107,7 +107,7 @@ export default function KanbanBoard() {
         loadError instanceof Error ? loadError.message : "حدث خطأ غير متوقع",
       );
     } finally {
-      setLoading(false);
+      if (!opts?.soft) setLoading(false);
     }
   }, []);
 
@@ -126,7 +126,18 @@ export default function KanbanBoard() {
       if (!response.ok || !payload.success) {
         throw new Error(getApiErrorMessage(payload, "فشلت العملية"));
       }
-      await loadData();
+      const updated = payload.data.request ?? payload.data;
+      if (updated?.id) {
+        const patch = (list: DashboardRequest[]) =>
+          list.map((r) => (r.id === updated.id ? { ...r, ...updated } : r));
+        setRequests(patch);
+        setArchiveRequests(patch);
+        setRejectedRequests(patch);
+        setDetailExtra((prev) =>
+          prev?.id === updated.id ? { ...prev, ...updated } : prev,
+        );
+      }
+      await loadData({ soft: true });
     } catch (actionError) {
       setError(
         actionError instanceof Error ? actionError.message : "فشلت العملية",
@@ -522,13 +533,13 @@ export default function KanbanBoard() {
                 <dt>المسند إليه</dt>
                 <dd>{detailRequest.assignedEmployee?.name ?? "غير مسند"}</dd>
               </div>
-              {(detailRequest as { proofFileUrl?: string | null }).proofFileUrl && (
+              {detailRequest.proofFileUrl && (
                 <div>
                   <dt>مرفق الإثبات</dt>
                   <dd>
                     <a
                       className="text-primary underline"
-                      href={(detailRequest as { proofFileUrl?: string }).proofFileUrl!}
+                      href={detailRequest.proofFileUrl!}
                       target="_blank"
                       rel="noreferrer"
                     >

@@ -846,6 +846,7 @@ export async function redeclareAfterReturn(params: {
   requestId: string;
   employeeId: string;
   proofFileUrl?: string;
+  employeeNote?: string;
 }) {
   const existing = await getRequestById(params.requestId);
 
@@ -865,6 +866,7 @@ export async function redeclareAfterReturn(params: {
       status: RequestStatus.Pending_Review,
       completionDeclaredAt: now,
       ...(params.proofFileUrl ? { proofFileUrl: params.proofFileUrl } : {}),
+      ...(params.employeeNote ? { employeeNote: params.employeeNote } : {}),
     },
     include: requestInclude,
   });
@@ -874,7 +876,7 @@ export async function redeclareAfterReturn(params: {
     fromStatus: RequestStatus.Returned,
     toStatus: RequestStatus.Pending_Review,
     changedBy: params.employeeId,
-    note: "إعادة إعلان بعد التصحيح",
+    note: params.employeeNote?.trim() || "إعادة إعلان بعد التصحيح",
   });
 
   await notifyManagersBoth(

@@ -1,4 +1,3 @@
-import Link from "next/link";
 import BrandLogo from "@/components/shared/brand-logo";
 
 export default function PublicSubmitShell({
@@ -28,11 +27,6 @@ export default function PublicSubmitShell({
           </div>
           {children}
         </div>
-        <p className="text-center text-xs text-brand-gray">
-          <Link href="/" className="underline">
-            العودة لبوابة المنصة
-          </Link>
-        </p>
       </div>
     </div>
   );

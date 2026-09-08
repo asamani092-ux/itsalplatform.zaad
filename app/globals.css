@@ -92,3 +92,13 @@ textarea.input-field:focus-visible {
   background: var(--neutral-0);
   color: var(--neutral-800);
 }
+
+
+/* datetime readability */
+time,
+.datetime,
+[data-datetime] {
+  font-size: 0.95rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}

@@ -27,6 +27,16 @@ export interface HallBookingSelection {
   durationHours: number;
 }
 
+
+function formatTime12h(hhmm: string): string {
+  const [hStr, mStr = "00"] = hhmm.split(":");
+  let h = Number(hStr);
+  const suffix = h >= 12 ? "م" : "ص";
+  h = h % 12;
+  if (h === 0) h = 12;
+  return `${h}:${mStr} ${suffix}`;
+}
+
 function toLocalISODate(d: Date): string {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -217,9 +227,8 @@ export default function HallBookingFields({
                       ? "border-[var(--zaad-primary)] bg-[color-mix(in_srgb,var(--zaad-primary)_12%,transparent)] text-primary"
                       : "border-surface-border text-brand-gray hover:border-[var(--zaad-primary)] hover:text-primary"
                   }`}
-                  dir="ltr"
                 >
-                  {slot.startTime} — {slot.endTime}
+                  {formatTime12h(slot.startTime)} — {formatTime12h(slot.endTime)}
                 </button>
               );
             })}

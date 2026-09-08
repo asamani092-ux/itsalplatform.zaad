@@ -41,6 +41,7 @@ export default function EmployeeTicketDetailPage() {
   const [error, setError] = useState("");
   const [rejectOpen, setRejectOpen] = useState(false);
   const [rejectNote, setRejectNote] = useState("");
+  const [redeclareNote, setRedeclareNote] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -62,9 +63,14 @@ export default function EmployeeTicketDetailPage() {
     void load();
   }, [load]);
 
-  async function postMultipart(url: string) {
+  async function postMultipart(url: string, extra?: Record<string, string>) {
     const formData = new FormData();
     if (proof) formData.append("proof", proof);
+    if (extra) {
+      for (const [key, value] of Object.entries(extra)) {
+        formData.append(key, value);
+      }
+    }
     const res = await fetch(url, { method: "POST", body: formData });
     const payload = await parseApiResponse<{ ticket: TicketDetail }>(res);
     if (!res.ok || !payload.success) {
@@ -87,10 +93,17 @@ export default function EmployeeTicketDetailPage() {
   }
 
   async function handleRedeclare() {
+    if (!redeclareNote.trim()) {
+      setError("ملاحظة الموظف مطلوبة بعد الإرجاع");
+      return;
+    }
     setBusy(true);
     setError("");
     try {
-      await postMultipart(`/api/employee/tickets/${id}/redeclare`);
+      await postMultipart(`/api/employee/tickets/${id}/redeclare`, {
+        employeeNote: redeclareNote.trim(),
+      });
+      setRedeclareNote("");
     } catch (e) {
       setError(e instanceof Error ? e.message : "خطأ");
     } finally {
@@ -240,14 +253,29 @@ export default function EmployeeTicketDetailPage() {
             </>
           )}
           {isReturned && (
-            <button
-              type="button"
-              className="btn-primary w-full py-3"
-              disabled={busy}
-              onClick={() => void handleRedeclare()}
-            >
-              {busy ? "جاري الإرسال..." : "إعادة الإعلان بعد التصحيح"}
-            </button>
+            <>
+              <div className="space-y-1">
+                <label className="label-field" htmlFor="redeclareNote">
+                  ملاحظة التصحيح (مطلوبة)
+                </label>
+                <textarea
+                  id="redeclareNote"
+                  className="input-field min-h-[96px] w-full"
+                  value={redeclareNote}
+                  onChange={(e) => setRedeclareNote(e.target.value)}
+                  placeholder="وضّح ما تم تصحيحه بعد الإرجاع"
+                  required
+                />
+              </div>
+              <button
+                type="button"
+                className="btn-primary w-full py-3"
+                disabled={busy || !redeclareNote.trim()}
+                onClick={() => void handleRedeclare()}
+              >
+                {busy ? "جاري الإرسال..." : "إعادة الإعلان بعد التصحيح"}
+              </button>
+            </>
           )}
         </div>
       )}

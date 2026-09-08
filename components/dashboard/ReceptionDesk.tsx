@@ -193,7 +193,7 @@ function formatDateTime(iso: string | null | undefined) {
 }
 
 function csvEscape(value: string) {
-  if (/[",\n]/.test(value)) return `"${value.replace(/"/g, '""')}"`;
+  if (/[";,\n]/.test(value)) return `"${value.replace(/"/g, '""')}"`;
   return value;
 }
 
@@ -642,7 +642,7 @@ export default function ReceptionDesk() {
       "الإدارة",
     ];
     const lines = [
-      header.join(","),
+      header.join(";"),
       ...reportVisits.map((v) =>
         [
           csvEscape(v.visitorName),
@@ -653,7 +653,7 @@ export default function ReceptionDesk() {
           csvEscape(v.visitTimeSlot),
           csvEscape(formatDateTime(v.visitAt)),
           csvEscape(v.departmentName ?? ""),
-        ].join(","),
+        ].join(";"),
       ),
     ];
     const blob = new Blob(["\ufeff" + lines.join("\n")], {

@@ -104,7 +104,12 @@ function validateFields(
   if (f.requiredDate.enabled && f.requiredDate.required && !values.requiredDate) {
     errors.requiredDate = "التاريخ المطلوب مطلوب";
   }
-  if (values.needsVisit && f.visitDate.enabled && !values.visitDate) {
+  if (
+    values.needsVisit &&
+    !values.needsHallBooking &&
+    f.visitDate.enabled &&
+    !values.visitDate
+  ) {
     errors.visitDate = "تاريخ الزيارة مطلوب";
   }
 
@@ -162,6 +167,7 @@ export default function DynamicSubmitForm({
     initialRequestTypes ?? [],
   );
   const [administrations, setAdministrations] = useState<Administration[]>([]);
+  const [adminLoading, setAdminLoading] = useState(true);
   const [requesterAdministrationId, setRequesterAdministrationId] = useState("");
   const [departmentId, setDepartmentId] = useState(
     pinnedDepartmentId ?? defaults.departmentId,
@@ -239,12 +245,15 @@ export default function DynamicSubmitForm({
   // Requester administrations are always loaded (never passed as initial props).
   useEffect(() => {
     void (async () => {
+      setAdminLoading(true);
       try {
         const res = await fetchWithTimeout("/api/public/administrations");
         const payload = await parseApiResponse<{ administrations: Administration[] }>(res);
         if (payload.success) setAdministrations(payload.data.administrations);
       } catch {
         // Optional field — ignore load failures.
+      } finally {
+        setAdminLoading(false);
       }
     })();
   }, []);
@@ -286,7 +295,16 @@ export default function DynamicSubmitForm({
       settings,
     );
     setFieldErrors(errors);
-    if (Object.keys(errors).length > 0) return;
+    if (Object.keys(errors).length > 0) {
+      window.requestAnimationFrame(() => {
+        const el =
+          document.querySelector<HTMLElement>('[aria-invalid="true"]') ??
+          document.querySelector<HTMLElement>('[data-field-error]');
+        el?.scrollIntoView({ behavior: "smooth", block: "center" });
+        el?.focus?.();
+      });
+      return;
+    }
 
     setSubmitting(true);
 
@@ -425,7 +443,7 @@ export default function DynamicSubmitForm({
   }
 
   return (
-    <form onSubmit={(e) => void handleSubmit(e)} className="w-full space-y-4">
+    <form noValidate onSubmit={(e) => void handleSubmit(e)} className="w-full space-y-4">
       <Stepper
         currentId={submitting ? "send" : "fill"}
         steps={[
@@ -462,8 +480,16 @@ export default function DynamicSubmitForm({
         </div>
       ) : (
         <>
-          {administrations.length > 0 && (
+          {(adminLoading || administrations.length > 0) && (
             <div className="space-y-1 rounded-lg border border-[color-mix(in_srgb,var(--zaad-primary)_20%,transparent)] bg-[color-mix(in_srgb,var(--zaad-primary)_5%,transparent)] p-3">
+              {adminLoading ? (
+                <div className="space-y-2" aria-busy="true">
+                  <div className="h-4 w-40 animate-pulse rounded bg-surface-muted" />
+                  <div className="h-10 w-full animate-pulse rounded-lg bg-surface-muted" />
+                  <div className="h-3 w-3/4 animate-pulse rounded bg-surface-muted" />
+                </div>
+              ) : (
+              <>
               <label className="label-field" htmlFor="requesterAdministration">
                 إدارتك (مقدّم الطلب)
                 <span className="text-brand-gray"> (اختياري)</span>
@@ -501,6 +527,8 @@ export default function DynamicSubmitForm({
                     )}
                   </div>
                 )}
+              </>
+              )}
             </div>
           )}
 
@@ -529,7 +557,7 @@ export default function DynamicSubmitForm({
               ))}
             </select>
             {fieldErrors.departmentId && (
-              <p id="department-error" className="text-xs text-[var(--zaad-danger)]">
+              <p id="department-error" className="text-xs text-[var(--zaad-danger)]" role="alert" data-field-error>
                 {fieldErrors.departmentId}
               </p>
             )}
@@ -570,7 +598,7 @@ export default function DynamicSubmitForm({
               ))}
             </select>
             {fieldErrors.requestTypeId && (
-              <p id="requestType-error" className="text-xs text-[var(--zaad-danger)]">
+              <p id="requestType-error" className="text-xs text-[var(--zaad-danger)]" role="alert" data-field-error>
                 {fieldErrors.requestTypeId}
               </p>
             )}
@@ -595,7 +623,7 @@ export default function DynamicSubmitForm({
               required
             />
             {fieldErrors.title && (
-              <p id="title-error" className="text-xs text-[var(--zaad-danger)]">
+              <p id="title-error" className="text-xs text-[var(--zaad-danger)]" role="alert" data-field-error>
                 {fieldErrors.title}
               </p>
             )}
@@ -619,7 +647,7 @@ export default function DynamicSubmitForm({
               required
             />
             {fieldErrors.contactName && (
-              <p id="contactName-error" className="text-xs text-[var(--zaad-danger)]">
+              <p id="contactName-error" className="text-xs text-[var(--zaad-danger)]" role="alert" data-field-error>
                 {fieldErrors.contactName}
               </p>
             )}
@@ -647,7 +675,7 @@ export default function DynamicSubmitForm({
                 required={fields.description.required}
               />
               {fieldErrors.description && (
-                <p id="description-error" className="text-xs text-[var(--zaad-danger)]">
+                <p id="description-error" className="text-xs text-[var(--zaad-danger)]" role="alert" data-field-error>
                   {fieldErrors.description}
                 </p>
               )}
@@ -678,7 +706,7 @@ export default function DynamicSubmitForm({
                 required={fields.requiredDate.required}
               />
               {fieldErrors.requiredDate && (
-                <p id="requiredDate-error" className="text-xs text-[var(--zaad-danger)]">
+                <p id="requiredDate-error" className="text-xs text-[var(--zaad-danger)]" role="alert" data-field-error>
                   {fieldErrors.requiredDate}
                 </p>
               )}
@@ -694,14 +722,14 @@ export default function DynamicSubmitForm({
                 }}
               />
               {fieldErrors.hallBooking && (
-                <p className="text-xs text-[var(--zaad-danger)]" role="alert">
+                <p className="text-xs text-[var(--zaad-danger)]" role="alert" data-field-error>
                   {fieldErrors.hallBooking}
                 </p>
               )}
             </div>
           )}
 
-          {selectedType?.requiresVisitDate && fields.visitDate.enabled && (
+          {selectedType?.requiresVisitDate && fields.visitDate.enabled && !showHospitalityAvailability && (
             <div className="space-y-1">
               <label className="label-field" htmlFor="visitDate">
                 {fields.visitDate.label}
@@ -720,7 +748,7 @@ export default function DynamicSubmitForm({
                 required
               />
               {fieldErrors.visitDate && (
-                <p id="visitDate-error" className="text-xs text-[var(--zaad-danger)]">
+                <p id="visitDate-error" className="text-xs text-[var(--zaad-danger)]" role="alert" data-field-error>
                   {fieldErrors.visitDate}
                 </p>
               )}
@@ -747,7 +775,7 @@ export default function DynamicSubmitForm({
               required
             />
             {fieldErrors.contactEmail && (
-              <p id="contactEmail-error" className="text-xs text-[var(--zaad-danger)]">
+              <p id="contactEmail-error" className="text-xs text-[var(--zaad-danger)]" role="alert" data-field-error>
                 {fieldErrors.contactEmail}
               </p>
             )}
@@ -779,7 +807,7 @@ export default function DynamicSubmitForm({
                 required={fields.contactPhone.required}
               />
               {fieldErrors.contactPhone && (
-                <p id="contactPhone-error" className="text-xs text-[var(--zaad-danger)]">
+                <p id="contactPhone-error" className="text-xs text-[var(--zaad-danger)]" role="alert" data-field-error>
                   {fieldErrors.contactPhone}
                 </p>
               )}

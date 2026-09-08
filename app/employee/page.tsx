@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import EmptyState from "@/components/shared/empty-state";
 import Skeleton from "@/components/ui/skeleton";
@@ -14,6 +14,7 @@ interface Ticket {
   title: string;
   description: string;
   status: string;
+  requiredDate?: string | null;
   createdAt: string;
   assignedAt: string | null;
   completedAt: string | null;
@@ -47,11 +48,45 @@ export default function EmployeeTicketsPage() {
     void load();
   }, [load]);
 
+  const kpis = useMemo(() => {
+    const assigned = tickets.filter((t) => t.status === "In_Progress" || t.status === "Returned").length;
+    const pendingReview = tickets.filter((t) => t.status === "Pending_Review").length;
+    const now = Date.now();
+    const overdue = tickets.filter((t) => {
+      if (t.status === "Completed" || t.status === "Archived" || t.status === "Rejected") {
+        return false;
+      }
+      if (!t.requiredDate) return false;
+      return new Date(t.requiredDate).getTime() < now;
+    }).length;
+    const completed = tickets.filter((t) => t.status === "Completed").length;
+    return { assigned, pendingReview, overdue, completed };
+  }, [tickets]);
+
   return (
     <div className="space-y-4">
       <div>
         <h2 className="text-lg font-bold text-primary">التذاكر المسندة</h2>
         <p className="text-xs text-brand-gray">الطلبات المعيّنة إليك للتنفيذ</p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="card p-3 text-center">
+          <p className="text-2xl font-bold text-primary">{kpis.assigned}</p>
+          <p className="text-xs text-brand-gray">مسندة</p>
+        </div>
+        <div className="card p-3 text-center">
+          <p className="text-2xl font-bold text-primary">{kpis.pendingReview}</p>
+          <p className="text-xs text-brand-gray">بانتظار المراجعة</p>
+        </div>
+        <div className="card p-3 text-center">
+          <p className="text-2xl font-bold text-[var(--zaad-danger)]">{kpis.overdue}</p>
+          <p className="text-xs text-brand-gray">متأخرة</p>
+        </div>
+        <div className="card p-3 text-center">
+          <p className="text-2xl font-bold text-[var(--zaad-success)]">{kpis.completed}</p>
+          <p className="text-xs text-brand-gray">مكتملة</p>
+        </div>
       </div>
 
       {error && (

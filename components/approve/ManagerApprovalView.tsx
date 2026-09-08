@@ -22,6 +22,7 @@ interface TokenSummary {
   department?: { name: string };
   requestType?: { name: string; requiresVisitDate: boolean };
   visitDate: string | null;
+  assignedEmployee?: { name: string } | null;
 }
 
 interface RequestDetails {
@@ -39,6 +40,7 @@ interface RequestDetails {
   department?: { name: string };
   requestType?: { name: string };
   visitDate: string | null;
+  assignedEmployee?: { name: string } | null;
 }
 
 type ViewState =
@@ -333,6 +335,14 @@ export default function ManagerApprovalView({
                       {formatDate(details.requiredDate)}
                     </dd>
                   </div>
+                  {details.assignedEmployee?.name ? (
+                    <div className="flex justify-between gap-4">
+                      <dt className="text-brand-gray">الموظف المسند</dt>
+                      <dd className="font-semibold text-primary">
+                        {details.assignedEmployee.name}
+                      </dd>
+                    </div>
+                  ) : null}
                   <div className="flex justify-between gap-4">
                     <dt className="text-brand-gray">مقدّم الطلب</dt>
                     <dd className="text-end">
