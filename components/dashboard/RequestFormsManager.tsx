@@ -72,8 +72,8 @@ export default function RequestFormsManager({
     setOrigin(window.location.origin);
   }, []);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (opts?: { soft?: boolean }) => {
+    if (!opts?.soft) setLoading(true);
     try {
       const res = await fetch("/api/manager/forms");
       const payload = await parseApiResponse<{ forms: RequestFormData[] }>(res);
@@ -84,7 +84,7 @@ export default function RequestFormsManager({
     } catch (e) {
       setError(e instanceof Error ? e.message : "خطأ");
     } finally {
-      setLoading(false);
+      if (!opts?.soft) setLoading(false);
     }
   }, []);
 
@@ -164,8 +164,9 @@ export default function RequestFormsManager({
       if (!res.ok || !payload.success) {
         throw new Error(getApiErrorMessage(payload, "فشل الحفظ"));
       }
-      await load();
-      setDraft({ ...payload.data.form, fields: { ...payload.data.form.fields } });
+      const saved = payload.data.form;
+      setForms((prev) => prev.map((f) => (f.id === saved.id ? saved : f)));
+      setDraft({ ...saved, fields: { ...saved.fields } });
       setStatus("تم الحفظ");
       window.setTimeout(() => setStatus(""), 4000);
     } catch (e) {

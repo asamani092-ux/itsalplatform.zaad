@@ -34,6 +34,7 @@ export interface DashboardRequest {
   rejectionReason?: string | null;
   reviewNote?: string | null;
   employeeNote?: string | null;
+  proofFileUrl?: string | null;
   assignedEmployee: AssignedEmployee | null;
   department?: { name: string };
   requestType?: { name: string; slug?: string };

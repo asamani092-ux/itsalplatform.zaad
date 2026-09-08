@@ -244,7 +244,7 @@ export default function DashboardKpiPage() {
 
           <div className="grid gap-4 lg:grid-cols-2">
             <div className="card overflow-x-auto p-0">
-              <table className="tmkeen-table">
+              <table className="tmkeen-table text-start">
                 <thead>
                   <tr>
                     <th scope="col">نوع الطلب</th>
@@ -264,7 +264,7 @@ export default function DashboardKpiPage() {
               </table>
             </div>
             <div className="card overflow-x-auto p-0">
-              <table className="tmkeen-table">
+              <table className="tmkeen-table text-start">
                 <thead>
                   <tr>
                     <th scope="col">القسم</th>
@@ -311,7 +311,7 @@ export default function DashboardKpiPage() {
 
             {kpis.overdueList.length > 0 ? (
               <div className="overflow-x-auto">
-                <table className="tmkeen-table">
+                <table className="tmkeen-table text-start">
                   <thead>
                     <tr>
                       <th scope="col">الطلب</th>

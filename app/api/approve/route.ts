@@ -30,6 +30,9 @@ export async function GET(request: NextRequest) {
       department: existing.department,
       requestType: existing.requestType,
       visitDate: existing.visitDate,
+      assignedEmployee: existing.assignedEmployee
+        ? { name: existing.assignedEmployee.name }
+        : null,
     });
   } catch (error) {
     return handleApiError(error);

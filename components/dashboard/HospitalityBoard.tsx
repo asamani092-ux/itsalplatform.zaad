@@ -414,14 +414,7 @@ export default function HospitalityBoard() {
                   {dualHijriFmt.format(parseLocalISODate(selectedDay))}
                 </p>
               </div>
-              <button
-                type="button"
-                className="btn-primary text-sm"
-                onClick={() => openCreate(selectedDay)}
-              >
-                <IconPlus size={16} />
-                حجز لهذا اليوم
-              </button>
+              
             </div>
 
             {selectedBookings.length === 0 ? (
