@@ -6,6 +6,11 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "منصة قسم الاتصال المؤسسي — جمعية الزاد",
   description: "بوابة قسم الاتصال المؤسسي — Backend API",
+  icons: {
+    icon: [{ url: "/brand/icon-mark.png", type: "image/png", sizes: "180x180" }],
+    apple: [{ url: "/brand/icon-mark.png", sizes: "180x180", type: "image/png" }],
+    shortcut: "/brand/icon-mark.png",
+  },
 };
 
 export default function RootLayout({
