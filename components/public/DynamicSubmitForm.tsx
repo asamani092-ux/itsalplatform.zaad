@@ -9,13 +9,17 @@ import {
   parseSuccessNextSteps,
   type FormSettingsData,
 } from "@/lib/forms/schema";
+import {
+  getPublicSubmitVisibility,
+  isHospitalityContext,
+  resolveEffectiveRequiredDate,
+  validatePublicSubmit,
+  type PublicSubmitFieldErrors,
+} from "@/lib/forms/validate-public-submit";
 import Stepper from "@/components/ui/stepper";
 import HallBookingFields, {
   type HallBookingSelection,
 } from "@/components/public/HallBookingFields";
-
-/** Client-safe duplicate of lib/hospitality HOSPITALITY_TYPE_SLUG (server-only module). */
-const HOSPITALITY_TYPE_SLUG = "hospitality-booking";
 
 interface Department {
   id: string;
@@ -40,18 +44,7 @@ interface Administration {
   managerEmail?: string;
 }
 
-interface FieldErrors {
-  departmentId?: string;
-  requestTypeId?: string;
-  title?: string;
-  contactName?: string;
-  description?: string;
-  requiredDate?: string;
-  visitDate?: string;
-  contactEmail?: string;
-  contactPhone?: string;
-  hallBooking?: string;
-}
+type FieldErrors = PublicSubmitFieldErrors;
 
 function resolveSlugDefaults(
   slug: string,
@@ -68,79 +61,6 @@ function resolveSlugDefaults(
     if (typeBySlug.departmentId) departmentId = typeBySlug.departmentId;
   }
   return { departmentId, requestTypeId };
-}
-
-function validateFields(
-  values: {
-    departmentId: string;
-    requestTypeId: string;
-    title: string;
-    contactName: string;
-    description: string;
-    requiredDate: string;
-    visitDate: string;
-    contactEmail: string;
-    contactPhone: string;
-    needsVisit: boolean;
-    needsHallBooking: boolean;
-    hallBooking: HallBookingSelection | null;
-  },
-  settings: FormSettingsData,
-): FieldErrors {
-  const errors: FieldErrors = {};
-  const f = settings.fields;
-
-  if (!values.departmentId) errors.departmentId = "اختر القسم";
-  if (!values.requestTypeId) errors.requestTypeId = "اختر نوع الطلب";
-  if (!values.title.trim()) errors.title = "العنوان مطلوب";
-
-  if (f.contactName.enabled && f.contactName.required && !values.contactName.trim()) {
-    errors.contactName = "اسم مقدّم الطلب مطلوب";
-  }
-
-  if (f.description.enabled && f.description.required && !values.description.trim()) {
-    errors.description = "الوصف مطلوب";
-  }
-  // حجز القاعة يعتمد على موعد القاعة المختار — لا تطلب «التاريخ المطلوب» المخفي
-  if (
-    !values.needsHallBooking &&
-    f.requiredDate.enabled &&
-    f.requiredDate.required &&
-    !values.requiredDate
-  ) {
-    errors.requiredDate = "التاريخ المطلوب مطلوب";
-  }
-  if (
-    values.needsVisit &&
-    !values.needsHallBooking &&
-    f.visitDate.enabled &&
-    !values.visitDate
-  ) {
-    errors.visitDate = "تاريخ الزيارة مطلوب";
-  }
-
-  if (values.needsHallBooking && !values.hallBooking) {
-    errors.hallBooking = "اختر موعداً متاحاً للقاعة";
-  }
-
-  if (!values.contactEmail.trim()) {
-    errors.contactEmail = "البريد الإلكتروني مطلوب";
-  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.contactEmail.trim())) {
-    errors.contactEmail = "صيغة البريد غير صحيحة";
-  }
-
-  if (f.contactPhone.enabled) {
-    if (f.contactPhone.required && !values.contactPhone.trim()) {
-      errors.contactPhone = "رقم الجوال مطلوب";
-    } else if (
-      values.contactPhone.trim() &&
-      !/^05\d{8}$/.test(values.contactPhone.trim())
-    ) {
-      errors.contactPhone = "أدخل رقم جوال سعودي صحيح (05xxxxxxxx)";
-    }
-  }
-
-  return errors;
 }
 
 export default function DynamicSubmitForm({
@@ -201,8 +121,17 @@ export default function DynamicSubmitForm({
   const selectedAdministration = administrations.find(
     (a) => a.id === requesterAdministrationId,
   );
-  const showHospitalityAvailability =
-    selectedType?.slug === HOSPITALITY_TYPE_SLUG || slug === HOSPITALITY_TYPE_SLUG;
+  const isHospitality = isHospitalityContext({
+    formSlug: slug,
+    requestTypeSlug: selectedType?.slug,
+  });
+  const visibility = getPublicSubmitVisibility({
+    settings,
+    isHospitality,
+    requiresVisitDate: Boolean(selectedType?.requiresVisitDate),
+    pinnedDepartmentId,
+    pinnedRequestTypeId,
+  });
 
   const loadMeta = useCallback(async () => {
     setLoading(true);
@@ -242,11 +171,23 @@ export default function DynamicSubmitForm({
 
   // Hide/clear visit date when the selected type no longer requires it.
   useEffect(() => {
-    if (!selectedType?.requiresVisitDate && visitDate) {
+    if (!visibility.visitDate && visitDate) {
       setVisitDate("");
       setFieldErrors((prev) => ({ ...prev, visitDate: undefined }));
     }
-  }, [selectedType?.requiresVisitDate, visitDate]);
+  }, [visibility.visitDate, visitDate]);
+
+  // Clear hall slot / requiredDate when hospitality visibility flips.
+  useEffect(() => {
+    if (!visibility.hallBooking && hallBooking) {
+      setHallBooking(null);
+      setFieldErrors((prev) => ({ ...prev, hallBooking: undefined }));
+    }
+    if (!visibility.requiredDate && requiredDate) {
+      setRequiredDate("");
+      setFieldErrors((prev) => ({ ...prev, requiredDate: undefined }));
+    }
+  }, [visibility.hallBooking, visibility.requiredDate, hallBooking, requiredDate]);
 
   // Requester administrations are always loaded (never passed as initial props).
   useEffect(() => {
@@ -283,27 +224,23 @@ export default function DynamicSubmitForm({
     e.preventDefault();
     setError("");
 
-    const effectiveRequiredDate =
-      showHospitalityAvailability && hallBooking
-        ? hallBooking.meetingDate
-        : requiredDate;
-
-    const errors = validateFields(
+    const errors = validatePublicSubmit(
       {
         departmentId,
         requestTypeId,
         title,
         contactName,
         description,
-        requiredDate: effectiveRequiredDate,
+        requiredDate,
         visitDate,
         contactEmail,
         contactPhone,
-        needsVisit: Boolean(selectedType?.requiresVisitDate),
-        needsHallBooking: showHospitalityAvailability,
-        hallBooking,
+        hallBooking: hallBooking
+          ? { meetingDate: hallBooking.meetingDate }
+          : null,
       },
       settings,
+      visibility,
     );
     setFieldErrors(errors);
     if (Object.keys(errors).length > 0) {
@@ -321,11 +258,17 @@ export default function DynamicSubmitForm({
 
     setSubmitting(true);
 
+    const effectiveRequiredDate = resolveEffectiveRequiredDate({
+      isHospitality,
+      requiredDate,
+      hallMeetingDate: hallBooking?.meetingDate,
+    });
+
     try {
-      const endpoint = showHospitalityAvailability
+      const endpoint = isHospitality
         ? "/api/public/hospitality/book"
         : "/api/public/requests";
-      const body = showHospitalityAvailability && hallBooking
+      const body = isHospitality && hallBooking
         ? {
             roomName: hallBooking.roomName,
             meetingDate: hallBooking.meetingDate,
@@ -343,17 +286,14 @@ export default function DynamicSubmitForm({
             title: title.trim(),
             contactName: contactName.trim(),
             description: description.trim(),
-            requiredDate,
+            requiredDate: effectiveRequiredDate,
             contactEmail: contactEmail.trim(),
             contactPhone: contactPhone.trim(),
             departmentId,
             requestTypeId,
             requesterAdministrationId: requesterAdministrationId || undefined,
             formSlug: slug,
-            visitDate:
-              selectedType?.requiresVisitDate && fields.visitDate.enabled
-                ? visitDate
-                : undefined,
+            visitDate: visibility.visitDate ? visitDate : undefined,
           };
       const res = await fetchWithTimeout(endpoint, {
         method: "POST",
@@ -545,7 +485,7 @@ export default function DynamicSubmitForm({
             </div>
           )}
 
-          {!pinnedDepartmentId && (
+          {visibility.department && (
           <div className="space-y-1">
             <label className="label-field" htmlFor="department">
               {fields.department.label}
@@ -577,7 +517,7 @@ export default function DynamicSubmitForm({
           </div>
           )}
 
-          {!pinnedRequestTypeId && (
+          {visibility.requestType && (
           <div className="space-y-1">
             <label className="label-field" htmlFor="requestType">
               {fields.requestType.label}
@@ -589,14 +529,12 @@ export default function DynamicSubmitForm({
               onChange={(e) => {
                 const nextTypeId = e.target.value;
                 setRequestTypeId(nextTypeId);
-                const nextType = requestTypes.find((rt) => rt.id === nextTypeId);
-                if (!nextType?.requiresVisitDate) {
-                  setVisitDate("");
-                }
                 setFieldErrors((prev) => ({
                   ...prev,
                   requestTypeId: undefined,
                   visitDate: undefined,
+                  hallBooking: undefined,
+                  requiredDate: undefined,
                 }));
               }}
               aria-invalid={Boolean(fieldErrors.requestTypeId)}
@@ -666,7 +604,7 @@ export default function DynamicSubmitForm({
             )}
           </div>
 
-          {fields.description.enabled && (
+          {visibility.description && (
             <div className="space-y-1">
               <label className="label-field" htmlFor="description">
                 {fields.description.label}
@@ -695,7 +633,7 @@ export default function DynamicSubmitForm({
             </div>
           )}
 
-          {fields.requiredDate.enabled && !showHospitalityAvailability && (
+          {visibility.requiredDate && (
             <div className="space-y-1">
               <label className="label-field" htmlFor="requiredDate">
                 {fields.requiredDate.label}
@@ -726,7 +664,7 @@ export default function DynamicSubmitForm({
             </div>
           )}
 
-          {showHospitalityAvailability && (
+          {visibility.hallBooking && (
             <div className="space-y-1">
               <HallBookingFields
                 onSelect={(selection) => {
@@ -742,7 +680,7 @@ export default function DynamicSubmitForm({
             </div>
           )}
 
-          {selectedType?.requiresVisitDate && fields.visitDate.enabled && !showHospitalityAvailability && (
+          {visibility.visitDate && (
             <div className="space-y-1">
               <label className="label-field" htmlFor="visitDate">
                 {fields.visitDate.label}
@@ -794,7 +732,7 @@ export default function DynamicSubmitForm({
             )}
           </div>
 
-          {fields.contactPhone.enabled && (
+          {visibility.contactPhone && (
             <div className="space-y-1">
               <label className="label-field" htmlFor="contactPhone">
                 {fields.contactPhone.label}
