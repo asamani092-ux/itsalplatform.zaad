@@ -37,6 +37,7 @@ export default function RoutingRulesManager() {
   const [requestTypeId, setRequestTypeId] = useState("");
   const [employeeId, setEmployeeId] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<RoutingRuleRow | null>(null);
+  const [creating, setCreating] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -115,6 +116,7 @@ export default function RoutingRulesManager() {
       mergeRule(payload.data.rule);
       setRequestTypeId("");
       setEmployeeId("");
+      setCreating(false);
       setStatus("تمت إضافة قاعدة التوجيه");
       window.setTimeout(() => setStatus(""), 4000);
     } catch (e) {
@@ -172,66 +174,112 @@ export default function RoutingRulesManager() {
   return (
     <div className="space-y-4">
       <div className="card space-y-3 p-4">
-        <h2 className="text-lg font-bold text-primary">قواعد التوجيه</h2>
-        <p className="text-sm text-brand-gray">
-          عند وصول طلب جديد، يُسنَد تلقائياً للموظف حسب نوع الطلب. إن وُجدت أكثر من
-          قاعدة لنفس النوع، تُستخدم الأقدم المفعّلة.
-        </p>
-
-        <form
-          className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_auto]"
-          onSubmit={(e) => void handleCreate(e)}
-        >
-          <div className="space-y-1">
-            <label className="label-field text-xs" htmlFor="routing-type">
-              نوع الطلب
-            </label>
-            <select
-              id="routing-type"
-              className="input-field w-full text-sm"
-              value={requestTypeId}
-              disabled={saving || loading}
-              onChange={(e) => setRequestTypeId(e.target.value)}
-            >
-              <option value="">اختر نوعاً...</option>
-              {requestTypes.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                </option>
-              ))}
-            </select>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-bold text-primary">قواعد التوجيه</h2>
+            <p className="mt-1 text-sm text-brand-gray">
+              عند وصول طلب جديد، يُسنَد تلقائياً للموظف حسب نوع الطلب. إن وُجدت أكثر من
+              قاعدة لنفس النوع، تُستخدم الأقدم المفعّلة.
+            </p>
           </div>
-          <div className="space-y-1">
-            <label className="label-field text-xs" htmlFor="routing-employee">
-              الموظف المسؤول
-            </label>
-            <select
-              id="routing-employee"
-              className="input-field w-full text-sm"
-              value={employeeId}
-              disabled={saving || loading}
-              onChange={(e) => setEmployeeId(e.target.value)}
-            >
-              <option value="">اختر موظفاً...</option>
-              {employees.map((e) => (
-                <option key={e.id} value={e.id}>
-                  {e.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="flex items-end">
-            <button
-              type="submit"
-              className="btn-primary w-full text-sm sm:w-auto"
-              disabled={saving || loading}
-            >
-              <IconPlus size={16} />
-              إضافة قاعدة
-            </button>
-          </div>
-        </form>
+          <button
+            type="button"
+            className="btn-primary text-sm"
+            disabled={loading}
+            onClick={() => {
+              setRequestTypeId("");
+              setEmployeeId("");
+              setCreating(true);
+            }}
+          >
+            <IconPlus size={16} />
+            إضافة قاعدة
+          </button>
+        </div>
       </div>
+
+      {creating && (
+        <div
+          className="modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="create-routing-title"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setCreating(false);
+          }}
+        >
+          <div className="modal-panel card space-y-4">
+            <div className="flex items-start justify-between gap-2">
+              <h3 id="create-routing-title" className="text-lg font-bold text-primary">
+                إضافة قاعدة توجيه
+              </h3>
+              <button
+                type="button"
+                className="btn-secondary text-sm"
+                onClick={() => setCreating(false)}
+              >
+                إغلاق
+              </button>
+            </div>
+            <form className="space-y-3" onSubmit={(e) => void handleCreate(e)}>
+              <div className="space-y-1">
+                <label className="label-field text-xs" htmlFor="routing-type">
+                  نوع الطلب
+                </label>
+                <select
+                  id="routing-type"
+                  className="input-field w-full text-sm"
+                  value={requestTypeId}
+                  disabled={saving || loading}
+                  onChange={(e) => setRequestTypeId(e.target.value)}
+                >
+                  <option value="">اختر نوعاً...</option>
+                  {requestTypes.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="label-field text-xs" htmlFor="routing-employee">
+                  الموظف المسؤول
+                </label>
+                <select
+                  id="routing-employee"
+                  className="input-field w-full text-sm"
+                  value={employeeId}
+                  disabled={saving || loading}
+                  onChange={(e) => setEmployeeId(e.target.value)}
+                >
+                  <option value="">اختر موظفاً...</option>
+                  {employees.map((e) => (
+                    <option key={e.id} value={e.id}>
+                      {e.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <button
+                  type="button"
+                  className="btn-secondary flex-1"
+                  onClick={() => setCreating(false)}
+                >
+                  إلغاء
+                </button>
+                <button
+                  type="submit"
+                  className="btn-primary flex-1"
+                  disabled={saving || loading}
+                >
+                  حفظ القاعدة
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {error && (
         <p className="text-sm text-[var(--zaad-danger)]" role="alert">
