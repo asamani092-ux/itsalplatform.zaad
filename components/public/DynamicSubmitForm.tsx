@@ -101,7 +101,13 @@ function validateFields(
   if (f.description.enabled && f.description.required && !values.description.trim()) {
     errors.description = "الوصف مطلوب";
   }
-  if (f.requiredDate.enabled && f.requiredDate.required && !values.requiredDate) {
+  // حجز القاعة يعتمد على موعد القاعة المختار — لا تطلب «التاريخ المطلوب» المخفي
+  if (
+    !values.needsHallBooking &&
+    f.requiredDate.enabled &&
+    f.requiredDate.required &&
+    !values.requiredDate
+  ) {
     errors.requiredDate = "التاريخ المطلوب مطلوب";
   }
   if (
@@ -277,6 +283,11 @@ export default function DynamicSubmitForm({
     e.preventDefault();
     setError("");
 
+    const effectiveRequiredDate =
+      showHospitalityAvailability && hallBooking
+        ? hallBooking.meetingDate
+        : requiredDate;
+
     const errors = validateFields(
       {
         departmentId,
@@ -284,7 +295,7 @@ export default function DynamicSubmitForm({
         title,
         contactName,
         description,
-        requiredDate,
+        requiredDate: effectiveRequiredDate,
         visitDate,
         contactEmail,
         contactPhone,
@@ -296,6 +307,8 @@ export default function DynamicSubmitForm({
     );
     setFieldErrors(errors);
     if (Object.keys(errors).length > 0) {
+      const firstMsg = Object.values(errors)[0];
+      setError(firstMsg || "يرجى إكمال الحقول المطلوبة");
       window.requestAnimationFrame(() => {
         const el =
           document.querySelector<HTMLElement>('[aria-invalid="true"]') ??
