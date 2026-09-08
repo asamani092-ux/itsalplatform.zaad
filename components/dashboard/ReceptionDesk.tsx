@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getApiErrorMessage, parseApiResponse } from "@/components/lib/api-types";
+import { IconButton } from "@/components/ui/icon-button";
+import { IconPlus, IconX } from "@/components/shared/icons";
 
 type TabId =
   | "dashboard"
-  | "register"
   | "logs"
   | "scheduled"
   | "attendance"
@@ -135,7 +136,6 @@ interface VisitorFormState {
 
 const TABS: { id: TabId; label: string }[] = [
   { id: "dashboard", label: "لوحة التحكم" },
-  { id: "register", label: "تسجيل زائر" },
   { id: "logs", label: "سجل الزوار" },
   { id: "scheduled", label: "مجدولة اليوم" },
   { id: "attendance", label: "قوائم الحضور" },
@@ -235,6 +235,7 @@ function SimpleBars({
 
 export default function ReceptionDesk() {
   const [tab, setTab] = useState<TabId>("dashboard");
+  const [registerOpen, setRegisterOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -466,6 +467,7 @@ export default function ReceptionDesk() {
       }
       setForm(emptyVisitorForm(meta));
       setSuggestions([]);
+      setRegisterOpen(false);
       setTab("logs");
       await loadDesk();
     } catch (err) {
@@ -473,6 +475,14 @@ export default function ReceptionDesk() {
     } finally {
       setSubmitting(false);
     }
+  }
+
+  function openRegister() {
+    setError("");
+    setForm(emptyVisitorForm(meta));
+    setSuggestions([]);
+    setShowSuggestions(false);
+    setRegisterOpen(true);
   }
 
   function openCheckIn(visit: ScheduledVisit) {
@@ -882,9 +892,19 @@ export default function ReceptionDesk() {
             تسجيل الزوار والمواعيد وقوائم الحضور وفق نظام الزوار المعتمد
           </p>
         </div>
-        <button type="button" className="btn-secondary text-sm" onClick={() => void loadDesk()}>
-          تحديث
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button type="button" className="btn-secondary text-sm" onClick={() => void loadDesk()}>
+            تحديث
+          </button>
+          <button
+            type="button"
+            className="btn-primary inline-flex min-h-12 items-center gap-2 px-5 text-base font-bold sm:min-h-14 sm:px-7 sm:text-lg"
+            onClick={openRegister}
+          >
+            <IconPlus size={22} />
+            تسجيل زائر
+          </button>
+        </div>
       </div>
 
       <div className="tab-bar no-print" role="tablist" aria-label="أقسام الاستقبال">
@@ -977,20 +997,51 @@ export default function ReceptionDesk() {
         </div>
       )}
 
-      {tab === "register" && (
-        <form
-          onSubmit={(e) => void submitRegister(e)}
-          className="card max-w-2xl space-y-3 p-4"
+      {registerOpen && (
+        <div
+          className="modal-overlay no-print"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="register-visitor-title"
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !submitting) setRegisterOpen(false);
+          }}
         >
-          <h3 className="font-bold text-primary">تسجيل زائر جديد</h3>
-          {renderVisitorFields(form, updateForm, {
-            nameAutocomplete: true,
-            idPrefix: "reg",
-          })}
-          <button type="submit" className="btn-primary" disabled={submitting}>
-            {submitting ? "جاري الحفظ…" : "حفظ الزيارة"}
-          </button>
-        </form>
+          <form
+            onSubmit={(e) => void submitRegister(e)}
+            className="modal-panel card max-w-2xl space-y-4 p-4"
+          >
+            <div className="flex items-start justify-between gap-2">
+              <h3 id="register-visitor-title" className="text-lg font-bold text-primary">
+                تسجيل زائر جديد
+              </h3>
+              <IconButton
+                label="إغلاق"
+                icon={<IconX size={18} />}
+                onClick={() => {
+                  if (!submitting) setRegisterOpen(false);
+                }}
+              />
+            </div>
+            {renderVisitorFields(form, updateForm, {
+              nameAutocomplete: true,
+              idPrefix: "reg",
+            })}
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <button
+                type="button"
+                className="btn-secondary flex-1"
+                disabled={submitting}
+                onClick={() => setRegisterOpen(false)}
+              >
+                إلغاء
+              </button>
+              <button type="submit" className="btn-primary flex-1" disabled={submitting}>
+                {submitting ? "جاري الحفظ…" : "حفظ الزيارة"}
+              </button>
+            </div>
+          </form>
+        </div>
       )}
 
       {tab === "logs" && (
