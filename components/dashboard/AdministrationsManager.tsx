@@ -35,6 +35,7 @@ export default function AdministrationsManager() {
     kind: "INTERNAL" | "EXTERNAL";
   }>(EMPTY);
   const [saving, setSaving] = useState(false);
+  const [creating, setCreating] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -59,7 +60,7 @@ export default function AdministrationsManager() {
   async function addAdministration() {
     if (!form.name.trim() || !form.managerEmail.trim()) {
       setError("الاسم وبريد المدير مطلوبان");
-      return;
+      return false;
     }
     setSaving(true);
     setError("");
@@ -77,8 +78,10 @@ export default function AdministrationsManager() {
       setForm(EMPTY);
       setStatus("تمت إضافة الإدارة");
       await load();
+      return true;
     } catch (e) {
       setError(e instanceof Error ? e.message : "خطأ");
+      return false;
     } finally {
       setSaving(false);
     }
@@ -134,45 +137,92 @@ export default function AdministrationsManager() {
         </p>
       )}
 
-      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
-        <input
-          className="input-field"
-          placeholder="اسم الإدارة"
-          value={form.name}
-          onChange={(e) => setForm({ ...form, name: e.target.value })}
-        />
-        <input
-          className="input-field"
-          placeholder="اسم المدير"
-          value={form.managerName}
-          onChange={(e) => setForm({ ...form, managerName: e.target.value })}
-        />
-        <input
-          className="input-field"
-          dir="ltr"
-          placeholder="بريد المدير"
-          value={form.managerEmail}
-          onChange={(e) => setForm({ ...form, managerEmail: e.target.value })}
-        />
-        <select
-          className="input-field"
-          value={form.kind}
-          onChange={(e) =>
-            setForm({ ...form, kind: e.target.value as "INTERNAL" | "EXTERNAL" })
-          }
-        >
-          <option value="EXTERNAL">خارجية (مقدّمة للطلبات)</option>
-          <option value="INTERNAL">داخلية (اتصال مؤسسي)</option>
-        </select>
+      <div className="flex justify-end">
         <button
           type="button"
           className="btn-primary text-sm"
-          disabled={saving}
-          onClick={() => void addAdministration()}
+          onClick={() => {
+            setForm(EMPTY);
+            setCreating(true);
+          }}
         >
-          إضافة
+          إضافة إدارة
         </button>
       </div>
+
+      {creating && (
+        <div
+          className="modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="create-admin-title"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setCreating(false);
+          }}
+        >
+          <div className="modal-panel card space-y-4">
+            <div className="flex items-start justify-between gap-2">
+              <h3 id="create-admin-title" className="text-lg font-bold text-primary">
+                إضافة إدارة
+              </h3>
+              <button type="button" className="btn-secondary text-sm" onClick={() => setCreating(false)}>
+                إغلاق
+              </button>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <input
+                className="input-field"
+                placeholder="اسم الإدارة"
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+              />
+              <input
+                className="input-field"
+                placeholder="اسم المدير"
+                value={form.managerName}
+                onChange={(e) => setForm({ ...form, managerName: e.target.value })}
+              />
+              <input
+                className="input-field"
+                dir="ltr"
+                placeholder="بريد المدير"
+                value={form.managerEmail}
+                onChange={(e) => setForm({ ...form, managerEmail: e.target.value })}
+              />
+              <select
+                className="input-field"
+                value={form.kind}
+                onChange={(e) =>
+                  setForm({ ...form, kind: e.target.value as "INTERNAL" | "EXTERNAL" })
+                }
+              >
+                <option value="EXTERNAL">خارجية (مقدّمة للطلبات)</option>
+                <option value="INTERNAL">داخلية (اتصال مؤسسي)</option>
+              </select>
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <button
+                type="button"
+                className="btn-secondary flex-1"
+                onClick={() => setCreating(false)}
+              >
+                إلغاء
+              </button>
+              <button
+                type="button"
+                className="btn-primary flex-1"
+                disabled={saving}
+                onClick={async () => {
+                  const ok = await addAdministration();
+                  if (ok !== false) setCreating(false);
+                }}
+              >
+                {saving ? "جاري الحفظ..." : "حفظ"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="card overflow-x-auto p-0">
         <table className="tmkeen-table">

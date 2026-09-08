@@ -69,6 +69,7 @@ export default function GrantsManager() {
   const [status, setStatus] = useState("");
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
+  const [creating, setCreating] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -123,6 +124,7 @@ export default function GrantsManager() {
       }
       setForm(EMPTY_FORM);
       setStatus("تمت إضافة المنحة");
+      setCreating(false);
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "خطأ");
@@ -271,53 +273,98 @@ export default function GrantsManager() {
         </div>
       )}
 
-      <div className="card space-y-3 p-4">
-        <h2 className="text-lg font-bold text-primary">إضافة منحة</h2>
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          <input
-            className="input-field"
-            placeholder="اسم المنحة"
-            value={form.title}
-            onChange={(e) => setForm({ ...form, title: e.target.value })}
-          />
-          <input
-            className="input-field"
-            placeholder="المانح"
-            value={form.donorName}
-            onChange={(e) => setForm({ ...form, donorName: e.target.value })}
-          />
-          <input
-            className="input-field"
-            type="number"
-            min={0}
-            placeholder="المبلغ (ريال)"
-            value={form.amount}
-            onChange={(e) => setForm({ ...form, amount: e.target.value })}
-          />
-          <input
-            className="input-field"
-            type="number"
-            min={0}
-            placeholder="عدد مراحل المتابعة (0 = إغلاق مباشر)"
-            value={form.stageCount}
-            onChange={(e) => setForm({ ...form, stageCount: e.target.value })}
-          />
-          <input
-            className="input-field lg:col-span-2"
-            placeholder="تفاصيل المنحة (اختياري)"
-            value={form.details}
-            onChange={(e) => setForm({ ...form, details: e.target.value })}
-          />
-        </div>
+      <div className="flex justify-end">
         <button
           type="button"
           className="btn-primary text-sm"
-          disabled={saving}
-          onClick={() => void addGrant()}
+          onClick={() => {
+            setForm(EMPTY_FORM);
+            setCreating(true);
+          }}
         >
-          {saving ? "جاري الحفظ..." : "إضافة المنحة"}
+          إضافة منحة
         </button>
       </div>
+
+      {creating && (
+        <div
+          className="modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="create-grant-title"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setCreating(false);
+          }}
+        >
+          <div className="modal-panel card space-y-4">
+            <div className="flex items-start justify-between gap-2">
+              <h3 id="create-grant-title" className="text-lg font-bold text-primary">
+                إضافة منحة
+              </h3>
+              <button
+                type="button"
+                className="btn-secondary text-sm"
+                onClick={() => setCreating(false)}
+              >
+                إغلاق
+              </button>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <input
+                className="input-field"
+                placeholder="اسم المنحة"
+                value={form.title}
+                onChange={(e) => setForm({ ...form, title: e.target.value })}
+              />
+              <input
+                className="input-field"
+                placeholder="المانح"
+                value={form.donorName}
+                onChange={(e) => setForm({ ...form, donorName: e.target.value })}
+              />
+              <input
+                className="input-field"
+                type="number"
+                min={0}
+                placeholder="المبلغ (ريال)"
+                value={form.amount}
+                onChange={(e) => setForm({ ...form, amount: e.target.value })}
+              />
+              <input
+                className="input-field"
+                type="number"
+                min={0}
+                placeholder="عدد مراحل المتابعة (0 = إغلاق مباشر)"
+                value={form.stageCount}
+                onChange={(e) => setForm({ ...form, stageCount: e.target.value })}
+              />
+              <input
+                className="input-field sm:col-span-2"
+                placeholder="تفاصيل المنحة (اختياري)"
+                value={form.details}
+                onChange={(e) => setForm({ ...form, details: e.target.value })}
+              />
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <button
+                type="button"
+                className="btn-secondary flex-1"
+                onClick={() => setCreating(false)}
+              >
+                إلغاء
+              </button>
+              <button
+                type="button"
+                className="btn-primary flex-1"
+                disabled={saving}
+                onClick={() => void addGrant()}
+              >
+                {saving ? "جاري الحفظ..." : "حفظ المنحة"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <div className="card p-4">

@@ -93,7 +93,7 @@ export function DepartmentsManager() {
   );
 
   const [creating, setCreating] = useState(false);
-  const [form, setForm] = useState({ name: "", slug: "", managerEmail: "" });
+  const [form, setForm] = useState({ name: "", managerEmail: "" });
   const [editing, setEditing] = useState<DepartmentRow | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<DepartmentRow | null>(null);
   const [teamMembers, setTeamMembers] = useState<{ name: string; email: string }[]>([]);
@@ -124,75 +124,94 @@ export function DepartmentsManager() {
         <button
           type="button"
           className="btn-primary text-sm"
-          onClick={() => setCreating((v) => !v)}
+          onClick={() => {
+            setForm({ name: "", managerEmail: "" });
+            setCreating(true);
+          }}
         >
-          {creating ? <IconX size={18} /> : <IconPlus size={18} />}
-          {creating ? "إلغاء" : "قسم جديد"}
+          <IconPlus size={18} />
+          قسم جديد
         </button>
       </div>
 
       {creating && (
-        <form
-          className="card grid gap-3 sm:grid-cols-3"
-          onSubmit={async (e) => {
-            e.preventDefault();
-            const ok = await mutate({ method: "POST", body: form }, "تمت إضافة القسم");
-            if (ok) {
-              setForm({ name: "", slug: "", managerEmail: "" });
-              setCreating(false);
-            }
+        <div
+          className="modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="create-dept-title"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setCreating(false);
           }}
         >
-          <div className="space-y-1">
-            <label className="label-field" htmlFor="dept-name">
-              اسم القسم
-            </label>
-            <input
-              id="dept-name"
-              className="input-field w-full"
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              required
-            />
-          </div>
-          <div className="space-y-1">
-            <label className="label-field" htmlFor="dept-slug">
-              المعرّف
-            </label>
-            <input
-              id="dept-slug"
-              className="input-field w-full"
-              dir="ltr"
-              value={form.slug}
-              onChange={(e) => setForm({ ...form, slug: e.target.value })}
-              required
-            />
-          </div>
-          <div className="space-y-1">
-            <label className="label-field" htmlFor="dept-manager">
-              مدير الجهة (من الفريق)
-            </label>
-            <select
-              id="dept-manager"
-              className="input-field w-full"
-              value={form.managerEmail}
-              onChange={(e) => setForm({ ...form, managerEmail: e.target.value })}
-              required
+          <div className="modal-panel card space-y-4">
+            <div className="flex items-start justify-between gap-2">
+              <h3 id="create-dept-title" className="text-lg font-bold text-primary">
+                قسم جديد
+              </h3>
+              <IconButton
+                label="إغلاق"
+                icon={<IconX size={18} />}
+                onClick={() => setCreating(false)}
+              />
+            </div>
+            <form
+              className="space-y-3"
+              onSubmit={async (e) => {
+                e.preventDefault();
+                const ok = await mutate({ method: "POST", body: form }, "تمت إضافة القسم");
+                if (ok) {
+                  setForm({ name: "", managerEmail: "" });
+                  setCreating(false);
+                }
+              }}
             >
-              <option value="">— اختر من الفريق —</option>
-              {teamMembers.map((m) => (
-                <option key={m.email} value={m.email}>
-                  {m.name} ({m.email})
-                </option>
-              ))}
-            </select>
+              <div className="space-y-1">
+                <label className="label-field" htmlFor="dept-name">
+                  اسم القسم
+                </label>
+                <input
+                  id="dept-name"
+                  className="input-field w-full"
+                  value={form.name}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="label-field" htmlFor="dept-manager">
+                  مدير الجهة (من الفريق)
+                </label>
+                <select
+                  id="dept-manager"
+                  className="input-field w-full"
+                  value={form.managerEmail}
+                  onChange={(e) => setForm({ ...form, managerEmail: e.target.value })}
+                  required
+                >
+                  <option value="">— اختر من الفريق —</option>
+                  {teamMembers.map((m) => (
+                    <option key={m.email} value={m.email}>
+                      {m.name} ({m.email})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <button
+                  type="button"
+                  className="btn-secondary flex-1"
+                  onClick={() => setCreating(false)}
+                >
+                  إلغاء
+                </button>
+                <button type="submit" className="btn-primary flex-1">
+                  حفظ القسم
+                </button>
+              </div>
+            </form>
           </div>
-          <div className="sm:col-span-3">
-            <button type="submit" className="btn-primary text-sm">
-              حفظ القسم
-            </button>
-          </div>
-        </form>
+        </div>
       )}
 
       {error && (
@@ -211,7 +230,6 @@ export function DepartmentsManager() {
           <thead>
             <tr>
               <th>القسم</th>
-              <th>المعرّف</th>
               <th>بريد المدير</th>
               <th>رمز الاستقبال</th>
               <th>الحالة</th>
@@ -221,7 +239,7 @@ export function DepartmentsManager() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={6} className="py-8 text-center">
+                <td colSpan={5} className="py-8 text-center">
                   جاري التحميل...
                 </td>
               </tr>
@@ -232,7 +250,6 @@ export function DepartmentsManager() {
                   className={d.isActive === false ? "opacity-55" : undefined}
                 >
                   <td className="font-semibold">{d.name}</td>
-                  <td dir="ltr">{d.slug}</td>
                   <td dir="ltr">{d.managerEmail}</td>
                   <td dir="ltr" className="text-xs">
                     {d.receptionToken ?? "—"}
@@ -407,7 +424,6 @@ export function RequestTypesManager({
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState({
     name: "",
-    slug: "",
     description: "",
     requiresVisitDate: false,
     departmentId: "",
@@ -424,110 +440,132 @@ export function RequestTypesManager({
         <button
           type="button"
           className="btn-primary text-sm"
-          onClick={() => setCreating((v) => !v)}
+          onClick={() => {
+            setForm({
+              name: "",
+              description: "",
+              requiresVisitDate: false,
+              departmentId: "",
+            });
+            setCreating(true);
+          }}
         >
-          {creating ? <IconX size={18} /> : <IconPlus size={18} />}
-          {creating ? "إلغاء" : "نوع طلب جديد"}
+          <IconPlus size={18} />
+          نوع طلب جديد
         </button>
       </div>
 
       {creating && (
-        <form
-          className="card grid gap-3 sm:grid-cols-2"
-          onSubmit={async (e) => {
-            e.preventDefault();
-            const ok = await mutate(
-              {
-                method: "POST",
-                body: { ...form, departmentId: form.departmentId || null },
-              },
-              "تمت إضافة نوع الطلب",
-            );
-            if (ok) {
-              setForm({
-                name: "",
-                slug: "",
-                description: "",
-                requiresVisitDate: false,
-                departmentId: "",
-              });
-              setCreating(false);
-            }
+        <div
+          className="modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="create-rt-title"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setCreating(false);
           }}
         >
-          <div className="space-y-1">
-            <label className="label-field" htmlFor="rt-name">
-              اسم النوع
-            </label>
-            <input
-              id="rt-name"
-              className="input-field w-full"
-              placeholder="مثال: طلب تصميم"
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              required
-            />
-          </div>
-          <div className="space-y-1">
-            <label className="label-field" htmlFor="rt-slug">
-              المعرّف
-            </label>
-            <input
-              id="rt-slug"
-              className="input-field w-full"
-              dir="ltr"
-              placeholder="design-request"
-              value={form.slug}
-              onChange={(e) => setForm({ ...form, slug: e.target.value })}
-              required
-            />
-          </div>
-          <div className="space-y-1 sm:col-span-2">
-            <label className="label-field" htmlFor="rt-desc">
-              الوصف
-            </label>
-            <input
-              id="rt-desc"
-              className="input-field w-full"
-              value={form.description}
-              onChange={(e) => setForm({ ...form, description: e.target.value })}
-            />
-          </div>
-          <div className="space-y-1">
-            <label className="label-field" htmlFor="rt-dept">
-              القسم
-            </label>
-            <select
-              id="rt-dept"
-              className="input-field w-full"
-              value={form.departmentId}
-              onChange={(e) => setForm({ ...form, departmentId: e.target.value })}
+          <div className="modal-panel card space-y-4">
+            <div className="flex items-start justify-between gap-2">
+              <h3 id="create-rt-title" className="text-lg font-bold text-primary">
+                نوع طلب جديد
+              </h3>
+              <IconButton
+                label="إغلاق"
+                icon={<IconX size={18} />}
+                onClick={() => setCreating(false)}
+              />
+            </div>
+            <form
+              className="space-y-3"
+              onSubmit={async (e) => {
+                e.preventDefault();
+                const ok = await mutate(
+                  {
+                    method: "POST",
+                    body: { ...form, departmentId: form.departmentId || null },
+                  },
+                  "تمت إضافة نوع الطلب",
+                );
+                if (ok) {
+                  setForm({
+                    name: "",
+                    description: "",
+                    requiresVisitDate: false,
+                    departmentId: "",
+                  });
+                  setCreating(false);
+                }
+              }}
             >
-              <option value="">بدون قسم محدد</option>
-              {departments.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.name}
-                </option>
-              ))}
-            </select>
+              <div className="space-y-1">
+                <label className="label-field" htmlFor="rt-name">
+                  اسم النوع
+                </label>
+                <input
+                  id="rt-name"
+                  className="input-field w-full"
+                  placeholder="مثال: طلب تصميم"
+                  value={form.name}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="label-field" htmlFor="rt-desc">
+                  الوصف
+                </label>
+                <input
+                  id="rt-desc"
+                  className="input-field w-full"
+                  value={form.description}
+                  onChange={(e) => setForm({ ...form, description: e.target.value })}
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="label-field" htmlFor="rt-dept">
+                  القسم
+                </label>
+                <select
+                  id="rt-dept"
+                  className="input-field w-full"
+                  value={form.departmentId}
+                  onChange={(e) => setForm({ ...form, departmentId: e.target.value })}
+                >
+                  <option value="">بدون قسم محدد</option>
+                  {departments.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <label className="flex items-center gap-2 text-sm text-brand-gray">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 accent-[var(--zaad-primary)]"
+                  checked={form.requiresVisitDate}
+                  onChange={(e) =>
+                    setForm({ ...form, requiresVisitDate: e.target.checked })
+                  }
+                />
+                يتطلب تاريخ زيارة
+              </label>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <button
+                  type="button"
+                  className="btn-secondary flex-1"
+                  onClick={() => setCreating(false)}
+                >
+                  إلغاء
+                </button>
+                <button type="submit" className="btn-primary flex-1">
+                  حفظ النوع
+                </button>
+              </div>
+            </form>
           </div>
-          <label className="flex items-end gap-2 pb-2 text-sm text-brand-gray">
-            <input
-              type="checkbox"
-              className="h-4 w-4 accent-[var(--zaad-primary)]"
-              checked={form.requiresVisitDate}
-              onChange={(e) =>
-                setForm({ ...form, requiresVisitDate: e.target.checked })
-              }
-            />
-            يتطلب تاريخ زيارة
-          </label>
-          <div className="sm:col-span-2">
-            <button type="submit" className="btn-primary text-sm">
-              حفظ النوع
-            </button>
-          </div>
-        </form>
+        </div>
       )}
 
       {error && (
@@ -546,7 +584,6 @@ export function RequestTypesManager({
           <thead>
             <tr>
               <th>النوع</th>
-              <th>المعرّف</th>
               <th>يتطلب زيارة</th>
               <th>الحالة</th>
               <th>إجراءات</th>
@@ -555,7 +592,7 @@ export function RequestTypesManager({
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={5} className="py-8 text-center">
+                <td colSpan={4} className="py-8 text-center">
                   جاري التحميل...
                 </td>
               </tr>
@@ -566,7 +603,6 @@ export function RequestTypesManager({
                   className={rt.isActive === false ? "opacity-55" : undefined}
                 >
                   <td className="font-semibold">{rt.name}</td>
-                  <td dir="ltr">{rt.slug}</td>
                   <td>{rt.requiresVisitDate ? "نعم" : "لا"}</td>
                   <td>
                     <span

@@ -318,7 +318,7 @@ export default function KanbanBoard() {
           <p className="text-sm text-brand-gray">جاري تحميل اللوحة...</p>
         </div>
       ) : tab === "board" ? (
-        <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-4">
+        <div className="-mx-1 flex gap-4 overflow-x-auto px-1 pb-2 lg:grid lg:grid-cols-2 lg:overflow-visible xl:grid-cols-4">
           {COLUMNS.map((column) => {
             const columnRequests = boardRequests.filter(
               (r) => r.status === column.status,
@@ -327,7 +327,7 @@ export default function KanbanBoard() {
             return (
               <section
                 key={column.id}
-                className="flex min-h-[360px] flex-col rounded-xl border-2 border-surface-border bg-surface"
+                className="flex max-h-[70vh] min-h-[360px] w-[85vw] max-w-sm shrink-0 flex-col rounded-xl border-2 border-surface-border bg-surface sm:w-72 lg:w-auto lg:max-w-none"
                 aria-label={`${column.title} — ${columnRequests.length} بطاقة`}
               >
                 <header
@@ -339,7 +339,7 @@ export default function KanbanBoard() {
                   </span>
                 </header>
 
-                <div className="flex-1 space-y-2 p-2">
+                <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-2">
                   {columnRequests.length === 0 ? (
                     <p className="py-12 text-center text-xs text-brand-gray">
                       لا توجد بطاقات

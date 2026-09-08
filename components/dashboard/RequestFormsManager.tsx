@@ -7,7 +7,6 @@ import {
   FORM_FIELD_KEYS,
   formPublicPath,
   isLockedField,
-  normalizeSlug,
   type FormFieldConfig,
   type FormFieldKey,
   type RequestFormData,
@@ -66,7 +65,6 @@ export default function RequestFormsManager({
   const [status, setStatus] = useState("");
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
-  const [newSlug, setNewSlug] = useState("");
   const [qrFormId, setQrFormId] = useState("");
   const [origin, setOrigin] = useState("");
 
@@ -133,7 +131,7 @@ export default function RequestFormsManager({
       const res = await fetch("/api/manager/forms", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: newName.trim(), slug: newSlug.trim() || newName }),
+        body: JSON.stringify({ name: newName.trim() }),
       });
       const payload = await parseApiResponse<{ form: RequestFormData }>(res);
       if (!res.ok || !payload.success) {
@@ -141,7 +139,6 @@ export default function RequestFormsManager({
       }
       setCreating(false);
       setNewName("");
-      setNewSlug("");
       await load();
       openEdit(payload.data.form);
       setStatus("تم إنشاء النموذج");
@@ -226,49 +223,68 @@ export default function RequestFormsManager({
         <button
           type="button"
           className="btn-primary text-sm"
-          onClick={() => setCreating((v) => !v)}
+          onClick={() => {
+            setNewName("");
+            setCreating(true);
+          }}
         >
-          {creating ? <IconX size={18} /> : <IconPlus size={18} />}
-          {creating ? "إلغاء" : "نموذج جديد"}
+          <IconPlus size={18} />
+          نموذج جديد
         </button>
       </div>
 
       {creating && (
-        <div className="card grid gap-3 sm:grid-cols-2">
-          <div className="space-y-1">
-            <label className="label-field" htmlFor="new-form-name">
-              اسم النموذج
-            </label>
-            <input
-              id="new-form-name"
-              className="input-field w-full"
-              value={newName}
-              placeholder="مثال: طلبات التغطية الإعلامية"
-              onChange={(e) => setNewName(e.target.value)}
-            />
-          </div>
-          <div className="space-y-1">
-            <label className="label-field" htmlFor="new-form-slug">
-              المعرّف في الرابط
-            </label>
-            <input
-              id="new-form-slug"
-              className="input-field w-full"
-              dir="ltr"
-              value={newSlug}
-              placeholder="media-coverage"
-              onChange={(e) => setNewSlug(normalizeSlug(e.target.value))}
-            />
-          </div>
-          <div className="sm:col-span-2">
-            <button
-              type="button"
-              className="btn-primary text-sm"
-              disabled={saving}
-              onClick={() => void handleCreate()}
-            >
-              {saving ? "جاري الإنشاء..." : "إنشاء"}
-            </button>
+        <div
+          className="modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="create-form-title"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setCreating(false);
+          }}
+        >
+          <div className="modal-panel card space-y-4">
+            <div className="flex items-start justify-between gap-2">
+              <h3 id="create-form-title" className="text-lg font-bold text-primary">
+                نموذج جديد
+              </h3>
+              <IconButton
+                label="إغلاق"
+                icon={<IconX size={18} />}
+                onClick={() => setCreating(false)}
+              />
+            </div>
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <label className="label-field" htmlFor="new-form-name">
+                  اسم النموذج
+                </label>
+                <input
+                  id="new-form-name"
+                  className="input-field w-full"
+                  value={newName}
+                  placeholder="مثال: طلبات التغطية الإعلامية"
+                  onChange={(e) => setNewName(e.target.value)}
+                />
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <button
+                  type="button"
+                  className="btn-secondary flex-1"
+                  onClick={() => setCreating(false)}
+                >
+                  إلغاء
+                </button>
+                <button
+                  type="button"
+                  className="btn-primary flex-1"
+                  disabled={saving}
+                  onClick={() => void handleCreate()}
+                >
+                  {saving ? "جاري الإنشاء..." : "إنشاء"}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -394,17 +410,11 @@ export default function RequestFormsManager({
                   onChange={(e) => patchDraft({ name: e.target.value })}
                 />
               </div>
-              <div className="space-y-1">
-                <label className="label-field" htmlFor="form-slug">
-                  المعرّف في الرابط
-                </label>
-                <input
-                  id="form-slug"
-                  className="input-field w-full"
-                  dir="ltr"
-                  value={draft.slug}
-                  onChange={(e) => patchDraft({ slug: normalizeSlug(e.target.value) })}
-                />
+              <div className="space-y-1 sm:col-span-2">
+                <label className="label-field">الرابط العام</label>
+                <p className="break-all font-mono text-sm text-brand-gray" dir="ltr">
+                  {formPublicPath(draft.slug)}
+                </p>
               </div>
               <div className="space-y-1">
                 <label className="label-field" htmlFor="form-dept">
