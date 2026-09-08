@@ -39,6 +39,7 @@ export async function notify(params: {
         link: params.link,
         reference: params.reference,
         note: params.note,
+        reason: params.note,
       });
       await sendEmail({
         to: params.recipientEmail,
@@ -140,12 +141,16 @@ export async function notifySubmitter(params: {
   reference?: string;
   emailKind?: EmailTemplateKind;
   note?: string;
+  reason?: string;
 }): Promise<void> {
   try {
-    const template = buildEmailTemplate(params.emailKind ?? "completed", {
+    const kind = params.emailKind ?? "completed";
+    const rejectionText = params.reason ?? params.note;
+    const template = buildEmailTemplate(kind, {
       title: params.requestTitle,
       reference: params.reference,
-      note: params.note,
+      note: rejectionText,
+      reason: rejectionText,
     });
     await sendEmail({
       to: params.contactEmail,
@@ -155,6 +160,7 @@ export async function notifySubmitter(params: {
     console.log("[notifications] submitter notified", {
       phone: params.contactPhone,
       message: params.message,
+      kind,
     });
   } catch (error) {
     console.error("[notifications] notifySubmitter failed", error);

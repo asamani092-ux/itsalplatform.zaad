@@ -1,18 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import BrandLogo from "@/components/shared/brand-logo";
 import NotificationBell from "@/components/notifications/NotificationBell";
 import { IconButton } from "@/components/ui/icon-button";
-import { IconPower } from "@/components/shared/icons";
+import { IconEdit, IconPower } from "@/components/shared/icons";
 
 export default function EmployeeHeader() {
   const router = useRouter();
+  const pathname = usePathname();
+  const onProfile = pathname.startsWith("/employee/profile");
 
   async function handleLogout() {
     await fetch("/api/auth/logout", { method: "POST" });
-    router.push("/");
+    router.push("/login");
     router.refresh();
   }
 
@@ -28,6 +30,12 @@ export default function EmployeeHeader() {
 
       <div className="flex items-center gap-2">
         <NotificationBell />
+        <IconButton
+          label="تعديل البيانات"
+          icon={<IconEdit size={18} />}
+          tone={onProfile ? "primary" : "neutral"}
+          onClick={() => router.push("/employee/profile")}
+        />
         <IconButton
           label="تسجيل الخروج"
           icon={<IconPower size={18} />}

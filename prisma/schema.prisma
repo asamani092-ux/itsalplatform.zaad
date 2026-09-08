@@ -185,8 +185,9 @@ model CommunicationRequest {
   assignedAt         DateTime?
   completedAt        DateTime?
   completionDeclaredAt DateTime?
-  proofFileUrl       String?
+  rejectedAt         DateTime?
   rejectionReason    String?
+  proofFileUrl       String?
   reviewNote         String?
   employeeNote       String?
   visitDate          DateTime?

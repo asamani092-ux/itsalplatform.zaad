@@ -49,7 +49,9 @@ export default function EmployeeTicketsPage() {
   }, [load]);
 
   const kpis = useMemo(() => {
-    const assigned = tickets.filter((t) => t.status === "In_Progress" || t.status === "Returned").length;
+    const assigned = tickets.filter(
+      (t) => t.status === "In_Progress" || t.status === "Returned",
+    ).length;
     const pendingReview = tickets.filter((t) => t.status === "Pending_Review").length;
     const now = Date.now();
     const overdue = tickets.filter((t) => {
@@ -66,8 +68,10 @@ export default function EmployeeTicketsPage() {
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-lg font-bold text-primary">التذاكر المسندة</h2>
-        <p className="text-xs text-brand-gray">الطلبات المعيّنة إليك للتنفيذ</p>
+        <h2 className="text-lg font-bold text-primary">تذاكري</h2>
+        <p className="text-sm text-brand-gray">
+          الطلبات المسندة إليك للمتابعة والتنفيذ
+        </p>
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -112,7 +116,7 @@ export default function EmployeeTicketsPage() {
             className="card block space-y-3 transition-shadow hover:shadow-md"
           >
             <div className="flex items-start justify-between gap-2">
-              <h2 className="font-bold text-primary">{ticket.title}</h2>
+              <h3 className="font-bold text-primary">{ticket.title}</h3>
               <StatusBadge status={ticket.status} />
             </div>
             <p className="text-xs text-brand-gray">

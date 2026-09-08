@@ -23,11 +23,16 @@ export async function POST(
 
     const updated = await rejectRequest({
       requestId: id,
-      managerId: auth.session.sub,
+      changedBy: auth.session.email,
       reason,
     });
 
-    return jsonOk({ request: updated });
+    return jsonOk({
+      id: updated.id,
+      status: updated.status,
+      rejectionReason: updated.rejectionReason,
+      message: "تم رفض الطلب وإرسال السبب بالبريد لمقدّم الطلب",
+    });
   } catch (error) {
     return handleApiError(error);
   }

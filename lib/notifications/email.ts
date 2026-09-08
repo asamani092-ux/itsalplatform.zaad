@@ -51,8 +51,16 @@ export type EmailTemplateKind =
 
 export function buildEmailTemplate(
   kind: EmailTemplateKind,
-  data: { title: string; link?: string; reference?: string; note?: string },
+  data: {
+    title: string;
+    link?: string;
+    reference?: string;
+    note?: string;
+    reason?: string;
+  },
 ): { subject: string; html: string } {
+  const rejectionText = data.reason ?? data.note;
+
   if (kind === "approval_needed") {
     return {
       subject: "طلب جديد بانتظار موافقتك",
@@ -80,12 +88,17 @@ export function buildEmailTemplate(
   }
 
   if (kind === "rejected") {
+    const reasonHtml = rejectionText
+      ? `<p><strong>سبب الرفض:</strong></p><p style="background:#F5F5F5;padding:12px;border-radius:8px">${rejectionText}</p>`
+      : "";
     return {
-      subject: "لم يُقبل طلبك",
+      subject: "تم رفض طلبك",
       html: wrapArabicEmail(
-        "لم يُقبل طلبك",
-        `<p>لم يُقبل طلبك: <strong style="color:#8B1538">${data.title}</strong>.</p>
-         ${data.note ? `<p>السبب: ${data.note}</p>` : ""}`,
+        "تم رفض طلبك",
+        `<p>نأسف لإبلاغك برفض الطلب: <strong style="color:#8B1538">${data.title}</strong>.</p>
+         <p>الرقم المرجعي: <span dir="ltr">${data.reference ?? "—"}</span></p>
+         ${reasonHtml}
+         <p>للاستفسار يرجى التواصل مع قسم الاتصال المؤسسي.</p>`,
       ),
     };
   }
@@ -109,7 +122,7 @@ export function buildEmailTemplate(
       html: wrapArabicEmail(
         "أُعيدت التذكرة إليك",
         `<p>أُعيدت التذكرة: <strong style="color:#8B1538">${data.title}</strong> للمراجعة والتصحيح.</p>
-         ${data.note ? `<p>ملاحظة المدير: ${data.note}</p>` : ""}`,
+         ${rejectionText ? `<p>ملاحظة المدير: ${rejectionText}</p>` : ""}`,
         "فتح التذكرة",
         data.link,
       ),
@@ -122,7 +135,7 @@ export function buildEmailTemplate(
       html: wrapArabicEmail(
         "رفض إسناد / طلب إعادة إسناد",
         `<p>رفض الموظف التذكرة: <strong style="color:#8B1538">${data.title}</strong> وطلب إعادة الإسناد.</p>
-         ${data.note ? `<p>ملاحظة الموظف: ${data.note}</p>` : ""}`,
+         ${rejectionText ? `<p>ملاحظة الموظف: ${rejectionText}</p>` : ""}`,
         "فتح لوحة العمل",
         data.link,
       ),

@@ -87,6 +87,7 @@ export default function ManagerApprovalView({
   );
   const [showRejectConfirm, setShowRejectConfirm] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
+  const [savedRejectReason, setSavedRejectReason] = useState("");
 
   const loadRequest = useCallback(async (approvalToken: string) => {
     setViewState("loading");
@@ -138,7 +139,11 @@ export default function ManagerApprovalView({
     try {
       const response = await fetch(
         `/api/approve?token=${encodeURIComponent(token)}`,
-        { method: "POST" },
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "approve" }),
+        },
       );
       const payload = await parseApiResponse<{
         message: string;
@@ -165,10 +170,12 @@ export default function ManagerApprovalView({
   }
 
   async function handleRejectConfirm() {
-    if (!token || !rejectReason.trim()) {
-      setErrorMessage("سبب الرفض مطلوب");
+    if (!token) return;
+    if (rejectReason.trim().length < 3) {
+      setErrorMessage("سبب الرفض مطلوب (3 أحرف على الأقل)");
       return;
     }
+
     setActionLoading("reject");
     setErrorMessage("");
 
@@ -178,15 +185,14 @@ export default function ManagerApprovalView({
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            action: "reject",
-            reason: rejectReason.trim(),
-          }),
+          body: JSON.stringify({ action: "reject", reason: rejectReason.trim() }),
         },
       );
-      const payload = await parseApiResponse<{ message: string; status: string }>(
-        response,
-      );
+      const payload = await parseApiResponse<{
+        message: string;
+        status: string;
+        rejectionReason?: string;
+      }>(response);
 
       if (!response.ok || !payload.success) {
         if (!payload.success && payload.error.code === "TOKEN_EXPIRED") {
@@ -199,9 +205,15 @@ export default function ManagerApprovalView({
 
       setDetails((prev) =>
         prev
-          ? { ...prev, status: "Rejected", rejectionReason: rejectReason.trim() }
+          ? {
+              ...prev,
+              status: "Rejected",
+              rejectionReason:
+                payload.data.rejectionReason ?? rejectReason.trim(),
+            }
           : prev,
       );
+      setSavedRejectReason(payload.data.rejectionReason ?? rejectReason.trim());
       setShowRejectConfirm(false);
       setViewState("rejected_info");
     } catch {
@@ -291,7 +303,7 @@ export default function ManagerApprovalView({
                     {viewState === "approved"
                       ? "تمت الموافقة"
                       : viewState === "rejected_info"
-                        ? "رفض — إجراء يدوي"
+                        ? "مرفوض"
                         : STATUS_LABELS[details.status] ?? details.status}
                   </span>
                   <span className="font-mono text-xs text-brand-gray" dir="ltr">
@@ -378,12 +390,18 @@ export default function ManagerApprovalView({
               {viewState === "rejected_info" && (
                 <div className="card-section space-y-2 text-sm text-brand-gray">
                   <p className="font-semibold text-[var(--zaad-danger)]">
-                    تم رفض الطلب وتسجيل السبب في النظام.
+                    تم رفض الطلب وتسجيله في النظام.
                   </p>
-                  {details.rejectionReason && (
-                    <p>السبب: {details.rejectionReason}</p>
+                  <p>
+                    أُرسل سبب الرفض إلى بريد مقدّم الطلب{" "}
+                    <span dir="ltr">{details.contactEmail}</span>.
+                  </p>
+                  {(savedRejectReason || details.rejectionReason) && (
+                    <p className="rounded-lg bg-surface-muted p-3 text-sm text-primary">
+                      <span className="font-semibold">السبب: </span>
+                      {savedRejectReason || details.rejectionReason}
+                    </p>
                   )}
-                  <p>أُخطر مقدّم الطلب بالبريد.</p>
                 </div>
               )}
 
@@ -408,37 +426,46 @@ export default function ManagerApprovalView({
               )}
 
               {showRejectConfirm && viewState === "ready" && (
-                <div className="card space-y-3 border border-[var(--zaad-danger)]">
-                  <h3 className="font-bold text-[var(--zaad-danger)]">تأكيد الرفض</h3>
-                  <p className="text-sm text-brand-gray">
-                    لن يُرسل الطلب لقسم الاتصال. أدخل سبب الرفض (مطلوب).
-                  </p>
-                  <textarea
-                    className="input-field min-h-[90px]"
-                    value={rejectReason}
-                    onChange={(e) => setRejectReason(e.target.value)}
-                    placeholder="سبب الرفض..."
-                    aria-label="سبب الرفض"
-                  />
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      className="btn-primary flex-1 bg-[var(--zaad-danger)]"
-                      disabled={actionLoading !== null || !rejectReason.trim()}
-                      onClick={() => void handleRejectConfirm()}
-                    >
-                      {actionLoading === "reject" ? "جاري الرفض..." : "تأكيد الرفض"}
-                    </button>
-                    <button
-                      type="button"
-                      className="btn-secondary flex-1"
-                      onClick={() => {
-                        setShowRejectConfirm(false);
-                        setRejectReason("");
-                      }}
-                    >
-                      إلغاء
-                    </button>
+                <div className="modal-overlay">
+                  <div className="modal-panel card space-y-4">
+                    <h3 className="text-lg font-bold text-primary">رفض الطلب</h3>
+                    <p className="text-sm text-brand-gray">
+                      سيُسجَّل الرفض ويُرسل السبب إلى بريد مقدّم الطلب.
+                    </p>
+                    <div className="space-y-1">
+                      <label className="label-field" htmlFor="reject-reason">
+                        سبب الرفض
+                      </label>
+                      <textarea
+                        id="reject-reason"
+                        className="input-field min-h-24 w-full"
+                        value={rejectReason}
+                        onChange={(e) => setRejectReason(e.target.value)}
+                        placeholder="اكتب سبب الرفض بوضوح..."
+                        required
+                      />
+                    </div>
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <button
+                        type="button"
+                        className="btn-secondary flex-1 border-[var(--zaad-danger)] text-[var(--zaad-danger)]"
+                        disabled={actionLoading === "reject"}
+                        onClick={() => void handleRejectConfirm()}
+                      >
+                        {actionLoading === "reject" ? "جاري الرفض..." : "تأكيد الرفض"}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-primary flex-1"
+                        disabled={actionLoading === "reject"}
+                        onClick={() => {
+                          setShowRejectConfirm(false);
+                          setRejectReason("");
+                        }}
+                      >
+                        إلغاء
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}

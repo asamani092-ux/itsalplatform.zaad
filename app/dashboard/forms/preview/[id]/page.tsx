@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import ModuleDisabled from "@/components/shared/module-disabled";
 import DynamicSubmitForm from "@/components/public/DynamicSubmitForm";
+import PublicSubmitShell from "@/components/public/PublicSubmitShell";
 import { findModule } from "@/lib/modules/registry";
 import { isModuleEnabled } from "@/lib/modules/server";
 import { getFormById } from "@/lib/forms/server";
@@ -16,7 +17,11 @@ export default async function FormPreviewPage({
 }) {
   const enabled = await isModuleEnabled("request-forms");
   if (!enabled) {
-    return <ModuleDisabled label={findModule("request-forms")?.label ?? "نماذج الطلبات"} />;
+    return (
+      <ModuleDisabled
+        label={findModule("request-forms")?.label ?? "نماذج الطلبات"}
+      />
+    );
   }
 
   const { id } = await params;
@@ -25,12 +30,21 @@ export default async function FormPreviewPage({
 
   const [departments, requestTypes] = await Promise.all([
     prisma.department.findMany({
-      where: { isActive: true },
+      where: {
+        isActive: true,
+        ...(form.departmentId ? { id: form.departmentId } : {}),
+      },
       select: { id: true, name: true, slug: true },
       orderBy: { name: "asc" },
     }),
     prisma.requestType.findMany({
-      where: { isActive: true },
+      where: {
+        isActive: true,
+        ...(form.requestTypeId ? { id: form.requestTypeId } : {}),
+        ...(form.departmentId && !form.requestTypeId
+          ? { departmentId: form.departmentId }
+          : {}),
+      },
       select: {
         id: true,
         name: true,
@@ -44,28 +58,35 @@ export default async function FormPreviewPage({
   ]);
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="text-xs text-brand-gray">معاينة حقيقية للنموذج</p>
-          <h2 className="text-lg font-bold text-primary">{form.name}</h2>
+    <div className="min-h-screen bg-surface-muted">
+      <div className="border-b border-surface-border bg-surface px-4 py-3">
+        <div className="mx-auto flex max-w-lg flex-wrap items-center justify-between gap-2">
+          <p className="text-sm font-semibold text-primary">
+            معاينة النموذج: {form.name}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Link href="/dashboard/forms" className="btn-secondary text-xs">
+              العودة للنماذج
+            </Link>
+            <Link
+              href={`/f/${form.slug}`}
+              target="_blank"
+              rel="noreferrer"
+              className="btn-primary text-xs"
+            >
+              فتح الرابط العام
+            </Link>
+          </div>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Link href="/dashboard/forms" className="btn-secondary text-sm">
-            العودة للنماذج
-          </Link>
-          <Link
-            href={`/f/${form.slug}`}
-            target="_blank"
-            rel="noreferrer"
-            className="btn-primary text-sm"
-          >
-            فتح الرابط العام
-          </Link>
-        </div>
+        <p className="mx-auto mt-1 max-w-lg text-xs text-brand-gray">
+          وضع معاينة — الإرسال تجريبي ولن يُسجَّل كطلب حقيقي.
+        </p>
       </div>
-
-      <div className="rounded-xl border border-dashed border-surface-border bg-surface p-2 sm:p-4">
+      <PublicSubmitShell
+        title={form.pageTitle}
+        subtitle={form.pageSubtitle}
+        introText={form.introText}
+      >
         <DynamicSubmitForm
           slug={form.slug}
           preview
@@ -75,7 +96,7 @@ export default async function FormPreviewPage({
           pinnedDepartmentId={form.departmentId}
           pinnedRequestTypeId={form.requestTypeId}
         />
-      </div>
+      </PublicSubmitShell>
     </div>
   );
 }
