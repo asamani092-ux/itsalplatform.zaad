@@ -39,7 +39,9 @@ export default function AllRequestsPage() {
   const [notice, setNotice] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
-  const [resendingId, setResendingId] = useState<string | null>(null);
+  const [actionId, setActionId] = useState<string | null>(null);
+  const [rejectTargetId, setRejectTargetId] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -64,29 +66,109 @@ export default function AllRequestsPage() {
     void loadData();
   }, [loadData]);
 
-  async function handleResendApproval(id: string) {
-    setResendingId(id);
+  async function runTicketAction(
+    id: string,
+    action: () => Promise<Response>,
+    successMessage: string,
+    failureMessage: string,
+  ) {
+    setActionId(id);
     setError(null);
     setNotice(null);
     try {
-      const res = await fetch(`/api/manager/tickets/${id}/resend-approval`, {
-        method: "POST",
-      });
+      const res = await action();
       const payload = await parseApiResponse<unknown>(res);
       if (!res.ok || !payload.success) {
-        throw new Error(getApiErrorMessage(payload, "فشل إرسال رابط الموافقة"));
+        throw new Error(getApiErrorMessage(payload, failureMessage));
       }
-      setNotice("تم إعادة إرسال رابط الموافقة بنجاح");
+      setNotice(successMessage);
+      setRejectTargetId(null);
+      setRejectReason("");
       await loadData();
     } catch (actionError) {
       setError(
-        actionError instanceof Error
-          ? actionError.message
-          : "فشل إرسال رابط الموافقة",
+        actionError instanceof Error ? actionError.message : failureMessage,
       );
     } finally {
-      setResendingId(null);
+      setActionId(null);
     }
+  }
+
+  function handleApprove(id: string) {
+    return runTicketAction(
+      id,
+      () => fetch(`/api/manager/tickets/${id}/approve`, { method: "POST" }),
+      "تمت الموافقة على الطلب",
+      "فشلت الموافقة على الطلب",
+    );
+  }
+
+  function handleResendApproval(id: string) {
+    return runTicketAction(
+      id,
+      () =>
+        fetch(`/api/manager/tickets/${id}/resend-approval`, { method: "POST" }),
+      "تم إعادة إرسال رابط الموافقة بنجاح",
+      "فشل إرسال رابط الموافقة",
+    );
+  }
+
+  function handleRejectConfirm() {
+    if (!rejectTargetId || rejectReason.trim().length < 3) {
+      setError("سبب الرفض مطلوب (3 أحرف على الأقل)");
+      return Promise.resolve();
+    }
+    const id = rejectTargetId;
+    const reason = rejectReason.trim();
+    return runTicketAction(
+      id,
+      () =>
+        fetch(`/api/manager/tickets/${id}/reject`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ reason }),
+        }),
+      "تم رفض الطلب",
+      "فشل رفض الطلب",
+    );
+  }
+
+  function renderPendingActions(requestId: string, fullWidth = false) {
+    const busy = actionId === requestId;
+    const widthClass = fullWidth ? "w-full " : "";
+    return (
+      <div className={`grid gap-2 ${fullWidth ? "" : "min-w-[11rem]"}`}>
+        <button
+          type="button"
+          className={`btn-primary ${widthClass}text-xs`}
+          disabled={busy}
+          onClick={() => void handleApprove(requestId)}
+        >
+          {busy ? "جاري التنفيذ..." : "موافقة"}
+        </button>
+        <button
+          type="button"
+          className={`btn-secondary ${widthClass}border-[var(--zaad-danger)] text-xs text-[var(--zaad-danger)]`}
+          disabled={busy}
+          onClick={() => {
+            setRejectTargetId(requestId);
+            setRejectReason("");
+            setError(null);
+            setNotice(null);
+          }}
+        >
+          رفض مع سبب
+        </button>
+        <button
+          type="button"
+          className={`btn-secondary ${widthClass}text-xs`}
+          disabled={busy}
+          onClick={() => void handleResendApproval(requestId)}
+        >
+          إعادة إرسال الرابط
+        </button>
+      </div>
+    );
   }
 
   const filteredRequests = useMemo(() => {
@@ -108,7 +190,7 @@ export default function AllRequestsPage() {
         <div>
           <h1 className="text-lg font-bold text-primary">كل الطلبات</h1>
           <p className="text-sm text-brand-gray">
-            عرض شامل لجميع الطلبات بما فيها الطلبات بانتظار موافقة المدير.
+            عرض شامل لجميع الطلبات — موافقة/رفض الطلبات بانتظار المدير تتم من هنا فقط.
           </p>
         </div>
         <IconButton
@@ -211,18 +293,9 @@ export default function AllRequestsPage() {
                     <td>{request.requestType?.name ?? "—"}</td>
                     <td className="text-xs">{formatDate(request.createdAt)}</td>
                     <td>
-                      {request.status === "Pending_Manager" ? (
-                        <button
-                          type="button"
-                          className="btn-primary text-xs"
-                          disabled={resendingId === request.id}
-                          onClick={() => void handleResendApproval(request.id)}
-                        >
-                          {resendingId === request.id
-                            ? "جاري الإرسال..."
-                            : "إعادة إرسال رابط الموافقة"}
-                        </button>
-                      ) : (
+                      {request.status === "Pending_Manager"
+                        ? renderPendingActions(request.id)
+                        : (
                         <span className="text-brand-gray">—</span>
                       )}
                     </td>
@@ -252,23 +325,62 @@ export default function AllRequestsPage() {
                 <p className="text-[11px] text-brand-gray">
                   {formatDate(request.createdAt)}
                 </p>
-                {request.status === "Pending_Manager" && (
-                  <button
-                    type="button"
-                    className="btn-primary w-full text-xs"
-                    disabled={resendingId === request.id}
-                    onClick={() => void handleResendApproval(request.id)}
-                  >
-                    {resendingId === request.id
-                      ? "جاري الإرسال..."
-                      : "إعادة إرسال رابط الموافقة"}
-                  </button>
-                )}
+                {request.status === "Pending_Manager" &&
+                  renderPendingActions(request.id, true)}
               </article>
             ))}
           </div>
         </>
       )}
+      {rejectTargetId && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="reject-request-title"
+        >
+          <div className="card w-full max-w-md space-y-3">
+            <h3 id="reject-request-title" className="text-lg font-bold text-primary">
+              رفض الطلب
+            </h3>
+            <p className="text-sm text-brand-gray">
+              سيُرسل سبب الرفض إلى بريد مقدّم الطلب.
+            </p>
+            <label className="label-field" htmlFor="all-requests-reject-reason">
+              سبب الرفض
+            </label>
+            <textarea
+              id="all-requests-reject-reason"
+              className="input-field min-h-24 w-full"
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              placeholder="اكتب سبب الرفض..."
+            />
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                className="btn-secondary border-[var(--zaad-danger)] text-sm text-[var(--zaad-danger)]"
+                disabled={actionId === rejectTargetId}
+                onClick={() => void handleRejectConfirm()}
+              >
+                تأكيد الرفض
+              </button>
+              <button
+                type="button"
+                className="btn-secondary text-sm"
+                disabled={actionId === rejectTargetId}
+                onClick={() => {
+                  setRejectTargetId(null);
+                  setRejectReason("");
+                }}
+              >
+                إلغاء
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
