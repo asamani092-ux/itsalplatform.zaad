@@ -12,6 +12,7 @@ import FilterBar from "@/components/ui/filter-bar";
 import SlideOver from "@/components/ui/slide-over";
 import { IconRefresh } from "@/components/shared/icons";
 import StatusBadge from "@/components/shared/status-badge";
+import { formatMeetingDate } from "./sla-utils";
 
 type BoardTab = "board" | "rejected" | "cancelled" | "archive";
 
@@ -322,6 +323,14 @@ export default function KanbanBoard() {
           onClick={() => void loadData()}
         />
       </div>
+
+      <p className="text-[11px] text-brand-gray" title="مؤشرات زمن المعالجة على كل بطاقة">
+        مؤشرات الزمن على البطاقة: <strong>حتى الموافقة</strong> (من الإنشاء حتى موافقة المدير) ·{" "}
+        <strong>حتى الإسناد</strong> (من الموافقة حتى تعيين موظف) ·{" "}
+        <strong>تنفيذ</strong> (من الإسناد حتى الإكمال) ·{" "}
+        <strong>الإجمالي</strong> (عمر الطلب). وسم «متأخر» يظهر إذا تجاوز الطلب الموعد المطلوب
+        (موعد الحجز للقاعات، أو نهاية يوم الموعد المطلوب لباقي الطلبات) أو تجاوز 72 ساعة بعد الإسناد.
+      </p>
 
       <div className="tab-bar" role="tablist" aria-label="عرض اللوحة">
         <button
@@ -669,6 +678,12 @@ export default function KanbanBoard() {
                   <div>
                     <dt>القاعة</dt>
                     <dd>{detailRequest.hospitalityBooking.roomName}</dd>
+                  </div>
+                  <div>
+                    <dt>تاريخ الحجز</dt>
+                    <dd>
+                      {formatMeetingDate(detailRequest.hospitalityBooking.meetingDate)}
+                    </dd>
                   </div>
                   <div>
                     <dt>وقت الحجز</dt>
