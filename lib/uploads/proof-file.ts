@@ -1,5 +1,6 @@
 import { writeFile, mkdir } from "fs/promises";
 import path from "path";
+import { getProofStorageDir, buildProofPublicUrl } from "./storage-path";
 
 const MAX_SIZE = 5 * 1024 * 1024;
 const ALLOWED_MIME = new Set(["application/pdf", "image/png", "image/jpeg"]);
@@ -22,8 +23,8 @@ export async function saveEmployeeProofFile(
 
   const bytes = Buffer.from(await proof.arrayBuffer());
   const filename = `${requestId}-${Date.now()}.${ext === "jpeg" ? "jpg" : ext}`;
-  const uploadDir = path.join(process.cwd(), "public", "uploads", "proofs");
+  const uploadDir = getProofStorageDir();
   await mkdir(uploadDir, { recursive: true });
   await writeFile(path.join(uploadDir, filename), bytes);
-  return `/uploads/proofs/${filename}`;
+  return buildProofPublicUrl(filename);
 }
