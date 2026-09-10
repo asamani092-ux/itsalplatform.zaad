@@ -3,8 +3,22 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { submitRequest } from "@/lib/request-service";
 import { sameCalendarDay, timesOverlap } from "./conflict";
+import { RequestStatus, type Prisma } from "@/generated/prisma/client";
 
 export const HOSPITALITY_TYPE_SLUG = "hospitality-booking";
+
+/**
+ * A booking's slot is released back to availability once its linked request is
+ * rejected or cancelled. Bookings without a linked request always hold the slot.
+ */
+export const RELEASED_REQUEST_STATUSES: RequestStatus[] = [
+  RequestStatus.Rejected,
+  RequestStatus.Cancelled,
+];
+
+export const ACTIVE_BOOKING_FILTER: Prisma.HospitalityBookingWhereInput = {
+  NOT: { request: { status: { in: RELEASED_REQUEST_STATUSES } } },
+};
 
 /** Minimal booking shape used for same-room time conflict checks. */
 interface HospitalityBookingConflictRow {
@@ -43,7 +57,11 @@ export async function findBookingConflict(input: {
 
   const sameRoom: HospitalityBookingConflictRow[] =
     await prisma.hospitalityBooking.findMany({
-      where: { roomName: input.roomName, meetingDate: { gte: dayStart, lte: dayEnd } },
+      where: {
+        roomName: input.roomName,
+        meetingDate: { gte: dayStart, lte: dayEnd },
+        ...ACTIVE_BOOKING_FILTER,
+      },
       select: { meetingDate: true, startTime: true, endTime: true },
     });
 
