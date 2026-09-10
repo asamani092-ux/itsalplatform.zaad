@@ -13,6 +13,7 @@ import SlideOver from "@/components/ui/slide-over";
 import { IconRefresh } from "@/components/shared/icons";
 import StatusBadge from "@/components/shared/status-badge";
 import { formatMeetingDate } from "./sla-utils";
+import { canCancelStatus } from "@/lib/request-stop";
 
 type BoardTab = "board" | "rejected" | "cancelled" | "archive";
 
@@ -605,16 +606,16 @@ export default function KanbanBoard() {
       {cancelModalId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="card w-full max-w-md space-y-3">
-            <h3 className="text-lg font-bold text-primary">إلغاء الطلب</h3>
+            <h3 className="text-lg font-bold text-primary">رفض / إلغاء الطلب</h3>
             <p className="text-sm text-brand-gray">
-              أدخل سبب الإلغاء (مطلوب). سيتم إشعار مقدّم الطلب وتحرير أي حجز مرتبط.
+              أدخل السبب (مطلوب). سيُشعر مقدّم الطلب ويُحرَّر أي حجز قاعة مرتبط.
             </p>
             <textarea
               className="input-field min-h-[100px]"
               value={cancelReason}
               onChange={(e) => setCancelReason(e.target.value)}
-              placeholder="مثال: تم الإلغاء بناءً على طلب صاحب الطلب"
-              aria-label="سبب الإلغاء"
+              placeholder="مثال: ألغي بناءً على توجيه الإدارة"
+              aria-label="سبب الرفض أو الإلغاء"
             />
             <div className="flex gap-2">
               <button
@@ -730,6 +731,20 @@ export default function KanbanBoard() {
                   ))}
                 </ul>
               </div>
+            )}
+
+            {canCancelStatus(detailRequest.status) && (
+              <button
+                type="button"
+                className="btn-secondary w-full border-[var(--zaad-danger)] text-sm text-[var(--zaad-danger)]"
+                disabled={busy}
+                onClick={() => {
+                  setCancelModalId(detailRequest.id);
+                  setCancelReason("");
+                }}
+              >
+                رفض / إلغاء الطلب
+              </button>
             )}
           </div>
         )}

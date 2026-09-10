@@ -6,6 +6,7 @@ import { RequestStatus } from "../generated/prisma/client";
 import { generateApprovalToken } from "./tokens";
 import { notify, notifyManager, notifyRequesterManager, notifySubmitter } from "./notifications";
 import { getAppUrl } from "./api-utils";
+import { canCancelStatus } from "./request-stop";
 
 type DashboardView = "active" | "archive" | "all";
 
@@ -566,13 +567,6 @@ export async function rejectRequest(params: {
   return withSla(updated);
 }
 
-const CANCELLABLE_STATUSES: RequestStatus[] = [
-  RequestStatus.Approved_Pending_Assignment,
-  RequestStatus.In_Progress,
-  RequestStatus.Returned,
-  RequestStatus.Pending_Review,
-];
-
 export async function cancelRequest(params: {
   requestId: string;
   reason: string;
@@ -585,7 +579,7 @@ export async function cancelRequest(params: {
 
   const existing = await getRequestById(params.requestId);
 
-  if (!CANCELLABLE_STATUSES.includes(existing.status)) {
+  if (!canCancelStatus(existing.status)) {
     throw new Error("INVALID_STATE: لا يمكن إلغاء الطلب في حالته الحالية");
   }
 
