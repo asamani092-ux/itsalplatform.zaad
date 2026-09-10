@@ -37,7 +37,10 @@ const ALLOWED_TRANSITIONS: Record<RequestStatus, RequestStatus[]> = {
   ],
   [RequestStatus.Rejected]: [RequestStatus.Archived],
   [RequestStatus.Cancelled]: [RequestStatus.Archived],
-  [RequestStatus.Completed]: [RequestStatus.Archived],
+  [RequestStatus.Completed]: [
+    RequestStatus.Archived,
+    RequestStatus.Cancelled,
+  ],
   [RequestStatus.Archived]: [],
 };
 

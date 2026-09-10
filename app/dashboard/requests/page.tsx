@@ -7,6 +7,7 @@ import FilterBar from "@/components/ui/filter-bar";
 import { IconButton } from "@/components/ui/icon-button";
 import { IconRefresh } from "@/components/shared/icons";
 import type { DashboardRequest } from "@/components/dashboard/kanban/RequestCard";
+import { canCancelStatus, canRejectStatus } from "@/lib/request-stop";
 
 const STATUS_OPTIONS: Array<{ value: string; label: string }> = [
   { value: "", label: "كل الحالات" },
@@ -45,13 +46,6 @@ export default function AllRequestsPage() {
   const [rejectReason, setRejectReason] = useState("");
   const [cancelTargetId, setCancelTargetId] = useState<string | null>(null);
   const [cancelReason, setCancelReason] = useState("");
-
-  const CANCELLABLE = new Set([
-    "Approved_Pending_Assignment",
-    "In_Progress",
-    "Returned",
-    "Pending_Review",
-  ]);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -169,7 +163,7 @@ export default function AllRequestsPage() {
     const busy = actionId === request.id;
     const widthClass = fullWidth ? "w-full " : "";
 
-    if (request.status === "Pending_Manager") {
+    if (canRejectStatus(request.status)) {
       return (
         <div className={`grid gap-2 ${fullWidth ? "" : "min-w-[11rem]"}`}>
           <button
@@ -205,7 +199,7 @@ export default function AllRequestsPage() {
       );
     }
 
-    if (CANCELLABLE.has(request.status)) {
+    if (canCancelStatus(request.status)) {
       return (
         <button
           type="button"
@@ -218,7 +212,7 @@ export default function AllRequestsPage() {
             setNotice(null);
           }}
         >
-          إلغاء الطلب
+          رفض / إلغاء الطلب
         </button>
       );
     }
@@ -245,7 +239,7 @@ export default function AllRequestsPage() {
         <div>
           <h1 className="text-lg font-bold text-primary">كل الطلبات</h1>
           <p className="text-sm text-brand-gray">
-            عرض شامل لجميع الطلبات — رفض طلبات بانتظار المدير، وإلغاء الطلبات قيد التنفيذ أو بانتظار الإسناد من هنا.
+            عرض شامل لجميع الطلبات بجميع أنواعها — يمكن رفض أو إلغاء أي طلب غير منتهٍ مع ذكر السبب.
           </p>
         </div>
         <IconButton
@@ -440,20 +434,20 @@ export default function AllRequestsPage() {
         >
           <div className="card w-full max-w-md space-y-3">
             <h3 id="cancel-request-title" className="text-lg font-bold text-primary">
-              إلغاء الطلب
+              رفض / إلغاء الطلب
             </h3>
             <p className="text-sm text-brand-gray">
-              سيُرسل سبب الإلغاء إلى بريد مقدّم الطلب ويُحرَّر أي حجز قاعة مرتبط.
+              سيُرسل السبب إلى بريد مقدّم الطلب ويُحرَّر أي حجز قاعة مرتبط.
             </p>
             <label className="label-field" htmlFor="all-requests-cancel-reason">
-              سبب الإلغاء
+              السبب (مطلوب)
             </label>
             <textarea
               id="all-requests-cancel-reason"
               className="input-field min-h-24 w-full"
               value={cancelReason}
               onChange={(e) => setCancelReason(e.target.value)}
-              placeholder="اكتب سبب الإلغاء..."
+              placeholder="اكتب سبب الرفض أو الإلغاء..."
             />
             <div className="flex flex-wrap gap-2">
               <button

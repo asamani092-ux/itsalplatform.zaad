@@ -3,6 +3,7 @@ import AvatarGroup from "@/components/ui/avatar-group";
 import { formatMeetingDate, isSlaBreached, SLA_METRIC_HINTS } from "./sla-utils";
 import { IconArchive, IconCheck } from "@/components/shared/icons";
 import StatusBadge from "@/components/shared/status-badge";
+import { canCancelStatus } from "@/lib/request-stop";
 
 export interface SlaMetrics {
   createdToApprovalMs: number | null;
@@ -94,6 +95,18 @@ export default function RequestCard({
   const isRejected = request.status === "Rejected";
   const isCancelled = request.status === "Cancelled";
   const slaBreached = isSlaBreached(request);
+  const showCancel = canCancelStatus(request.status);
+
+  const cancelButton = showCancel ? (
+    <button
+      type="button"
+      className="btn-secondary w-full border-[var(--zaad-danger)] text-xs text-[var(--zaad-danger)]"
+      disabled={busy}
+      onClick={() => onCancel(request.id)}
+    >
+      رفض / إلغاء الطلب
+    </button>
+  ) : null;
 
   return (
     <article
@@ -213,6 +226,7 @@ export default function RequestCard({
               </option>
             ))}
           </select>
+          {cancelButton}
         </div>
       )}
 
@@ -252,14 +266,7 @@ export default function RequestCard({
           <p className="text-[10px] text-brand-gray">
             بانتظار إعلان الانتهاء من الموظف.
           </p>
-          <button
-            type="button"
-            className="btn-secondary w-full border-[var(--zaad-danger)] text-xs text-[var(--zaad-danger)]"
-            disabled={busy}
-            onClick={() => onCancel(request.id)}
-          >
-            إلغاء الطلب
-          </button>
+          {cancelButton}
         </div>
       )}
 
@@ -282,19 +289,23 @@ export default function RequestCard({
           >
             إرجاع للموظف
           </button>
+          {cancelButton}
         </div>
       )}
 
       {isDone && (
-        <button
-          type="button"
-          className="btn-secondary w-full text-xs focus-visible:ring-2 focus-visible:ring-primary/20"
-          disabled={busy}
-          onClick={() => void onArchive(request.id)}
-        >
-          <IconArchive size={16} />
-          نقل للأرشيف
-        </button>
+        <div className="space-y-2">
+          <button
+            type="button"
+            className="btn-secondary w-full text-xs focus-visible:ring-2 focus-visible:ring-primary/20"
+            disabled={busy}
+            onClick={() => void onArchive(request.id)}
+          >
+            <IconArchive size={16} />
+            نقل للأرشيف
+          </button>
+          {cancelButton}
+        </div>
       )}
 
       {isRejected && request.rejectionReason && (
