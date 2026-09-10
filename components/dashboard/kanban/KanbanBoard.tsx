@@ -230,10 +230,17 @@ export default function KanbanBoard() {
     (r) =>
       (r.status === "Approved_Pending_Assignment" ||
         r.status === "In_Progress" ||
+        r.status === "Returned" ||
         r.status === "Pending_Review" ||
         r.status === "Completed") &&
       matchesQuery(r),
   );
+
+  // Returned requests live inside the "in_progress" column with a warning badge.
+  const columnStatuses = (columnStatus: string): string[] =>
+    columnStatus === "In_Progress" ? ["In_Progress", "Returned"] : [columnStatus];
+
+  const returnedCount = requests.filter((r) => r.status === "Returned").length;
 
   const detailRequest =
     detailExtra ??
@@ -258,10 +265,17 @@ export default function KanbanBoard() {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-brand-gray">
-          بعد إعلان الموظف للانتهاء تظهر التذكرة في «بانتظار المراجعة» لاعتمادها أو
-          إرجاعها.
-        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-sm text-brand-gray">
+            بعد إعلان الموظف للانتهاء تظهر التذكرة في «بانتظار المراجعة» لاعتمادها أو
+            إرجاعها.
+          </p>
+          {returnedCount > 0 && (
+            <span className="badge-warning text-xs" title="طلبات معادة للموظف قيد المعالجة">
+              معاد للموظف: {returnedCount}
+            </span>
+          )}
+        </div>
         <IconButton
           label={loading ? "جاري التحديث..." : "تحديث اللوحة"}
           icon={<IconRefresh size={18} />}
@@ -333,9 +347,14 @@ export default function KanbanBoard() {
       ) : tab === "board" ? (
         <div className="-mx-1 flex gap-4 overflow-x-auto px-1 pb-2 lg:grid lg:grid-cols-2 lg:overflow-visible xl:grid-cols-4">
           {COLUMNS.map((column) => {
-            const columnRequests = boardRequests.filter(
-              (r) => r.status === column.status,
+            const statuses = columnStatuses(column.status);
+            const columnRequests = boardRequests.filter((r) =>
+              statuses.includes(r.status),
             );
+            const columnReturned =
+              column.status === "In_Progress"
+                ? columnRequests.filter((r) => r.status === "Returned").length
+                : 0;
 
             return (
               <section
@@ -346,7 +365,17 @@ export default function KanbanBoard() {
                 <header
                   className={`flex items-center justify-between border-b-2 px-4 py-3 ${column.headerClass}`}
                 >
-                  <h2 className="text-sm font-bold text-primary">{column.title}</h2>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-sm font-bold text-primary">{column.title}</h2>
+                    {columnReturned > 0 && (
+                      <span
+                        className="badge-warning text-[10px]"
+                        title="طلبات معادة للموظف"
+                      >
+                        معاد: {columnReturned}
+                      </span>
+                    )}
+                  </div>
                   <span className="badge-primary min-w-[2rem] text-center">
                     {columnRequests.length}
                   </span>
