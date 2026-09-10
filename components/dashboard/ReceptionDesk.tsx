@@ -4,6 +4,33 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getApiErrorMessage, parseApiResponse } from "@/components/lib/api-types";
 import { IconButton } from "@/components/ui/icon-button";
 import { IconPlus, IconX } from "@/components/shared/icons";
+import { useToast } from "@/components/ui/toast";
+
+const PHONE_RE = /^05\d{8}$/;
+
+/** Client-side validation for the visitor register/check-in forms. */
+function validateVisitorForm(state: {
+  visitorName: string;
+  visitorPhone: string;
+  organization: string;
+  visitType: string;
+  visitTarget: string;
+  reason: string;
+  visitDate: string;
+  visitTimeSlot: string;
+}): string | null {
+  if (!state.visitorName.trim()) return "اسم الزائر مطلوب";
+  if (!PHONE_RE.test(state.visitorPhone.trim()))
+    return "رقم الجوال يجب أن يكون بصيغة 05xxxxxxxx";
+  if (!state.organization.trim()) return "الجهة / المؤسسة مطلوبة";
+  if (!state.visitType.trim()) return "نوع الزيارة مطلوب";
+  if (!state.visitTarget.trim()) return "جهة الزيارة مطلوبة";
+  if (state.visitTarget === "زائر" && !state.reason.trim())
+    return "سبب الزيارة مطلوب";
+  if (!state.visitDate.trim()) return "تاريخ الزيارة مطلوب";
+  if (!state.visitTimeSlot.trim()) return "فترة الزيارة مطلوبة";
+  return null;
+}
 
 type TabId =
   | "dashboard"
@@ -234,6 +261,7 @@ function SimpleBars({
 }
 
 export default function ReceptionDesk() {
+  const { pushToast } = useToast();
   const [tab, setTab] = useState<TabId>("dashboard");
   const [registerOpen, setRegisterOpen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -444,6 +472,12 @@ export default function ReceptionDesk() {
 
   async function submitRegister(e: React.FormEvent) {
     e.preventDefault();
+    const validationError = validateVisitorForm(form);
+    if (validationError) {
+      setError(validationError);
+      pushToast(validationError, "danger");
+      return;
+    }
     setSubmitting(true);
     setError("");
     try {
@@ -469,6 +503,7 @@ export default function ReceptionDesk() {
       setSuggestions([]);
       setRegisterOpen(false);
       setTab("logs");
+      pushToast("تم تسجيل الزائر بنجاح", "success");
       await loadDesk();
     } catch (err) {
       setError(err instanceof Error ? err.message : "خطأ");
@@ -501,6 +536,12 @@ export default function ReceptionDesk() {
 
   async function submitCheckIn() {
     if (!checkInFor) return;
+    const validationError = validateVisitorForm(checkInForm);
+    if (validationError) {
+      setError(validationError);
+      pushToast(validationError, "danger");
+      return;
+    }
     setSubmitting(true);
     setError("");
     try {
@@ -525,6 +566,7 @@ export default function ReceptionDesk() {
         throw new Error(getApiErrorMessage(payload, "فشل تسجيل الحضور"));
       }
       setCheckInFor(null);
+      pushToast("تم تسجيل الحضور بنجاح", "success");
       await loadDesk();
     } catch (e) {
       setError(e instanceof Error ? e.message : "خطأ");
