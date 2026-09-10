@@ -48,6 +48,7 @@ export type EmailTemplateKind =
   | "assigned"
   | "completed"
   | "rejected"
+  | "cancelled"
   | "pending_review"
   | "returned"
   | "reassignment_request";
@@ -135,6 +136,22 @@ export function buildEmailTemplate(
       html: wrapArabicEmail(
         "تم رفض طلبك",
         `<p>نأسف لإبلاغك برفض الطلب: <strong style="color:#8B1538">${data.title}</strong>.</p>
+         <p>الرقم المرجعي: <span dir="ltr">${data.reference ?? "—"}</span></p>
+         ${reasonHtml}
+         <p>للاستفسار يرجى التواصل مع قسم الاتصال المؤسسي.</p>`,
+      ),
+    };
+  }
+
+  if (kind === "cancelled") {
+    const reasonHtml = rejectionText
+      ? `<p><strong>سبب الإلغاء:</strong></p><p style="background:#F5F5F5;padding:12px;border-radius:8px">${rejectionText}</p>`
+      : "";
+    return {
+      subject: "تم إلغاء طلبك",
+      html: wrapArabicEmail(
+        "تم إلغاء طلبك",
+        `<p>نفيدك بإلغاء الطلب: <strong style="color:#8B1538">${data.title}</strong>.</p>
          <p>الرقم المرجعي: <span dir="ltr">${data.reference ?? "—"}</span></p>
          ${reasonHtml}
          <p>للاستفسار يرجى التواصل مع قسم الاتصال المؤسسي.</p>`,

@@ -16,6 +16,7 @@ const STATUS_OPTIONS: Array<{ value: string; label: string }> = [
   { value: "Pending_Review", label: "بانتظار المراجعة" },
   { value: "Returned", label: "مُعادة للموظف" },
   { value: "Rejected", label: "مرفوضة" },
+  { value: "Cancelled", label: "ملغاة" },
   { value: "Completed", label: "مكتمل" },
   { value: "Archived", label: "مؤرشف" },
 ];

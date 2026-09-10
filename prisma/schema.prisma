@@ -14,6 +14,7 @@ enum RequestStatus {
   Pending_Review
   Returned
   Rejected
+  Cancelled
   Completed
   Archived
 }
@@ -187,6 +188,8 @@ model CommunicationRequest {
   completionDeclaredAt DateTime?
   rejectedAt         DateTime?
   rejectionReason    String?
+  cancelledAt        DateTime?
+  cancellationReason String?
   proofFileUrl       String?
   reviewNote         String?
   employeeNote       String?
