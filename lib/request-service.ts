@@ -42,19 +42,31 @@ const requestInclude = {
   },
 } as const;
 
+function normalizeProofUrl<T extends { proofFileUrl?: string | null }>(
+  request: T,
+): T {
+  const url = request.proofFileUrl;
+  if (typeof url === "string" && url.startsWith("/uploads/proofs/")) {
+    return { ...request, proofFileUrl: `/api${url}` };
+  }
+  return request;
+}
+
 function withSla<T extends {
   createdAt: Date;
   approvedAt: Date | null;
   assignedAt: Date | null;
   completedAt: Date | null;
+  proofFileUrl?: string | null;
 }>(request: T) {
+  const normalized = normalizeProofUrl(request);
   return {
-    ...request,
+    ...normalized,
     sla: calculateSlaMetrics({
-      createdAt: request.createdAt,
-      approvedAt: request.approvedAt,
-      assignedAt: request.assignedAt,
-      completedAt: request.completedAt,
+      createdAt: normalized.createdAt,
+      approvedAt: normalized.approvedAt,
+      assignedAt: normalized.assignedAt,
+      completedAt: normalized.completedAt,
     }),
   };
 }
