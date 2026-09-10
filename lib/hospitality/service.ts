@@ -126,7 +126,8 @@ export async function createBookingWithRequest(input: BookingInput) {
       (input.cateringRequests
         ? `طلبات الضيافة: ${input.cateringRequests}\n(تنفيذ الطلبات حسب القدرة والاستطاعة)`
         : ""),
-    requiredDate: input.meetingDate,
+    // Use the actual meeting start datetime so SLA/overdue checks are accurate.
+    requiredDate: visitDate,
     contactEmail: input.requesterEmail,
     contactPhone: input.requesterPhone || "0500000000",
     departmentId: requestType.departmentId,

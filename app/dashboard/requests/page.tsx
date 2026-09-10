@@ -43,6 +43,15 @@ export default function AllRequestsPage() {
   const [actionId, setActionId] = useState<string | null>(null);
   const [rejectTargetId, setRejectTargetId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
+  const [cancelTargetId, setCancelTargetId] = useState<string | null>(null);
+  const [cancelReason, setCancelReason] = useState("");
+
+  const CANCELLABLE = new Set([
+    "Approved_Pending_Assignment",
+    "In_Progress",
+    "Returned",
+    "Pending_Review",
+  ]);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -85,6 +94,8 @@ export default function AllRequestsPage() {
       setNotice(successMessage);
       setRejectTargetId(null);
       setRejectReason("");
+      setCancelTargetId(null);
+      setCancelReason("");
       await loadData();
     } catch (actionError) {
       setError(
@@ -134,42 +145,85 @@ export default function AllRequestsPage() {
     );
   }
 
-  function renderPendingActions(requestId: string, fullWidth = false) {
-    const busy = actionId === requestId;
+  function handleCancelConfirm() {
+    if (!cancelTargetId || cancelReason.trim().length < 3) {
+      setError("سبب الإلغاء مطلوب (3 أحرف على الأقل)");
+      return Promise.resolve();
+    }
+    const id = cancelTargetId;
+    const reason = cancelReason.trim();
+    return runTicketAction(
+      id,
+      () =>
+        fetch(`/api/manager/tickets/${id}/cancel`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ reason }),
+        }),
+      "تم إلغاء الطلب",
+      "فشل إلغاء الطلب",
+    );
+  }
+
+  function renderRowActions(request: DashboardRequest, fullWidth = false) {
+    const busy = actionId === request.id;
     const widthClass = fullWidth ? "w-full " : "";
-    return (
-      <div className={`grid gap-2 ${fullWidth ? "" : "min-w-[11rem]"}`}>
-        <button
-          type="button"
-          className={`btn-primary ${widthClass}text-xs`}
-          disabled={busy}
-          onClick={() => void handleApprove(requestId)}
-        >
-          {busy ? "جاري التنفيذ..." : "موافقة"}
-        </button>
+
+    if (request.status === "Pending_Manager") {
+      return (
+        <div className={`grid gap-2 ${fullWidth ? "" : "min-w-[11rem]"}`}>
+          <button
+            type="button"
+            className={`btn-primary ${widthClass}text-xs`}
+            disabled={busy}
+            onClick={() => void handleApprove(request.id)}
+          >
+            {busy ? "جاري التنفيذ..." : "موافقة"}
+          </button>
+          <button
+            type="button"
+            className={`btn-secondary ${widthClass}border-[var(--zaad-danger)] text-xs text-[var(--zaad-danger)]`}
+            disabled={busy}
+            onClick={() => {
+              setRejectTargetId(request.id);
+              setRejectReason("");
+              setError(null);
+              setNotice(null);
+            }}
+          >
+            رفض مع سبب
+          </button>
+          <button
+            type="button"
+            className={`btn-secondary ${widthClass}text-xs`}
+            disabled={busy}
+            onClick={() => void handleResendApproval(request.id)}
+          >
+            إعادة إرسال الرابط
+          </button>
+        </div>
+      );
+    }
+
+    if (CANCELLABLE.has(request.status)) {
+      return (
         <button
           type="button"
           className={`btn-secondary ${widthClass}border-[var(--zaad-danger)] text-xs text-[var(--zaad-danger)]`}
           disabled={busy}
           onClick={() => {
-            setRejectTargetId(requestId);
-            setRejectReason("");
+            setCancelTargetId(request.id);
+            setCancelReason("");
             setError(null);
             setNotice(null);
           }}
         >
-          رفض مع سبب
+          إلغاء الطلب
         </button>
-        <button
-          type="button"
-          className={`btn-secondary ${widthClass}text-xs`}
-          disabled={busy}
-          onClick={() => void handleResendApproval(requestId)}
-        >
-          إعادة إرسال الرابط
-        </button>
-      </div>
-    );
+      );
+    }
+
+    return <span className="text-brand-gray">—</span>;
   }
 
   const filteredRequests = useMemo(() => {
@@ -191,7 +245,7 @@ export default function AllRequestsPage() {
         <div>
           <h1 className="text-lg font-bold text-primary">كل الطلبات</h1>
           <p className="text-sm text-brand-gray">
-            عرض شامل لجميع الطلبات — موافقة/رفض الطلبات بانتظار المدير تتم من هنا فقط.
+            عرض شامل لجميع الطلبات — رفض طلبات بانتظار المدير، وإلغاء الطلبات قيد التنفيذ أو بانتظار الإسناد من هنا.
           </p>
         </div>
         <IconButton
@@ -294,11 +348,7 @@ export default function AllRequestsPage() {
                     <td>{request.requestType?.name ?? "—"}</td>
                     <td className="text-xs">{formatDate(request.createdAt)}</td>
                     <td>
-                      {request.status === "Pending_Manager"
-                        ? renderPendingActions(request.id)
-                        : (
-                        <span className="text-brand-gray">—</span>
-                      )}
+                      {renderRowActions(request)}
                     </td>
                   </tr>
                 ))}
@@ -326,8 +376,7 @@ export default function AllRequestsPage() {
                 <p className="text-[11px] text-brand-gray">
                   {formatDate(request.createdAt)}
                 </p>
-                {request.status === "Pending_Manager" &&
-                  renderPendingActions(request.id, true)}
+                {renderRowActions(request, true)}
               </article>
             ))}
           </div>
@@ -375,7 +424,56 @@ export default function AllRequestsPage() {
                   setRejectReason("");
                 }}
               >
-                إلغاء
+                إغلاق
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {cancelTargetId && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="cancel-request-title"
+        >
+          <div className="card w-full max-w-md space-y-3">
+            <h3 id="cancel-request-title" className="text-lg font-bold text-primary">
+              إلغاء الطلب
+            </h3>
+            <p className="text-sm text-brand-gray">
+              سيُرسل سبب الإلغاء إلى بريد مقدّم الطلب ويُحرَّر أي حجز قاعة مرتبط.
+            </p>
+            <label className="label-field" htmlFor="all-requests-cancel-reason">
+              سبب الإلغاء
+            </label>
+            <textarea
+              id="all-requests-cancel-reason"
+              className="input-field min-h-24 w-full"
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              placeholder="اكتب سبب الإلغاء..."
+            />
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                className="btn-secondary border-[var(--zaad-danger)] text-sm text-[var(--zaad-danger)]"
+                disabled={actionId === cancelTargetId}
+                onClick={() => void handleCancelConfirm()}
+              >
+                تأكيد الإلغاء
+              </button>
+              <button
+                type="button"
+                className="btn-secondary text-sm"
+                disabled={actionId === cancelTargetId}
+                onClick={() => {
+                  setCancelTargetId(null);
+                  setCancelReason("");
+                }}
+              >
+                إغلاق
               </button>
             </div>
           </div>

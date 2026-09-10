@@ -1,6 +1,6 @@
 import { formatDurationMs, formatElapsedSince } from "@/components/shared/format-sla";
 import AvatarGroup from "@/components/ui/avatar-group";
-import { isSlaBreached } from "./sla-utils";
+import { formatMeetingDate, isSlaBreached, SLA_METRIC_HINTS } from "./sla-utils";
 import { IconArchive, IconCheck } from "@/components/shared/icons";
 import StatusBadge from "@/components/shared/status-badge";
 
@@ -127,7 +127,11 @@ export default function RequestCard({
         <p className="rounded-md bg-surface-muted px-2 py-1 text-[11px] text-primary">
           {request.hospitalityBooking.roomName}
           {" · "}
-          {request.hospitalityBooking.startTime}–{request.hospitalityBooking.endTime}
+          {formatMeetingDate(request.hospitalityBooking.meetingDate)}
+          {" · "}
+          <span dir="ltr">
+            {request.hospitalityBooking.startTime}–{request.hospitalityBooking.endTime}
+          </span>
         </p>
       )}
 
@@ -145,20 +149,21 @@ export default function RequestCard({
         className={`grid grid-cols-2 gap-1 rounded-lg p-2 text-[10px] ${
           slaBreached ? "bg-surface" : "bg-surface-muted"
         }`}
+        aria-label="مؤشرات زمن معالجة الطلب"
       >
-        <div>
+        <div title={SLA_METRIC_HINTS.toApproval}>
           <p className="text-brand-gray">حتى الموافقة</p>
           <p className="font-semibold text-primary">
             {formatDurationMs(request.sla.createdToApprovalMs)}
           </p>
         </div>
-        <div>
+        <div title={SLA_METRIC_HINTS.toAssignment}>
           <p className="text-brand-gray">حتى الإسناد</p>
           <p className="font-semibold text-primary">
             {formatDurationMs(request.sla.approvalToAssignmentMs)}
           </p>
         </div>
-        <div>
+        <div title={SLA_METRIC_HINTS.execution}>
           <p className="text-brand-gray">تنفيذ</p>
           <p className={`font-semibold ${slaBreached ? "text-[var(--zaad-danger)]" : "text-primary"}`}>
             {request.completedAt
@@ -166,7 +171,7 @@ export default function RequestCard({
               : formatElapsedSince(request.assignedAt)}
           </p>
         </div>
-        <div>
+        <div title={SLA_METRIC_HINTS.total}>
           <p className="text-brand-gray">الإجمالي</p>
           <p className="font-semibold text-secondary-dark">
             {request.completedAt
@@ -175,6 +180,14 @@ export default function RequestCard({
           </p>
         </div>
       </div>
+      {slaBreached && (
+        <p className="text-[10px] text-[var(--zaad-danger)]">
+          متأخر عن الموعد المطلوب
+          {request.hospitalityBooking
+            ? ` (موعد الحجز: ${formatMeetingDate(request.hospitalityBooking.meetingDate)} ${request.hospitalityBooking.startTime})`
+            : ""}
+        </p>
+      )}
 
       {isNew && (
         <div className="space-y-1">
