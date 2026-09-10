@@ -84,7 +84,8 @@ export default function RequestCard({
   busy,
 }: RequestCardProps) {
   const isNew = request.status === "Approved_Pending_Assignment";
-  const isActive = request.status === "In_Progress";
+  const isReturned = request.status === "Returned";
+  const isActive = request.status === "In_Progress" || isReturned;
   const isReview = request.status === "Pending_Review";
   const isDone = request.status === "Completed";
   const isRejected = request.status === "Rejected";
@@ -100,6 +101,9 @@ export default function RequestCard({
         <h3 className="text-sm font-bold text-primary">{request.title}</h3>
         <div className="flex shrink-0 flex-col items-end gap-1">
           <StatusBadge status={request.status} />
+          {isReturned && (
+            <span className="badge-warning text-[10px]">معاد للموظف</span>
+          )}
           {slaBreached && (
             <span className="badge-danger text-[10px]">متأخر</span>
           )}
@@ -197,6 +201,11 @@ export default function RequestCard({
 
       {isActive && (
         <div className="space-y-2">
+          {isReturned && request.reviewNote && (
+            <p className="rounded-md bg-[var(--zaad-warning-bg,#fdf6e3)] p-2 text-[11px] text-[var(--zaad-warning,#9a7b0a)]">
+              ملاحظة الإرجاع: {request.reviewNote}
+            </p>
+          )}
           {request.assignedEmployee && (
             <p className="text-xs text-brand-gray">
               المسؤول:{" "}
