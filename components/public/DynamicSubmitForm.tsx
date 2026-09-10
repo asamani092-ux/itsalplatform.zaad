@@ -20,6 +20,7 @@ import Stepper from "@/components/ui/stepper";
 import HallBookingFields, {
   type HallBookingSelection,
 } from "@/components/public/HallBookingFields";
+import { useToast } from "@/components/ui/toast";
 
 interface Department {
   id: string;
@@ -80,6 +81,7 @@ export default function DynamicSubmitForm({
   pinnedDepartmentId?: string | null;
   pinnedRequestTypeId?: string | null;
 }) {
+  const { pushToast } = useToast();
   const fields = settings.fields;
   const hasInitial = Boolean(initialDepartments?.length);
   const defaults = hasInitial
@@ -245,7 +247,9 @@ export default function DynamicSubmitForm({
     setFieldErrors(errors);
     if (Object.keys(errors).length > 0) {
       const firstMsg = Object.values(errors)[0];
-      setError(firstMsg || "يرجى إكمال الحقول المطلوبة");
+      const message = firstMsg || "يرجى إكمال الحقول المطلوبة";
+      setError(message);
+      pushToast(message, "danger");
       window.requestAnimationFrame(() => {
         const el =
           document.querySelector<HTMLElement>('[aria-invalid="true"]') ??
@@ -310,8 +314,11 @@ export default function DynamicSubmitForm({
           ? payload.data.approvalUrl
           : null;
       setApprovalUrl(rawUrl);
+      pushToast(settings.successTitle || "تم إرسال الطلب بنجاح", "success");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "خطأ");
+      const message = err instanceof Error ? err.message : "خطأ";
+      setError(message);
+      pushToast(message, "danger");
     } finally {
       setSubmitting(false);
     }

@@ -6,6 +6,7 @@ import { getApiErrorMessage, parseApiResponse } from "@/components/lib/api-types
 import { fetchWithTimeout } from "@/lib/client/fetch-with-timeout";
 import BrandLogo from "@/components/shared/brand-logo";
 import Skeleton from "@/components/ui/skeleton";
+import { useToast } from "@/components/ui/toast";
 
 interface TokenSummary {
   id: string;
@@ -76,6 +77,7 @@ export default function ManagerApprovalView({
   token?: string | null;
 }) {
   const token = tokenProp ?? null;
+  const { pushToast } = useToast();
 
   const [viewState, setViewState] = useState<ViewState>(
     token ? "loading" : "missing_token",
@@ -155,15 +157,18 @@ export default function ManagerApprovalView({
           setViewState("expired");
           return;
         }
-        setErrorMessage(
-          getApiErrorMessage(payload, "تعذّر تنفيذ الموافقة"),
-        );
+        const message = getApiErrorMessage(payload, "تعذّر تنفيذ الموافقة");
+        setErrorMessage(message);
+        pushToast(message, "danger");
         return;
       }
 
       setViewState("approved");
+      pushToast("تمت الموافقة على الطلب بنجاح", "success");
     } catch {
-      setErrorMessage("حدث خطأ أثناء الموافقة.");
+      const message = "حدث خطأ أثناء الموافقة.";
+      setErrorMessage(message);
+      pushToast(message, "danger");
     } finally {
       setActionLoading(null);
     }
@@ -172,7 +177,9 @@ export default function ManagerApprovalView({
   async function handleRejectConfirm() {
     if (!token) return;
     if (rejectReason.trim().length < 3) {
-      setErrorMessage("سبب الرفض مطلوب (3 أحرف على الأقل)");
+      const message = "سبب الرفض مطلوب (3 أحرف على الأقل)";
+      setErrorMessage(message);
+      pushToast(message, "danger");
       return;
     }
 
@@ -199,7 +206,9 @@ export default function ManagerApprovalView({
           setViewState("expired");
           return;
         }
-        setErrorMessage(getApiErrorMessage(payload, "تعذّر رفض الطلب"));
+        const message = getApiErrorMessage(payload, "تعذّر رفض الطلب");
+        setErrorMessage(message);
+        pushToast(message, "danger");
         return;
       }
 
@@ -216,8 +225,11 @@ export default function ManagerApprovalView({
       setSavedRejectReason(payload.data.rejectionReason ?? rejectReason.trim());
       setShowRejectConfirm(false);
       setViewState("rejected_info");
+      pushToast("تم رفض الطلب", "success");
     } catch {
-      setErrorMessage("حدث خطأ أثناء الرفض.");
+      const message = "حدث خطأ أثناء الرفض.";
+      setErrorMessage(message);
+      pushToast(message, "danger");
     } finally {
       setActionLoading(null);
     }
