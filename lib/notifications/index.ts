@@ -114,13 +114,13 @@ export async function notifyRequesterManager(params: {
         title,
         body,
         channel: "both",
-        emailKind: "approval_needed",
+        emailKind: "requester_manager_info",
       });
       return;
     }
 
     // No account matched — email-only heads-up.
-    const template = buildEmailTemplate("approval_needed", {
+    const template = buildEmailTemplate("requester_manager_info", {
       title: params.requestTitle,
     });
     await sendEmail({

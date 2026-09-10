@@ -51,6 +51,7 @@ export type EmailTemplateKind =
   | "cancelled"
   | "pending_review"
   | "returned"
+  | "requester_manager_info"
   | "reassignment_request";
 
 export function buildEmailTemplate(
@@ -181,6 +182,17 @@ export function buildEmailTemplate(
          ${rejectionText ? `<p>ملاحظة المدير: ${rejectionText}</p>` : ""}`,
         "فتح التذكرة",
         data.link,
+      ),
+    };
+  }
+
+  if (kind === "requester_manager_info") {
+    return {
+      subject: "طلب جديد من أحد منسوبي إدارتك",
+      html: wrapArabicEmail(
+        "طلب جديد من أحد منسوبي إدارتك",
+        `<p>قدّم أحد منسوبي إدارتك طلباً جديداً بعنوان: <strong style="color:#8B1538">${data.title}</strong>.</p>
+         <p>هذه رسالة علمٍ فقط ولا يتطلب منك أي إجراء.</p>`,
       ),
     };
   }
