@@ -4,6 +4,7 @@ import { handleApiError, jsonError, jsonOk } from "@/lib/api-utils";
 import { checkRateLimit, rateLimitKey } from "@/lib/rate-limit";
 import { getHospitalitySettings } from "@/lib/app-settings";
 import { computeAvailableSlots } from "@/lib/hospitality/availability";
+import { ACTIVE_BOOKING_FILTER } from "@/lib/hospitality/service";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -36,6 +37,7 @@ export async function GET(request: NextRequest) {
         where: {
           roomName: room,
           meetingDate: { gte: dayStart, lte: dayEnd },
+          ...ACTIVE_BOOKING_FILTER,
         },
         select: {
           startTime: true,
