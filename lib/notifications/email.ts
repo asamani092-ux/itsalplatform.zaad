@@ -42,6 +42,9 @@ function wrapArabicEmail(title: string, bodyHtml: string, ctaLabel?: string, cta
 
 export type EmailTemplateKind =
   | "approval_needed"
+  | "submitted"
+  | "approved"
+  | "in_progress"
   | "assigned"
   | "completed"
   | "rejected"
@@ -70,6 +73,42 @@ export function buildEmailTemplate(
          <p>يرجى مراجعة الطلب والموافقة عبر الرابط أدناه.</p>`,
         "فتح رابط الموافقة",
         data.link,
+      ),
+    };
+  }
+
+  if (kind === "submitted") {
+    return {
+      subject: "تم استلام طلبك",
+      html: wrapArabicEmail(
+        "تم استلام طلبك",
+        `<p>تم استلام طلبك: <strong style="color:#8B1538">${data.title}</strong> بنجاح.</p>
+         <p>الرقم المرجعي: <span dir="ltr">${data.reference ?? "—"}</span></p>
+         <p>سيتم إشعارك عند اعتماده وبدء العمل عليه.</p>`,
+      ),
+    };
+  }
+
+  if (kind === "approved") {
+    return {
+      subject: "تمت الموافقة على طلبك",
+      html: wrapArabicEmail(
+        "تمت الموافقة على طلبك",
+        `<p>وافق المدير المباشر على طلبك: <strong style="color:#8B1538">${data.title}</strong>.</p>
+         <p>الرقم المرجعي: <span dir="ltr">${data.reference ?? "—"}</span></p>
+         <p>سيتم إسناده للتنفيذ قريباً وإشعارك عند بدء العمل.</p>`,
+      ),
+    };
+  }
+
+  if (kind === "in_progress") {
+    return {
+      subject: "بدأ العمل على طلبك",
+      html: wrapArabicEmail(
+        "بدأ العمل على طلبك",
+        `<p>بدأ فريق قسم الاتصال المؤسسي العمل على طلبك: <strong style="color:#8B1538">${data.title}</strong>.</p>
+         <p>الرقم المرجعي: <span dir="ltr">${data.reference ?? "—"}</span></p>
+         <p>سيتم إشعارك عند اكتمال التنفيذ.</p>`,
       ),
     };
   }
