@@ -32,6 +32,7 @@ export interface DashboardRequest {
   completedAt: string | null;
   completionDeclaredAt?: string | null;
   rejectionReason?: string | null;
+  cancellationReason?: string | null;
   reviewNote?: string | null;
   employeeNote?: string | null;
   proofFileUrl?: string | null;
@@ -69,6 +70,7 @@ interface RequestCardProps {
   onReassign: (requestId: string, employeeId: string) => Promise<void>;
   onApproveCompletion: (requestId: string) => Promise<void>;
   onReturn: (requestId: string) => void;
+  onCancel: (requestId: string) => void;
   onArchive: (requestId: string) => Promise<void>;
   busy: boolean;
 }
@@ -80,6 +82,7 @@ export default function RequestCard({
   onReassign,
   onApproveCompletion,
   onReturn,
+  onCancel,
   onArchive,
   busy,
 }: RequestCardProps) {
@@ -89,6 +92,7 @@ export default function RequestCard({
   const isReview = request.status === "Pending_Review";
   const isDone = request.status === "Completed";
   const isRejected = request.status === "Rejected";
+  const isCancelled = request.status === "Cancelled";
   const slaBreached = isSlaBreached(request);
 
   return (
@@ -235,6 +239,14 @@ export default function RequestCard({
           <p className="text-[10px] text-brand-gray">
             بانتظار إعلان الانتهاء من الموظف.
           </p>
+          <button
+            type="button"
+            className="btn-secondary w-full border-[var(--zaad-danger)] text-xs text-[var(--zaad-danger)]"
+            disabled={busy}
+            onClick={() => onCancel(request.id)}
+          >
+            إلغاء الطلب
+          </button>
         </div>
       )}
 
@@ -275,6 +287,12 @@ export default function RequestCard({
       {isRejected && request.rejectionReason && (
         <p className="rounded-md bg-[var(--zaad-danger-bg)] p-2 text-[11px] text-[var(--zaad-danger)]">
           سبب الرفض: {request.rejectionReason}
+        </p>
+      )}
+
+      {isCancelled && request.cancellationReason && (
+        <p className="rounded-md bg-[var(--zaad-danger-bg)] p-2 text-[11px] text-[var(--zaad-danger)]">
+          سبب الإلغاء: {request.cancellationReason}
         </p>
       )}
     </article>

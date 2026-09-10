@@ -61,6 +61,7 @@ const STATUS_LABELS: Record<string, string> = {
   Pending_Review: "بانتظار المراجعة",
   Returned: "مُعادة للموظف",
   Rejected: "مرفوضة",
+  Cancelled: "ملغاة",
   Completed: "مكتمل",
   Archived: "مؤرشف",
 };

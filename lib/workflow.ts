@@ -17,17 +17,26 @@ const ALLOWED_TRANSITIONS: Record<RequestStatus, RequestStatus[]> = {
     RequestStatus.Approved_Pending_Assignment,
     RequestStatus.Rejected,
   ],
-  [RequestStatus.Approved_Pending_Assignment]: [RequestStatus.In_Progress],
+  [RequestStatus.Approved_Pending_Assignment]: [
+    RequestStatus.In_Progress,
+    RequestStatus.Cancelled,
+  ],
   [RequestStatus.In_Progress]: [
     RequestStatus.Pending_Review,
     RequestStatus.Approved_Pending_Assignment,
+    RequestStatus.Cancelled,
   ],
   [RequestStatus.Pending_Review]: [
     RequestStatus.Completed,
     RequestStatus.Returned,
+    RequestStatus.Cancelled,
   ],
-  [RequestStatus.Returned]: [RequestStatus.Pending_Review],
+  [RequestStatus.Returned]: [
+    RequestStatus.Pending_Review,
+    RequestStatus.Cancelled,
+  ],
   [RequestStatus.Rejected]: [RequestStatus.Archived],
+  [RequestStatus.Cancelled]: [RequestStatus.Archived],
   [RequestStatus.Completed]: [RequestStatus.Archived],
   [RequestStatus.Archived]: [],
 };

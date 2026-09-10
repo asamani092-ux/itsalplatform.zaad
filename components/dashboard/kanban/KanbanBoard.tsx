@@ -13,7 +13,7 @@ import SlideOver from "@/components/ui/slide-over";
 import { IconRefresh } from "@/components/shared/icons";
 import StatusBadge from "@/components/shared/status-badge";
 
-type BoardTab = "board" | "rejected" | "archive";
+type BoardTab = "board" | "rejected" | "cancelled" | "archive";
 
 const COLUMNS = [
   {
@@ -50,6 +50,7 @@ export default function KanbanBoard() {
   const [requests, setRequests] = useState<DashboardRequest[]>([]);
   const [archiveRequests, setArchiveRequests] = useState<DashboardRequest[]>([]);
   const [rejectedRequests, setRejectedRequests] = useState<DashboardRequest[]>([]);
+  const [cancelledRequests, setCancelledRequests] = useState<DashboardRequest[]>([]);
   const [employees, setEmployees] = useState<CommEmployee[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -59,18 +60,22 @@ export default function KanbanBoard() {
   const [detailExtra, setDetailExtra] = useState<DashboardRequest | null>(null);
   const [returnModalId, setReturnModalId] = useState<string | null>(null);
   const [returnNote, setReturnNote] = useState("");
+  const [cancelModalId, setCancelModalId] = useState<string | null>(null);
+  const [cancelReason, setCancelReason] = useState("");
 
   const loadData = useCallback(async (opts?: { soft?: boolean }) => {
     if (!opts?.soft) setLoading(true);
     setError(null);
 
     try {
-      const [allRes, archiveRes, rejectedRes, empRes] = await Promise.all([
-        fetch("/api/manager/tickets?view=all"),
-        fetch("/api/manager/tickets?view=archive"),
-        fetch("/api/manager/tickets?status=Rejected"),
-        fetch("/api/manager/team"),
-      ]);
+      const [allRes, archiveRes, rejectedRes, cancelledRes, empRes] =
+        await Promise.all([
+          fetch("/api/manager/tickets?view=all"),
+          fetch("/api/manager/tickets?view=archive"),
+          fetch("/api/manager/tickets?status=Rejected"),
+          fetch("/api/manager/tickets?status=Cancelled"),
+          fetch("/api/manager/team"),
+        ]);
 
       const allPayload = await parseApiResponse<{ requests: DashboardRequest[] }>(
         allRes,
@@ -81,6 +86,9 @@ export default function KanbanBoard() {
       const rejectedPayload = await parseApiResponse<{
         requests: DashboardRequest[];
       }>(rejectedRes);
+      const cancelledPayload = await parseApiResponse<{
+        requests: DashboardRequest[];
+      }>(cancelledRes);
       const empPayload = await parseApiResponse<{ employees: CommEmployee[] }>(
         empRes,
       );
@@ -98,6 +106,9 @@ export default function KanbanBoard() {
       );
       setRejectedRequests(
         rejectedPayload.success ? rejectedPayload.data.requests : [],
+      );
+      setCancelledRequests(
+        cancelledPayload.success ? cancelledPayload.data.requests : [],
       );
       setEmployees(
         empPayload.data.employees.filter((e: CommEmployee) => e.role === "EMPLOYEE"),
@@ -133,6 +144,7 @@ export default function KanbanBoard() {
         setRequests(patch);
         setArchiveRequests(patch);
         setRejectedRequests(patch);
+        setCancelledRequests(patch);
         setDetailExtra((prev) =>
           prev?.id === updated.id ? { ...prev, ...updated } : prev,
         );
@@ -203,6 +215,24 @@ export default function KanbanBoard() {
     );
   }
 
+  function submitCancel() {
+    if (!cancelModalId || cancelReason.trim().length < 3) {
+      setError("سبب الإلغاء مطلوب (3 أحرف على الأقل)");
+      return;
+    }
+    const id = cancelModalId;
+    const reason = cancelReason.trim();
+    setCancelModalId(null);
+    setCancelReason("");
+    void runAction(() =>
+      fetch(`/api/manager/tickets/${id}/cancel`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason }),
+      }),
+    );
+  }
+
   async function openDetail(id: string) {
     setDetailId(id);
     setDetailExtra(null);
@@ -212,6 +242,7 @@ export default function KanbanBoard() {
       const fromList =
         requests.find((r) => r.id === id) ??
         rejectedRequests.find((r) => r.id === id) ??
+        cancelledRequests.find((r) => r.id === id) ??
         archiveRequests.find((r) => r.id === id) ??
         null;
       setDetailExtra(fromList);
@@ -246,11 +277,18 @@ export default function KanbanBoard() {
     detailExtra ??
     requests.find((r) => r.id === detailId) ??
     rejectedRequests.find((r) => r.id === detailId) ??
+    cancelledRequests.find((r) => r.id === detailId) ??
     null;
 
   const notesTimeline: Array<{ label: string; text: string }> = [];
   if (detailRequest?.rejectionReason) {
     notesTimeline.push({ label: "سبب الرفض", text: detailRequest.rejectionReason });
+  }
+  if (detailRequest?.cancellationReason) {
+    notesTimeline.push({
+      label: "سبب الإلغاء",
+      text: detailRequest.cancellationReason,
+    });
   }
   if (detailRequest?.reviewNote) {
     notesTimeline.push({ label: "ملاحظة الإرجاع", text: detailRequest.reviewNote });
@@ -303,6 +341,15 @@ export default function KanbanBoard() {
           onClick={() => setTab("rejected")}
         >
           مرفوضة ({rejectedRequests.length})
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === "cancelled"}
+          data-active={tab === "cancelled" ? "true" : "false"}
+          onClick={() => setTab("cancelled")}
+        >
+          ملغاة ({cancelledRequests.length})
         </button>
         <button
           type="button"
@@ -399,6 +446,10 @@ export default function KanbanBoard() {
                             setReturnModalId(id);
                             setReturnNote("");
                           }}
+                          onCancel={(id) => {
+                            setCancelModalId(id);
+                            setCancelReason("");
+                          }}
                           onArchive={handleArchive}
                           busy={busy}
                         />
@@ -431,6 +482,36 @@ export default function KanbanBoard() {
                   onReassign={handleReassign}
                   onApproveCompletion={handleApproveCompletion}
                   onReturn={() => undefined}
+                  onCancel={() => undefined}
+                  onArchive={handleArchive}
+                  busy={busy}
+                />
+                <button
+                  type="button"
+                  className="btn-secondary w-full text-xs"
+                  onClick={() => void openDetail(request.id)}
+                >
+                  التفاصيل
+                </button>
+              </div>
+            ))
+          )}
+        </div>
+      ) : tab === "cancelled" ? (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {cancelledRequests.filter(matchesQuery).length === 0 ? (
+            <p className="text-sm text-brand-gray">لا توجد طلبات ملغاة.</p>
+          ) : (
+            cancelledRequests.filter(matchesQuery).map((request) => (
+              <div key={request.id} className="space-y-1">
+                <RequestCard
+                  request={request}
+                  employees={employees}
+                  onAssign={handleAssign}
+                  onReassign={handleReassign}
+                  onApproveCompletion={handleApproveCompletion}
+                  onReturn={() => undefined}
+                  onCancel={() => undefined}
                   onArchive={handleArchive}
                   busy={busy}
                 />
@@ -506,6 +587,44 @@ export default function KanbanBoard() {
                 }}
               >
                 إلغاء
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {cancelModalId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="card w-full max-w-md space-y-3">
+            <h3 className="text-lg font-bold text-primary">إلغاء الطلب</h3>
+            <p className="text-sm text-brand-gray">
+              أدخل سبب الإلغاء (مطلوب). سيتم إشعار مقدّم الطلب وتحرير أي حجز مرتبط.
+            </p>
+            <textarea
+              className="input-field min-h-[100px]"
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              placeholder="مثال: تم الإلغاء بناءً على طلب صاحب الطلب"
+              aria-label="سبب الإلغاء"
+            />
+            <div className="flex gap-2">
+              <button
+                type="button"
+                className="btn-primary flex-1 border-[var(--zaad-danger)] bg-[var(--zaad-danger)]"
+                disabled={busy || cancelReason.trim().length < 3}
+                onClick={submitCancel}
+              >
+                تأكيد الإلغاء
+              </button>
+              <button
+                type="button"
+                className="btn-secondary flex-1"
+                onClick={() => {
+                  setCancelModalId(null);
+                  setCancelReason("");
+                }}
+              >
+                تراجع
               </button>
             </div>
           </div>

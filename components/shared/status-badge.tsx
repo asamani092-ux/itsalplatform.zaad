@@ -5,6 +5,7 @@ const STATUS_STYLES: Record<string, string> = {
   Pending_Review: "badge-warning",
   Returned: "badge-warning",
   Rejected: "badge-warning",
+  Cancelled: "badge-danger",
   Completed: "badge-success",
   Archived: "badge-warning",
 };
@@ -16,6 +17,7 @@ const STATUS_LABELS: Record<string, string> = {
   Pending_Review: "بانتظار المراجعة",
   Returned: "مُعادة للموظف",
   Rejected: "مرفوضة",
+  Cancelled: "ملغاة",
   Completed: "مكتمل",
   Archived: "مؤرشف",
 };

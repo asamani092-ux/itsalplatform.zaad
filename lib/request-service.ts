@@ -566,6 +566,62 @@ export async function rejectRequest(params: {
   return withSla(updated);
 }
 
+const CANCELLABLE_STATUSES: RequestStatus[] = [
+  RequestStatus.Approved_Pending_Assignment,
+  RequestStatus.In_Progress,
+  RequestStatus.Returned,
+  RequestStatus.Pending_Review,
+];
+
+export async function cancelRequest(params: {
+  requestId: string;
+  reason: string;
+  changedBy?: string;
+}) {
+  const reason = params.reason.trim();
+  if (reason.length < 3) {
+    throw new Error("VALIDATION: سبب الإلغاء مطلوب (3 أحرف على الأقل)");
+  }
+
+  const existing = await getRequestById(params.requestId);
+
+  if (!CANCELLABLE_STATUSES.includes(existing.status)) {
+    throw new Error("INVALID_STATE: لا يمكن إلغاء الطلب في حالته الحالية");
+  }
+
+  assertTransition(existing.status, RequestStatus.Cancelled);
+
+  const updated = await prisma.communicationRequest.update({
+    where: { id: params.requestId },
+    data: {
+      status: RequestStatus.Cancelled,
+      cancelledAt: new Date(),
+      cancellationReason: reason,
+    },
+    include: requestInclude,
+  });
+
+  await recordStatusChange({
+    requestId: params.requestId,
+    fromStatus: existing.status,
+    toStatus: RequestStatus.Cancelled,
+    changedBy: params.changedBy,
+    note: reason,
+  });
+
+  await notifySubmitter({
+    contactEmail: updated.contactEmail,
+    contactPhone: updated.contactPhone,
+    requestTitle: updated.title,
+    message: `تم إلغاء الطلب: ${reason}`,
+    reference: updated.id.slice(-8),
+    emailKind: "cancelled",
+    reason,
+  });
+
+  return withSla(updated);
+}
+
 async function notifyManagersInApp(
   managerEmail: string,
   type: string,
