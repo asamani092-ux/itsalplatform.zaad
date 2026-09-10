@@ -276,6 +276,16 @@ export async function submitRequest(params: {
       : "تم تقديم الطلب",
   });
 
+  // Acknowledge receipt to the requester.
+  await notifySubmitter({
+    contactEmail: created.contactEmail,
+    contactPhone: created.contactPhone,
+    requestTitle: created.title,
+    message: "تم استلام طلبك",
+    reference: created.id.slice(-8),
+    emailKind: "submitted",
+  });
+
   // Notify the submitter's own line manager (from their administration), if known.
   if (requesterAdministration?.managerEmail) {
     await notifyRequesterManager({
@@ -323,6 +333,14 @@ export async function submitRequest(params: {
         link: `/employee/tickets/${assigned.id}`,
         channel: "both",
         emailKind: "assigned",
+      });
+      await notifySubmitter({
+        contactEmail: assigned.contactEmail,
+        contactPhone: assigned.contactPhone,
+        requestTitle: assigned.title,
+        message: "بدأ العمل على طلبك",
+        reference: assigned.id.slice(-8),
+        emailKind: "in_progress",
       });
       return { request: withSla(assigned), approvalUrl: null as string | null };
     }
@@ -415,6 +433,16 @@ export async function approveRequest(token: string) {
       "/dashboard/kanban",
     );
 
+    // Auto-assignment: approval and work-start coincide — inform the requester.
+    await notifySubmitter({
+      contactEmail: updated.contactEmail,
+      contactPhone: updated.contactPhone,
+      requestTitle: updated.title,
+      message: "بدأ العمل على طلبك",
+      reference: updated.id.slice(-8),
+      emailKind: "in_progress",
+    });
+
     return withSla(updated);
   }
 
@@ -444,6 +472,16 @@ export async function approveRequest(token: string) {
     `تمت الموافقة على: ${updated.title}`,
     "/dashboard/kanban",
   );
+
+  // Inform the requester that their manager approved the request.
+  await notifySubmitter({
+    contactEmail: updated.contactEmail,
+    contactPhone: updated.contactPhone,
+    requestTitle: updated.title,
+    message: "تمت الموافقة على طلبك",
+    reference: updated.id.slice(-8),
+    emailKind: "approved",
+  });
 
   return withSla(updated);
 }
@@ -607,6 +645,16 @@ export async function assignRequest(params: {
     link: `/employee/tickets/${updated.id}`,
     channel: "both",
     emailKind: "assigned",
+  });
+
+  // Manual assignment starts execution — inform the requester.
+  await notifySubmitter({
+    contactEmail: updated.contactEmail,
+    contactPhone: updated.contactPhone,
+    requestTitle: updated.title,
+    message: "بدأ العمل على طلبك",
+    reference: updated.id.slice(-8),
+    emailKind: "in_progress",
   });
 
   return withSla(updated);
