@@ -6,6 +6,7 @@ import { getApiErrorMessage, parseApiResponse } from "@/components/lib/api-types
 import { fetchWithTimeout } from "@/lib/client/fetch-with-timeout";
 import {
   DEFAULT_FORM_SETTINGS,
+  formPublicPath,
   parseSuccessNextSteps,
   type FormSettingsData,
 } from "@/lib/forms/schema";
@@ -393,7 +394,7 @@ export default function DynamicSubmitForm({
           )}
         </div>
         <Link
-          href="/request"
+          href={slug ? formPublicPath(slug) : "/request"}
           className="btn-secondary inline-flex focus-visible:ring-2 focus-visible:ring-primary/20"
         >
           تقديم طلب آخر
