@@ -112,7 +112,7 @@ export default function LoginForm({
             />
             <button
               type="button"
-              className="absolute left-2 top-1/2 inline-flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-md text-brand-gray/55 transition-colors hover:bg-surface-muted hover:text-brand-gray focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+              className="absolute start-2 top-1/2 inline-flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-md text-brand-gray/55 transition-colors hover:bg-surface-muted hover:text-brand-gray focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
               aria-label={showPassword ? "إخفاء كلمة المرور" : "إظهار كلمة المرور"}
               aria-pressed={showPassword}
               onClick={() => setShowPassword((v) => !v)}
