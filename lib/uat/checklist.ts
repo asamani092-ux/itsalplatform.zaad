@@ -48,8 +48,8 @@ export const UAT_SECTIONS: UatSection[] = [
     path: "/",
     items: [
       { id: "3.1", label: "الصفحة الرئيسية تعرض نموذج تسجيل الدخول مباشرة" },
-      { id: "3.2", label: "دخول المدير 0500000001" },
-      { id: "3.3", label: "دخول الموظف 0500000002" },
+      { id: "3.2", label: "دخول المدير manager@zaad.org" },
+      { id: "3.3", label: "دخول الموظف sara.comm@zaad.org" },
       { id: "3.4", label: "رسالة خطأ عند بيانات غير صحيحة" },
       { id: "3.5", label: "توجيه المدير إلى /dashboard والموظف إلى /employee" },
       { id: "3.6", label: "منع الموظف من صفحات المدير" },

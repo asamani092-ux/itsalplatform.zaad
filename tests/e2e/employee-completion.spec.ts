@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 test("employee completes assigned ticket", async ({ page, request }) => {
   // Login as manager to prepare an assigned ticket
   const login = await request.post("/api/auth/login", {
-    data: { phoneNumber: "0500000001", password: "password123" },
+    data: { email: "manager@zaad.org", password: "password123" },
   });
   expect(login.ok()).toBeTruthy();
 
@@ -60,7 +60,7 @@ test("employee completes assigned ticket", async ({ page, request }) => {
   await request.post("/api/auth/logout");
 
   await page.goto("/login");
-  await page.fill("#phone", "0500000002");
+  await page.fill("#email", "sara.comm@zaad.org");
   await page.fill("#password", "password123");
   await page.getByRole("button", { name: "دخول" }).click();
   await page.waitForURL(/\/employee/);

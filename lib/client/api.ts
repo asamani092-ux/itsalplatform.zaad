@@ -48,7 +48,7 @@ export const api = {
       }),
   },
   auth: {
-    login: (body: { phoneNumber: string; password: string }) =>
+    login: (body: { email: string; password: string }) =>
       apiFetch<{ user: unknown }>("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

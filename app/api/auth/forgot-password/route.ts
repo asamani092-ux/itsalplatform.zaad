@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { handleApiError, jsonError, jsonOk } from "@/lib/api-utils";
 import { checkRateLimit, rateLimitKey } from "@/lib/rate-limit";
-import { requestPasswordReset } from "@/lib/auth/password-reset";
+import { requestPasswordReset, accountExistsForReset } from "@/lib/auth/password-reset";
 
 export async function POST(request: NextRequest) {
   try {
@@ -10,16 +10,20 @@ export async function POST(request: NextRequest) {
       return jsonError("تم تجاوز عدد المحاولات المسموح. حاول لاحقاً.", "RATE_LIMITED", 429);
     }
 
-    const body = (await request.json()) as { phoneNumber?: string };
-    if (!body.phoneNumber?.trim()) {
-      return jsonError("رقم الهاتف مطلوب", "VALIDATION", 400);
+    const body = (await request.json()) as { email?: string };
+    if (!body.email?.trim()) {
+      return jsonError("البريد الإلكتروني مطلوب", "VALIDATION", 400);
     }
 
-    await requestPasswordReset(body.phoneNumber);
+    const exists = await accountExistsForReset(body.email);
+    if (!exists) {
+      return jsonError("الحساب غير مسجل", "NOT_FOUND", 404);
+    }
 
-    // Same response whether or not the account exists.
+    await requestPasswordReset(body.email);
+
     return jsonOk({
-      message: "إذا كان الرقم مسجلاً، فقد أُرسل رابط إعادة التعيين إلى بريد الحساب.",
+      message: "تم إرسال رابط إعادة تعيين كلمة المرور إلى بريدك إن كان مفعّلاً.",
     });
   } catch (error) {
     return handleApiError(error);

@@ -9,11 +9,23 @@ import { getApiErrorMessage, parseApiResponse } from "@/components/lib/api-types
 import { fetchWithTimeout } from "@/lib/client/fetch-with-timeout";
 import BrandLogo from "@/components/shared/brand-logo";
 
-export default function LoginForm({ nextUrl }: { nextUrl?: string | null }) {
+const DEMO_ACCOUNTS = [
+  { role: "مدير", email: "manager@zaad.org" },
+  { role: "موظف", email: "sara.comm@zaad.org" },
+] as const;
+
+export default function LoginForm({
+  nextUrl,
+  showDemoHints = false,
+}: {
+  nextUrl?: string | null;
+  showDemoHints?: boolean;
+}) {
   const router = useRouter();
 
-  const [phoneNumber, setPhoneNumber] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -27,7 +39,7 @@ export default function LoginForm({ nextUrl }: { nextUrl?: string | null }) {
       const res = await fetchWithTimeout("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phoneNumber, password, rememberMe }),
+        body: JSON.stringify({ email, password, rememberMe }),
       });
       const payload = await parseApiResponse<{
         user: { role: string };
@@ -40,8 +52,7 @@ export default function LoginForm({ nextUrl }: { nextUrl?: string | null }) {
 
       const role = payload.data.user.role;
       const dest =
-        nextUrl ??
-        (role === "MANAGER" ? "/dashboard" : "/employee");
+        nextUrl ?? (role === "MANAGER" ? "/dashboard" : "/employee");
       router.push(dest);
       router.refresh();
     } catch (err) {
@@ -52,10 +63,10 @@ export default function LoginForm({ nextUrl }: { nextUrl?: string | null }) {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-surface-muted p-6">
+    <div className="flex min-h-[100dvh] items-center justify-center bg-surface-muted p-4 sm:p-6">
       <form
         onSubmit={(e) => void handleSubmit(e)}
-        className="w-full max-w-md space-y-4 rounded-lg border border-surface-border bg-surface p-6 shadow-sm"
+        className="card w-full max-w-md space-y-4 p-4 sm:p-6"
       >
         <div className="flex flex-col items-center gap-3 text-center">
           <BrandLogo size="lg" />
@@ -66,29 +77,52 @@ export default function LoginForm({ nextUrl }: { nextUrl?: string | null }) {
         </div>
 
         <Input
-          id="phone"
-          label="رقم الهاتف"
+          id="email"
+          label="البريد الإلكتروني"
+          type="email"
           dir="ltr"
-          value={phoneNumber}
-          onChange={(e) => setPhoneNumber(e.target.value)}
-          placeholder="05xxxxxxxx"
-          required
-        />
-        <Input
-          id="password"
-          label="كلمة المرور"
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
+          autoComplete="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="name@zaad.org"
           required
         />
 
+        <div className="space-y-1">
+          <label className="label-field" htmlFor="password">
+            كلمة المرور
+          </label>
+          <div className="relative">
+            <input
+              id="password"
+              className="input-field w-full pe-11"
+              type={showPassword ? "text" : "password"}
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+            <button
+              type="button"
+              className="absolute end-2 top-1/2 inline-flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-md text-brand-gray/60 transition-colors hover:bg-surface-muted hover:text-brand-gray focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+              aria-label={showPassword ? "إخفاء كلمة المرور" : "إظهار كلمة المرور"}
+              aria-pressed={showPassword}
+              onClick={() => setShowPassword((v) => !v)}
+            >
+              {showPassword ? "إخفاء" : "إظهار"}
+            </button>
+          </div>
+        </div>
+
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <label className="flex items-center gap-2 text-sm text-brand-gray" htmlFor="remember">
+          <label
+            className="inline-flex cursor-pointer items-center gap-2 text-sm text-brand-gray"
+            htmlFor="remember"
+          >
             <input
               id="remember"
               type="checkbox"
-              className="h-4 w-4 accent-[var(--tmkeen-primary)]"
+              className="h-4 w-4 accent-[var(--zaad-primary)]"
               checked={rememberMe}
               onChange={(e) => setRememberMe(e.target.checked)}
             />
@@ -100,7 +134,7 @@ export default function LoginForm({ nextUrl }: { nextUrl?: string | null }) {
         </div>
 
         {error && (
-          <p className="text-sm font-semibold text-[var(--tmkeen-danger)]" role="alert">
+          <p className="text-sm font-semibold text-[var(--zaad-danger)]" role="alert">
             {error}
           </p>
         )}
@@ -112,6 +146,28 @@ export default function LoginForm({ nextUrl }: { nextUrl?: string | null }) {
         >
           {loading ? "جاري الدخول..." : "دخول"}
         </Button>
+
+        {showDemoHints && (
+          <div className="rounded-md bg-surface-muted p-3 text-start text-xs text-brand-gray">
+            <p className="mb-1 font-semibold text-primary">حسابات تجريبية (كلمة المرور: password123)</p>
+            <ul className="space-y-1">
+              {DEMO_ACCOUNTS.map((account) => (
+                <li key={account.email}>
+                  <button
+                    type="button"
+                    className="underline"
+                    onClick={() => {
+                      setEmail(account.email);
+                      setPassword("password123");
+                    }}
+                  >
+                    {account.role}: {account.email}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </form>
     </div>
   );

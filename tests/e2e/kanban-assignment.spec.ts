@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 test("manager assigns approved request on kanban", async ({ page, request }) => {
   await page.goto("/login");
-  await page.fill("#phone", "0500000001");
+  await page.fill("#email", "manager@zaad.org");
   await page.fill("#password", "password123");
   await page.getByRole("button", { name: "دخول" }).click();
   await page.waitForURL(/\/dashboard/);
