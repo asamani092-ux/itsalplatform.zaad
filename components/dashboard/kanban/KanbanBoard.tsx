@@ -12,6 +12,7 @@ import FilterBar from "@/components/ui/filter-bar";
 import SlideOver from "@/components/ui/slide-over";
 import { IconRefresh } from "@/components/shared/icons";
 import StatusBadge from "@/components/shared/status-badge";
+import { formatTimeRange12h } from "@/lib/hospitality/format-time";
 import { formatMeetingDate } from "./sla-utils";
 import { canCancelStatus } from "@/lib/request-stop";
 import { useToast } from "@/components/ui/toast";
@@ -700,8 +701,10 @@ export default function KanbanBoard() {
                   <div>
                     <dt>وقت الحجز</dt>
                     <dd dir="ltr">
-                      {detailRequest.hospitalityBooking.startTime} —{" "}
-                      {detailRequest.hospitalityBooking.endTime}
+                      {formatTimeRange12h(
+                        detailRequest.hospitalityBooking.startTime,
+                        detailRequest.hospitalityBooking.endTime,
+                      )}
                     </dd>
                   </div>
                 </>

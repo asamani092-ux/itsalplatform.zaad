@@ -9,6 +9,7 @@ import { IconButton } from "@/components/ui/icon-button";
 import { IconChevron, IconPlus, IconX } from "@/components/shared/icons";
 import EmptyState from "@/components/shared/empty-state";
 import Skeleton from "@/components/ui/skeleton";
+import { formatTimeRange12h } from "@/lib/hospitality/format-time";
 
 interface Booking {
   id: string;
@@ -36,9 +37,13 @@ const STATUS_LABELS: Record<string, string> = {
   In_Progress: "قيد التنفيذ",
   Completed: "مكتمل",
   Archived: "مؤرشف",
+  Rejected: "مرفوض",
+  Cancelled: "ملغى",
 };
 
 const FALLBACK_ROOMS = [
+  "قاعة الحسني",
+  "قاعة الضبيب",
   "قاعة الاجتماعات الكبرى",
   "قاعة التدريب",
   "قاعة الاستقبال",
@@ -100,10 +105,19 @@ function addMonths(d: Date, delta: number): Date {
   return new Date(d.getFullYear(), d.getMonth() + delta, 1);
 }
 
+const RELEASED_STATUSES = new Set(["Rejected", "Cancelled"]);
+
+function isActiveBooking(booking: Booking): boolean {
+  const status = booking.request?.status;
+  return !status || !RELEASED_STATUSES.has(status);
+}
+
 function hasConflict(booking: Booking, all: Booking[]): boolean {
+  if (!isActiveBooking(booking)) return false;
   return all.some(
     (other) =>
       other.id !== booking.id &&
+      isActiveBooking(other) &&
       other.roomName === booking.roomName &&
       toLocalISODate(new Date(other.meetingDate)) ===
         toLocalISODate(new Date(booking.meetingDate)) &&
@@ -446,7 +460,7 @@ export default function HospitalityBoard() {
                         dir="ltr"
                       >
                         {dualDateFmt.format(new Date(booking.meetingDate)).split("،")[0]} ·{" "}
-                        {booking.startTime} — {booking.endTime}
+                        {formatTimeRange12h(booking.startTime, booking.endTime)}
                       </p>
                       <p className="text-sm text-brand-gray">
                         الغرض: {booking.notes || "—"}
