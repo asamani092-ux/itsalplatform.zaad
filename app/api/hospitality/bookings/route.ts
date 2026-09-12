@@ -36,8 +36,8 @@ export async function GET(request: NextRequest) {
         ...(from || to
           ? {
               meetingDate: {
-                ...(from ? { gte: new Date(from) } : {}),
-                ...(to ? { lte: new Date(to) } : {}),
+                ...(from ? { gte: new Date(`${from}T00:00:00`) } : {}),
+                ...(to ? { lte: new Date(`${to}T23:59:59.999`) } : {}),
               },
             }
           : {}),

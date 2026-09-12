@@ -4,8 +4,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { getApiErrorMessage, parseApiResponse } from "@/components/lib/api-types";
 import { fetchWithTimeout } from "@/lib/client/fetch-with-timeout";
 import Skeleton from "@/components/ui/skeleton";
+import { formatTime12h } from "@/lib/hospitality/format-time";
 
 const FALLBACK_ROOMS = [
+  "قاعة الحسني",
+  "قاعة الضبيب",
   "قاعة الاجتماعات الكبرى",
   "قاعة التدريب",
   "قاعة الاستقبال",
@@ -27,15 +30,6 @@ export interface HallBookingSelection {
   durationHours: number;
 }
 
-
-function formatTime12h(hhmm: string): string {
-  const [hStr, mStr = "00"] = hhmm.split(":");
-  let h = Number(hStr);
-  const suffix = h >= 12 ? "م" : "ص";
-  h = h % 12;
-  if (h === 0) h = 12;
-  return `${h}:${mStr} ${suffix}`;
-}
 
 function toLocalISODate(d: Date): string {
   const y = d.getFullYear();

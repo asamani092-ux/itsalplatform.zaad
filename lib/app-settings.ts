@@ -33,12 +33,36 @@ export async function setWorkflowSettings(params: {
   });
 }
 
-const DEFAULT_ROOMS = [
+/** Canonical hall names — keep in sync with seed + hospitality board fallbacks. */
+export const DEFAULT_ROOMS = [
+  "قاعة الحسني",
+  "قاعة الضبيب",
   "قاعة الاجتماعات الكبرى",
   "قاعة التدريب",
   "قاعة الاستقبال",
   "قاعة الوسائط",
 ];
+
+/** Legacy short labels that must map to a canonical room for availability matching. */
+const ROOM_ALIASES: Record<string, string> = {
+  "قاعة الاجتماعات": "قاعة الاجتماعات الكبرى",
+  "قاعة اجتماعات": "قاعة الاجتماعات الكبرى",
+  "قاعة الوسائط المتعددة": "قاعة الوسائط",
+};
+
+export function canonicalizeRoomName(roomName: string): string {
+  const trimmed = roomName.trim();
+  return ROOM_ALIASES[trimmed] ?? trimmed;
+}
+
+/** All DB labels that should match a selected room (canonical + legacy aliases). */
+export function roomNameMatchVariants(roomName: string): string[] {
+  const canonical = canonicalizeRoomName(roomName);
+  const aliases = Object.entries(ROOM_ALIASES)
+    .filter(([, to]) => to === canonical)
+    .map(([from]) => from);
+  return Array.from(new Set([roomName.trim(), canonical, ...aliases].filter(Boolean)));
+}
 
 export interface HospitalitySettings {
   rooms: string[];
@@ -67,10 +91,28 @@ export async function getHospitalitySettings(): Promise<HospitalitySettings> {
     dayStart?: string;
     dayEnd?: string;
   };
-  const rooms =
+  const configured =
     Array.isArray(settings.rooms) && settings.rooms.length > 0
-      ? settings.rooms.map(String).filter(Boolean)
+      ? settings.rooms.map((r) => canonicalizeRoomName(String(r))).filter(Boolean)
       : [...DEFAULT_ROOMS];
+
+  // Include active booking room names so renamed/legacy halls still appear and block slots.
+  const bookingRooms = await prisma.hospitalityBooking.findMany({
+    where: {
+      NOT: {
+        request: { status: { in: ["Rejected", "Cancelled"] } },
+      },
+    },
+    select: { roomName: true },
+    distinct: ["roomName"],
+  });
+  const rooms = Array.from(
+    new Set([
+      ...configured,
+      ...bookingRooms.map((b) => canonicalizeRoomName(b.roomName)),
+    ]),
+  );
+
   return {
     rooms,
     dayStart: normalizeTime(settings.dayStart, DEFAULT_HOSPITALITY.dayStart),
@@ -88,7 +130,9 @@ export async function setHospitalitySettings(params: {
   dayStart?: string;
   dayEnd?: string;
 }) {
-  const cleaned = params.rooms.map((r) => r.trim()).filter(Boolean);
+  const cleaned = Array.from(
+    new Set(params.rooms.map((r) => canonicalizeRoomName(r.trim())).filter(Boolean)),
+  );
   if (cleaned.length === 0) {
     throw new Error("VALIDATION: أضف قاعة واحدة على الأقل");
   }
@@ -98,6 +142,17 @@ export async function setHospitalitySettings(params: {
   if (dayStart >= dayEnd) {
     throw new Error("VALIDATION: نهاية ساعات العمل يجب أن تكون بعد البداية");
   }
+
+  // Migrate legacy short room labels on existing bookings so availability stays accurate.
+  for (const [from, to] of Object.entries(ROOM_ALIASES)) {
+    if (from !== to) {
+      await prisma.hospitalityBooking.updateMany({
+        where: { roomName: from },
+        data: { roomName: to },
+      });
+    }
+  }
+
   const payload = { rooms: cleaned, dayStart, dayEnd };
   return prisma.platformModule.upsert({
     where: { key: HOSPITALITY_KEY },

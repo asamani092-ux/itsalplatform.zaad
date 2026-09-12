@@ -4,26 +4,29 @@
  */
 
 /**
- * Fields the request workflow depends on. They can be relabelled but never
- * hidden, because routing, approval and notifications read their values.
+ * Core identity fields — always on for every form (label-only in settings).
+ * department / requestType stay locked too for routing, but render after the
+ * identity block so the public form leads with name → email → title → description.
  */
 export const LOCKED_FIELDS = [
-  "department",
-  "requestType",
-  "title",
   "contactName",
   "contactEmail",
+  "title",
+  "description",
+  "department",
+  "requestType",
 ] as const;
 
+/** Display / settings order: identity first, then routing, then type-specific. */
 export const FORM_FIELD_KEYS = [
+  "contactName",
+  "contactEmail",
+  "title",
+  "description",
   "department",
   "requestType",
-  "title",
-  "contactName",
-  "description",
   "requiredDate",
   "visitDate",
-  "contactEmail",
   "contactPhone",
 ] as const;
 
@@ -87,17 +90,23 @@ const DEFAULT_FIELDS: FormFieldsConfig = {
     label: "نوع الطلب",
     placeholder: "اختر النوع...",
   },
-  title: {
-    enabled: true,
-    required: true,
-    label: "عنوان الطلب",
-    placeholder: "مثال: طلب تغطية إعلامية",
-  },
   contactName: {
     enabled: true,
     required: true,
-    label: "اسم مقدّم الطلب",
+    label: "الاسم",
     placeholder: "الاسم الكامل",
+  },
+  contactEmail: {
+    enabled: true,
+    required: true,
+    label: "البريد",
+    placeholder: "name@example.com",
+  },
+  title: {
+    enabled: true,
+    required: true,
+    label: "العنوان",
+    placeholder: "مثال: طلب تغطية إعلامية",
   },
   description: {
     enabled: true,
@@ -116,12 +125,6 @@ const DEFAULT_FIELDS: FormFieldsConfig = {
     required: true,
     label: "تاريخ الزيارة",
     placeholder: "",
-  },
-  contactEmail: {
-    enabled: true,
-    required: true,
-    label: "البريد الإلكتروني",
-    placeholder: "name@example.com",
   },
   contactPhone: {
     enabled: true,

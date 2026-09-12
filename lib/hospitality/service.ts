@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { submitRequest } from "@/lib/request-service";
 import { sameCalendarDay, timesOverlap } from "./conflict";
 import { RequestStatus, type Prisma } from "@/generated/prisma/client";
+import { canonicalizeRoomName, roomNameMatchVariants } from "@/lib/app-settings";
 
 export const HOSPITALITY_TYPE_SLUG = "hospitality-booking";
 
@@ -50,6 +51,7 @@ export async function findBookingConflict(input: {
   startTime: string;
   endTime: string;
 }) {
+  const roomVariants = roomNameMatchVariants(input.roomName);
   const dayStart = new Date(input.meetingDate);
   dayStart.setHours(0, 0, 0, 0);
   const dayEnd = new Date(input.meetingDate);
@@ -58,7 +60,7 @@ export async function findBookingConflict(input: {
   const sameRoom: HospitalityBookingConflictRow[] =
     await prisma.hospitalityBooking.findMany({
       where: {
-        roomName: input.roomName,
+        roomName: { in: roomVariants },
         meetingDate: { gte: dayStart, lte: dayEnd },
         ...ACTIVE_BOOKING_FILTER,
       },
@@ -104,23 +106,26 @@ export async function ensureHospitalityRequestType() {
  * shows up as a task on the workboard and follows the same approval flow.
  */
 export async function createBookingWithRequest(input: BookingInput) {
+  const roomName = canonicalizeRoomName(input.roomName);
+  const meetingDate = new Date(input.meetingDate);
+  meetingDate.setHours(0, 0, 0, 0);
   const requestType = await ensureHospitalityRequestType();
   if (!requestType.departmentId) {
     throw new Error("VALIDATION: لا يوجد قسم مرتبط بخدمة الضيافة");
   }
 
-  const visitDate = new Date(input.meetingDate);
+  const visitDate = new Date(meetingDate);
   const [hours, minutes] = input.startTime.split(":").map((part) => Number(part));
   if (!Number.isNaN(hours) && !Number.isNaN(minutes)) {
     visitDate.setHours(hours, minutes, 0, 0);
   }
 
   const { request, approvalUrl } = await submitRequest({
-    title: `حجز قاعة: ${input.roomName}`,
+    title: `حجز قاعة: ${roomName}`,
     contactName: input.contactName?.trim() || input.requesterName,
     description:
       `${input.notes || "حجز قاعة"}\n` +
-      `القاعة: ${input.roomName}\n` +
+      `القاعة: ${roomName}\n` +
       `التوقيت: ${input.startTime} — ${input.endTime}\n` +
       `عدد الحضور (تقريبي): ${input.attendeesCount}\n` +
       (input.cateringRequests
@@ -141,8 +146,8 @@ export async function createBookingWithRequest(input: BookingInput) {
       requesterName: input.requesterName,
       requesterEmail: input.requesterEmail,
       requesterPhone: input.requesterPhone || "",
-      roomName: input.roomName,
-      meetingDate: input.meetingDate,
+      roomName,
+      meetingDate,
       startTime: input.startTime,
       endTime: input.endTime,
       attendeesCount: input.attendeesCount,

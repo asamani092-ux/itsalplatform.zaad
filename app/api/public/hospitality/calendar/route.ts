@@ -2,8 +2,9 @@ import { NextRequest } from "next/server";
 import { handleApiError, jsonOk } from "@/lib/api-utils";
 import { getHospitalityRooms } from "@/lib/app-settings";
 import { prisma } from "@/lib/prisma";
+import { ACTIVE_BOOKING_FILTER } from "@/lib/hospitality/service";
 
-/** Public: all upcoming hospitality bookings (room + date + time only). */
+/** Public: upcoming hospitality bookings (room + date + time only). */
 export async function GET(request: NextRequest) {
   try {
     const room = request.nextUrl.searchParams.get("room");
@@ -15,6 +16,7 @@ export async function GET(request: NextRequest) {
         where: {
           meetingDate: { gte: today },
           ...(room ? { roomName: room } : {}),
+          ...ACTIVE_BOOKING_FILTER,
         },
         select: {
           roomName: true,
