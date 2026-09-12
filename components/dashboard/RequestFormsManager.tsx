@@ -683,13 +683,23 @@ export default function RequestFormsManager({
                     </p>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  className="btn-secondary text-sm"
-                  onClick={() => setEditorPanel("main")}
-                >
-                  رجوع لإعدادات النموذج
-                </button>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    className="btn-primary text-sm"
+                    disabled={saving}
+                    onClick={() => void handleSave()}
+                  >
+                    {saving ? "جاري الحفظ..." : "حفظ العناوين"}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-secondary text-sm"
+                    onClick={() => setEditorPanel("main")}
+                  >
+                    رجوع لإعدادات النموذج
+                  </button>
+                </div>
               </>
             )}
 
@@ -710,7 +720,7 @@ export default function RequestFormsManager({
                       >
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <p className="font-semibold text-primary">
-                            {FIELD_TITLES[key]}
+                            {field.label.trim() || FIELD_TITLES[key]}
                             {locked && (
                               <span className="badge-warning ms-2">أساسي — تسمية فقط</span>
                             )}
@@ -772,13 +782,23 @@ export default function RequestFormsManager({
                     );
                   })}
                 </div>
-                <button
-                  type="button"
-                  className="btn-secondary text-sm"
-                  onClick={() => setEditorPanel("main")}
-                >
-                  رجوع لإعدادات النموذج
-                </button>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    className="btn-primary text-sm"
+                    disabled={saving}
+                    onClick={() => void handleSave()}
+                  >
+                    {saving ? "جاري الحفظ..." : "حفظ الحقول"}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-secondary text-sm"
+                    onClick={() => setEditorPanel("main")}
+                  >
+                    رجوع لإعدادات النموذج
+                  </button>
+                </div>
               </>
             )}
           </div>
