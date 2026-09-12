@@ -22,6 +22,7 @@ import {
   IconTrash,
   IconX,
 } from "@/components/shared/icons";
+import { useToast } from "@/components/ui/toast";
 
 interface Department {
   id: string;
@@ -58,6 +59,7 @@ export default function RequestFormsManager({
   departments: Department[];
   requestTypes: RequestType[];
 }) {
+  const { pushToast } = useToast();
   const [forms, setForms] = useState<RequestFormData[]>([]);
   const [draft, setDraft] = useState<RequestFormData | null>(null);
   const [editorPanel, setEditorPanel] = useState<EditorPanel | null>(null);
@@ -90,7 +92,9 @@ export default function RequestFormsManager({
         return fresh ? { ...fresh, fields: { ...fresh.fields } } : prev;
       });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "خطأ");
+      const __err = e instanceof Error ? e.message : "خطأ";
+      setError(__err);
+      pushToast(__err, "danger");
     } finally {
       if (!opts?.soft) setLoading(false);
     }
@@ -128,14 +132,16 @@ export default function RequestFormsManager({
     );
   }
 
-  function flash(message: string) {
+  function flash(message: string, tone: "success" | "danger" | "warning" | "info" = "success") {
     setStatus(message);
+    pushToast(message, tone);
     window.setTimeout(() => setStatus(""), 4000);
   }
 
   async function handleCreate() {
     if (!newName.trim()) {
       setError("اسم النموذج مطلوب");
+      pushToast("اسم النموذج مطلوب", "danger");
       return;
     }
     setSaving(true);
@@ -157,7 +163,9 @@ export default function RequestFormsManager({
       openEditor(payload.data.form);
       flash("تم إنشاء النموذج");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "خطأ");
+      const __err = e instanceof Error ? e.message : "خطأ";
+      setError(__err);
+      pushToast(__err, "danger");
     } finally {
       setSaving(false);
     }
@@ -182,7 +190,9 @@ export default function RequestFormsManager({
       setDraft({ ...saved, fields: { ...saved.fields } });
       flash("تم حفظ النموذج");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "خطأ");
+      const __err = e instanceof Error ? e.message : "خطأ";
+      setError(__err);
+      pushToast(__err, "danger");
     } finally {
       setSaving(false);
     }
@@ -201,7 +211,9 @@ export default function RequestFormsManager({
       await load();
       flash("تم حذف النموذج");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "خطأ");
+      const __err = e instanceof Error ? e.message : "خطأ";
+      setError(__err);
+      pushToast(__err, "danger");
     } finally {
       setSaving(false);
     }

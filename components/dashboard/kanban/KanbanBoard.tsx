@@ -14,6 +14,7 @@ import { IconRefresh } from "@/components/shared/icons";
 import StatusBadge from "@/components/shared/status-badge";
 import { formatMeetingDate } from "./sla-utils";
 import { canCancelStatus } from "@/lib/request-stop";
+import { useToast } from "@/components/ui/toast";
 
 type BoardTab = "board" | "rejected" | "cancelled" | "archive";
 
@@ -48,6 +49,7 @@ const COLUMNS = [
 ] as const;
 
 export default function KanbanBoard() {
+  const { pushToast } = useToast();
   const [tab, setTab] = useState<BoardTab>("board");
   const [requests, setRequests] = useState<DashboardRequest[]>([]);
   const [archiveRequests, setArchiveRequests] = useState<DashboardRequest[]>([]);
@@ -128,7 +130,10 @@ export default function KanbanBoard() {
     void loadData();
   }, [loadData]);
 
-  async function runAction(action: () => Promise<Response>) {
+  async function runAction(
+    action: () => Promise<Response>,
+    successMessage = "تم تنفيذ العملية بنجاح",
+  ) {
     setBusy(true);
     setError(null);
     try {
@@ -151,11 +156,13 @@ export default function KanbanBoard() {
           prev?.id === updated.id ? { ...prev, ...updated } : prev,
         );
       }
+      pushToast(successMessage, "success");
       await loadData({ soft: true });
     } catch (actionError) {
-      setError(
-        actionError instanceof Error ? actionError.message : "فشلت العملية",
-      );
+      const message =
+        actionError instanceof Error ? actionError.message : "فشلت العملية";
+      setError(message);
+      pushToast(message, "danger");
     } finally {
       setBusy(false);
     }
@@ -201,7 +208,9 @@ export default function KanbanBoard() {
 
   function submitReturn() {
     if (!returnModalId || !returnNote.trim()) {
-      setError("ملاحظة الإرجاع مطلوبة");
+      const message = "ملاحظة الإرجاع مطلوبة";
+      setError(message);
+      pushToast(message, "danger");
       return;
     }
     const id = returnModalId;
@@ -219,7 +228,9 @@ export default function KanbanBoard() {
 
   function submitCancel() {
     if (!cancelModalId || cancelReason.trim().length < 3) {
-      setError("سبب الإلغاء مطلوب (3 أحرف على الأقل)");
+      const message = "سبب الإلغاء مطلوب (3 أحرف على الأقل)";
+      setError(message);
+      pushToast(message, "danger");
       return;
     }
     const id = cancelModalId;
