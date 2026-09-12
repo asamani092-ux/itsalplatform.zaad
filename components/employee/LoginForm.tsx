@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { getApiErrorMessage, parseApiResponse } from "@/components/lib/api-types";
 import { fetchWithTimeout } from "@/lib/client/fetch-with-timeout";
 import BrandLogo from "@/components/shared/brand-logo";
+import { IconEye, IconEyeOff } from "@/components/shared/icons";
 
 const DEMO_ACCOUNTS = [
   { role: "مدير", email: "manager@zaad.org" },
@@ -95,7 +96,7 @@ export default function LoginForm({
           <div className="relative">
             <input
               id="password"
-              className="input-field w-full pe-11"
+              className="input-field w-full rounded-lg ps-11 focus:ring-2 focus:ring-primary/20"
               type={showPassword ? "text" : "password"}
               autoComplete="current-password"
               value={password}
@@ -104,12 +105,12 @@ export default function LoginForm({
             />
             <button
               type="button"
-              className="absolute end-2 top-1/2 inline-flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-md text-brand-gray/60 transition-colors hover:bg-surface-muted hover:text-brand-gray focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+              className="absolute start-2 top-1/2 inline-flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-md text-brand-gray/55 transition-colors hover:bg-surface-muted hover:text-brand-gray focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
               aria-label={showPassword ? "إخفاء كلمة المرور" : "إظهار كلمة المرور"}
               aria-pressed={showPassword}
               onClick={() => setShowPassword((v) => !v)}
             >
-              {showPassword ? "إخفاء" : "إظهار"}
+              {showPassword ? <IconEyeOff size={18} /> : <IconEye size={18} />}
             </button>
           </div>
         </div>
