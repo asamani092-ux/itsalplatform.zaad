@@ -3,6 +3,8 @@ import { RequestStatus } from "../generated/prisma/client";
 export const ACTIVE_STATUSES: RequestStatus[] = [
   RequestStatus.Approved_Pending_Assignment,
   RequestStatus.In_Progress,
+  RequestStatus.Pending_Review,
+  RequestStatus.Returned,
 ];
 
 export const ARCHIVE_STATUSES: RequestStatus[] = [
@@ -11,10 +13,34 @@ export const ARCHIVE_STATUSES: RequestStatus[] = [
 ];
 
 const ALLOWED_TRANSITIONS: Record<RequestStatus, RequestStatus[]> = {
-  [RequestStatus.Pending_Manager]: [RequestStatus.Approved_Pending_Assignment],
-  [RequestStatus.Approved_Pending_Assignment]: [RequestStatus.In_Progress],
-  [RequestStatus.In_Progress]: [RequestStatus.Completed],
-  [RequestStatus.Completed]: [RequestStatus.Archived],
+  [RequestStatus.Pending_Manager]: [
+    RequestStatus.Approved_Pending_Assignment,
+    RequestStatus.Rejected,
+  ],
+  [RequestStatus.Approved_Pending_Assignment]: [
+    RequestStatus.In_Progress,
+    RequestStatus.Cancelled,
+  ],
+  [RequestStatus.In_Progress]: [
+    RequestStatus.Pending_Review,
+    RequestStatus.Approved_Pending_Assignment,
+    RequestStatus.Cancelled,
+  ],
+  [RequestStatus.Pending_Review]: [
+    RequestStatus.Completed,
+    RequestStatus.Returned,
+    RequestStatus.Cancelled,
+  ],
+  [RequestStatus.Returned]: [
+    RequestStatus.Pending_Review,
+    RequestStatus.Cancelled,
+  ],
+  [RequestStatus.Rejected]: [RequestStatus.Archived],
+  [RequestStatus.Cancelled]: [RequestStatus.Archived],
+  [RequestStatus.Completed]: [
+    RequestStatus.Archived,
+    RequestStatus.Cancelled,
+  ],
   [RequestStatus.Archived]: [],
 };
 

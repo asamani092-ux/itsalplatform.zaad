@@ -7,12 +7,14 @@ import { DEFAULT_FORM_SETTINGS } from "@/lib/forms/schema";
 
 interface SubmitBody {
   title?: string;
+  contactName?: string;
   description?: string;
   requiredDate?: string;
   contactEmail?: string;
   contactPhone?: string;
   departmentId?: string;
   requestTypeId?: string;
+  requesterAdministrationId?: string;
   visitDate?: string;
   formSlug?: string;
 }
@@ -44,6 +46,14 @@ export async function POST(request: NextRequest) {
     }
     if (!departmentId) return jsonError("القسم مطلوب", "VALIDATION", 400);
     if (!requestTypeId) return jsonError("نوع الطلب مطلوب", "VALIDATION", 400);
+
+    if (
+      fields.contactName.enabled &&
+      fields.contactName.required &&
+      !body.contactName?.trim()
+    ) {
+      return jsonError("اسم مقدّم الطلب مطلوب", "VALIDATION", 400);
+    }
 
     if (
       fields.description.enabled &&
@@ -91,12 +101,14 @@ export async function POST(request: NextRequest) {
 
     const result = await submitRequest({
       title: body.title.trim(),
+      contactName: body.contactName?.trim() ?? "",
       description: body.description?.trim() ?? "",
       requiredDate,
       contactEmail: body.contactEmail.trim(),
       contactPhone: body.contactPhone?.trim() ?? "",
       departmentId,
       requestTypeId,
+      requesterAdministrationId: body.requesterAdministrationId?.trim() || null,
       visitDate,
     });
 

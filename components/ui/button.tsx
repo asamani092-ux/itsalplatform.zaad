@@ -13,10 +13,10 @@ export function Button({
 }: ButtonProps) {
   const base =
     variant === "primary"
-      ? "btn-primary rounded-lg focus:ring-2 focus:ring-primary/20"
+      ? "btn-primary zad-touch rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
       : variant === "danger"
-        ? "btn-secondary rounded-lg border-[var(--zaad-danger)] text-[var(--zaad-danger)] focus:ring-2 focus:ring-primary/20"
-        : "btn-secondary rounded-lg focus:ring-2 focus:ring-primary/20";
+        ? "btn-secondary zad-touch rounded-lg border-[var(--zaad-danger)] text-[var(--zaad-danger)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+        : "btn-secondary zad-touch rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2";
 
   return (
     <button type="button" className={`${base} ${className}`} {...props}>

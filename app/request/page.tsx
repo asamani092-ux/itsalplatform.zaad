@@ -1,5 +1,4 @@
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import { formPublicPath } from "@/lib/forms/schema";
 import { getDefaultForm } from "@/lib/forms/server";
 
@@ -16,9 +15,6 @@ export default async function RequestRedirectPage() {
         <p className="text-sm text-brand-gray">
           لم يُنشر أي نموذج طلبات بعد. يرجى التواصل مع قسم الاتصال المؤسسي.
         </p>
-        <Link href="/" className="btn-secondary inline-flex">
-          العودة لبوابة المنصة
-        </Link>
       </div>
     </div>
   );

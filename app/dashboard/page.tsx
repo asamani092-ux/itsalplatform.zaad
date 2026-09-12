@@ -3,10 +3,22 @@
 import { useCallback, useEffect, useState } from "react";
 import { getApiErrorMessage, parseApiResponse } from "@/components/lib/api-types";
 import { formatDurationMs } from "@/components/shared/format-sla";
+import Progress from "@/components/ui/progress";
+import Skeleton from "@/components/ui/skeleton";
 
 interface Kpis {
   totalRequests: number;
   completionRate: number;
+  pendingManager: number;
+  pendingAssignment: number;
+  inProgress: number;
+  completed: number;
+  completedThisWeek: number;
+  overdueOpen: number;
+  upcomingBookings: number;
+  visitsToday: number;
+  avgLifecycleMs: number | null;
+  avgAssignmentMs: number | null;
   statusCounts: { status: string; count: number }[];
   byDepartment: { departmentName: string; count: number }[];
   byRequestType: {
@@ -14,42 +26,63 @@ interface Kpis {
     count: number;
     avgLifecycleMs: number | null;
   }[];
+  overdueByDepartment: { departmentName: string; count: number }[];
+  overdueList: {
+    id: string;
+    title: string;
+    status: string;
+    requiredDate: string;
+    departmentName: string;
+  }[];
 }
+
+interface DepartmentOption {
+  id: string;
+  name: string;
+}
+
+const STATUS_LABELS: Record<string, string> = {
+  Pending_Manager: "بانتظار المدير",
+  Approved_Pending_Assignment: "جديد",
+  In_Progress: "قيد التنفيذ",
+  Pending_Review: "بانتظار المراجعة",
+  Returned: "مُعادة للموظف",
+  Rejected: "مرفوضة",
+  Cancelled: "ملغاة",
+  Completed: "مكتمل",
+  Archived: "مؤرشف",
+};
 
 function KpiCard({
   label,
   value,
   hint,
-  trend,
+  tone = "neutral",
 }: {
   label: string;
   value: string | number;
   hint?: string;
-  trend?: "up" | "down" | "neutral";
+  tone?: "neutral" | "good" | "warn" | "bad";
 }) {
-  const trendLabel =
-    trend === "up" ? "↑ تحسّن" : trend === "down" ? "↓ يحتاج متابعة" : "→ مستقر";
-
   return (
-    <div className="card flex flex-col gap-2 p-5">
-      <p className="text-xs font-semibold text-brand-gray">{label}</p>
-      <p className="text-4xl font-extrabold tabular-nums text-primary">{value}</p>
-      <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-        {hint && <span className="text-brand-gray">{hint}</span>}
-        {trend && (
-          <span
-            className={
-              trend === "up"
-                ? "badge-success"
-                : trend === "down"
+    <div className="zad-kpi">
+      <p className="zad-kpi__label">{label}</p>
+      <p className="zad-kpi__value">{value}</p>
+      {hint && (
+        <span
+          className={
+            tone === "good"
+              ? "badge-success"
+              : tone === "warn"
+                ? "badge-warning"
+                : tone === "bad"
                   ? "badge-danger"
-                  : "badge-primary"
-            }
-          >
-            {trendLabel}
-          </span>
-        )}
-      </div>
+                  : "text-xs text-brand-gray"
+          }
+        >
+          {hint}
+        </span>
+      )}
     </div>
   );
 }
@@ -58,11 +91,16 @@ export default function DashboardKpiPage() {
   const [kpis, setKpis] = useState<Kpis | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [departments, setDepartments] = useState<DepartmentOption[]>([]);
+  const [departmentId, setDepartmentId] = useState("");
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (deptId: string) => {
     setLoading(true);
     try {
-      const res = await fetch("/api/manager/kpis");
+      const url = deptId
+        ? `/api/manager/kpis?departmentId=${encodeURIComponent(deptId)}`
+        : "/api/manager/kpis";
+      const res = await fetch(url);
       const payload = await parseApiResponse<{ kpis: Kpis }>(res);
       if (!res.ok || !payload.success) {
         throw new Error(getApiErrorMessage(payload, "تعذّر تحميل المؤشرات"));
@@ -76,37 +114,63 @@ export default function DashboardKpiPage() {
   }, []);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    void load(departmentId);
+  }, [load, departmentId]);
 
-  const inProgress =
-    kpis?.statusCounts.find((s) => s.status === "In_Progress")?.count ?? 0;
-  const pending =
-    kpis?.statusCounts.find((s) => s.status === "Pending_Manager")?.count ?? 0;
-  const completionTrend: "up" | "down" | "neutral" =
-    kpis && kpis.completionRate >= 0.5
-      ? "up"
-      : kpis && kpis.completionRate > 0
-        ? "neutral"
-        : "down";
+  useEffect(() => {
+    void (async () => {
+      try {
+        const res = await fetch("/api/manager/settings/departments");
+        const payload = await parseApiResponse<{ departments: DepartmentOption[] }>(res);
+        if (payload.success) {
+          setDepartments(
+            payload.data.departments.map((d) => ({ id: d.id, name: d.name })),
+          );
+        }
+      } catch {
+        // Filter is optional.
+      }
+    })();
+  }, []);
 
   return (
     <div className="space-y-6">
-      <p className="text-sm text-brand-gray">نظرة عامة على أداء قسم الاتصال</p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-brand-gray">
+          مؤشرات عامة للمنصة ومتابعة كل قسم — مع إبراز الطلبات المتأخرة وغير المغلقة
+        </p>
+        {departments.length > 0 && (
+          <label className="flex items-center gap-2 text-sm">
+            <span className="text-brand-gray">القسم:</span>
+            <select
+              className="input-field"
+              value={departmentId}
+              onChange={(e) => setDepartmentId(e.target.value)}
+            >
+              <option value="">كل الأقسام (عام)</option>
+              {departments.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+      </div>
 
       {error && (
-        <p className="text-sm text-[var(--tmkeen-danger)]" role="alert">
+        <p className="text-sm text-[var(--zaad-danger)]" role="alert">
           {error}
         </p>
       )}
 
       {loading || !kpis ? (
-        <div className="card flex items-center justify-center gap-3 py-16">
-          <div
-            className="h-8 w-8 animate-pulse rounded-full bg-[color-mix(in_srgb,var(--tmkeen-primary)_15%,transparent)]"
-            aria-hidden
-          />
-          <p className="text-sm text-brand-gray">جاري تحميل المؤشرات...</p>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="zad-kpi">
+              <Skeleton lines={3} />
+            </div>
+          ))}
         </div>
       ) : (
         <>
@@ -114,48 +178,169 @@ export default function DashboardKpiPage() {
             <KpiCard
               label="إجمالي الطلبات"
               value={kpis.totalRequests}
-              hint="منذ بداية التسجيل"
-              trend="neutral"
+              hint="كل الحالات"
             />
             <KpiCard
               label="نسبة الإكمال"
               value={`${Math.round(kpis.completionRate * 100)}%`}
-              hint={`${pending} بانتظار موافقة`}
-              trend={completionTrend}
+              hint={`مكتمل ÷ الإجمالي (${kpis.completed})`}
+              tone={kpis.completionRate >= 0.5 ? "good" : "warn"}
+            />
+            <KpiCard
+              label="بانتظار موافقة المدير"
+              value={kpis.pendingManager}
+              hint="يتطلب إجراء"
+              tone={kpis.pendingManager > 0 ? "warn" : "good"}
+            />
+            <KpiCard
+              label="بانتظار الإسناد"
+              value={kpis.pendingAssignment}
+              tone={kpis.pendingAssignment > 3 ? "warn" : "neutral"}
+            />
+            <KpiCard
+              label="قيد التنفيذ"
+              value={kpis.inProgress}
+              tone={kpis.inProgress > 5 ? "warn" : "neutral"}
+            />
+            <KpiCard
+              label="متأخر عن الموعد"
+              value={kpis.overdueOpen}
+              hint="تاريخ مطلوب مضى ولم يُغلق"
+              tone={kpis.overdueOpen > 0 ? "bad" : "good"}
+            />
+            <KpiCard
+              label="مكتمل هذا الأسبوع"
+              value={kpis.completedThisWeek}
+              tone="good"
+            />
+            <KpiCard
+              label="متوسط دورة الحياة"
+              value={formatDurationMs(kpis.avgLifecycleMs)}
+              hint={`من الإنشاء حتى الإكمال · إسناد: ${formatDurationMs(kpis.avgAssignmentMs)}`}
+            />
+            <KpiCard
+              label="حجوزات قادمة (30 يوم)"
+              value={kpis.upcomingBookings}
+            />
+            <KpiCard
+              label="زيارات اليوم"
+              value={kpis.visitsToday}
+              hint="لشاشة الاستقبال"
             />
             <KpiCard
               label="أكثر قسم نشاطاً"
               value={kpis.byDepartment[0]?.departmentName ?? "—"}
               hint={`${kpis.byDepartment[0]?.count ?? 0} طلب`}
-              trend="neutral"
             />
             <KpiCard
-              label="قيد التنفيذ"
-              value={inProgress}
-              hint="يتطلب متابعة"
-              trend={inProgress > 5 ? "down" : "up"}
+              label="أكثر نوع طلباً"
+              value={kpis.byRequestType[0]?.requestTypeName ?? "—"}
+              hint={`${kpis.byRequestType[0]?.count ?? 0} طلب`}
             />
           </div>
 
-          <div className="card overflow-x-auto p-0">
-            <table className="tmkeen-table">
-              <thead>
-                <tr>
-                  <th>نوع الطلب</th>
-                  <th>العدد</th>
-                  <th>متوسط SLA</th>
-                </tr>
-              </thead>
-              <tbody>
-                {kpis.byRequestType.map((row) => (
-                  <tr key={row.requestTypeName}>
-                    <td>{row.requestTypeName}</td>
-                    <td>{row.count}</td>
-                    <td>{formatDurationMs(row.avgLifecycleMs)}</td>
+          <div className="card space-y-3">
+            <Progress
+              value={Math.round(kpis.completionRate * 100)}
+              label="شريط تقدم نسبة الإكمال (نفس مؤشر البطاقة)"
+            />
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div className="card overflow-x-auto p-0">
+              <table className="tmkeen-table text-start">
+                <thead>
+                  <tr>
+                    <th scope="col">نوع الطلب</th>
+                    <th scope="col">العدد</th>
+                    <th scope="col">متوسط SLA</th>
                   </tr>
+                </thead>
+                <tbody>
+                  {kpis.byRequestType.map((row) => (
+                    <tr key={row.requestTypeName}>
+                      <td>{row.requestTypeName}</td>
+                      <td>{row.count}</td>
+                      <td>{formatDurationMs(row.avgLifecycleMs)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="card overflow-x-auto p-0">
+              <table className="tmkeen-table text-start">
+                <thead>
+                  <tr>
+                    <th scope="col">القسم</th>
+                    <th scope="col">العدد</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {kpis.byDepartment.map((row) => (
+                    <tr key={row.departmentName}>
+                      <td>{row.departmentName}</td>
+                      <td>{row.count}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="card space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-lg font-bold text-primary">
+                متابعة المتأخرة وغير المغلقة
+              </h2>
+              <span className={kpis.overdueOpen > 0 ? "badge-danger" : "badge-success"}>
+                {kpis.overdueOpen} طلب متأخر
+              </span>
+            </div>
+            <p className="text-xs text-brand-gray">
+              طلبات تخطّت التاريخ المطلوب ولم تُغلق — يراجعها مدير القسم المعني.
+            </p>
+
+            {kpis.overdueByDepartment.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {kpis.overdueByDepartment.map((row) => (
+                  <span
+                    key={row.departmentName}
+                    className="rounded-full bg-[color-mix(in_srgb,var(--zaad-danger)_10%,transparent)] px-3 py-1 text-xs text-[var(--zaad-danger)]"
+                  >
+                    {row.departmentName}: {row.count}
+                  </span>
                 ))}
-              </tbody>
-            </table>
+              </div>
+            )}
+
+            {kpis.overdueList.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="tmkeen-table text-start">
+                  <thead>
+                    <tr>
+                      <th scope="col">الطلب</th>
+                      <th scope="col">القسم</th>
+                      <th scope="col">الحالة</th>
+                      <th scope="col">التاريخ المطلوب</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {kpis.overdueList.map((row) => (
+                      <tr key={row.id}>
+                        <td className="font-semibold">{row.title}</td>
+                        <td>{row.departmentName}</td>
+                        <td>{STATUS_LABELS[row.status] ?? row.status}</td>
+                        <td dir="ltr">
+                          {new Date(row.requiredDate).toLocaleDateString("ar")}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="text-sm text-brand-gray">لا توجد طلبات متأخرة حالياً.</p>
+            )}
           </div>
         </>
       )}

@@ -83,7 +83,7 @@ export default function ModuleManager() {
       </div>
 
       {error && (
-        <p className="text-sm text-[var(--tmkeen-danger)]" role="alert">
+        <p className="text-sm text-[var(--zaad-danger)]" role="alert">
           {error}
         </p>
       )}

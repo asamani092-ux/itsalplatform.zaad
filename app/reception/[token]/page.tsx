@@ -91,22 +91,34 @@ export default function ReceptionPage() {
           </div>
         ) : (
           visits.map((visit) => (
-            <div key={visit.id} className="card flex flex-wrap items-center justify-between gap-3">
-              <div>
+            <article key={visit.id} className="zad-beneficiary-card space-y-3">
+              <div className="flex flex-wrap items-start justify-between gap-2">
                 <h2 className="font-bold text-primary">{visit.title}</h2>
-                <p className="text-xs text-brand-gray">
-                  {visit.requestType?.name} —{" "}
-                  <span dir="ltr">
+                {visit.visitAttended !== null && (
+                  <span className={visit.visitAttended ? "badge-success" : "badge-danger"}>
+                    {visit.visitAttended ? "حضر" : "لم يحضر"}
+                  </span>
+                )}
+              </div>
+              <dl>
+                <div>
+                  <dt>نوع الطلب</dt>
+                  <dd>{visit.requestType?.name ?? "—"}</dd>
+                </div>
+                <div>
+                  <dt>موعد الزيارة</dt>
+                  <dd dir="ltr">
                     {visit.visitDate
                       ? new Date(visit.visitDate).toLocaleString("ar-SA")
                       : "—"}
-                  </span>
-                </p>
-                <p className="text-xs" dir="ltr">
-                  {visit.contactPhone}
-                </p>
-              </div>
-              <div className="flex gap-2">
+                  </dd>
+                </div>
+                <div>
+                  <dt>جوال الزائر</dt>
+                  <dd dir="ltr">{visit.contactPhone}</dd>
+                </div>
+              </dl>
+              <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
                   className="btn-primary text-sm"
@@ -124,12 +136,7 @@ export default function ReceptionPage() {
                   لم يحضر
                 </button>
               </div>
-              {visit.visitAttended !== null && (
-                <span className={visit.visitAttended ? "badge-success" : "badge-danger"}>
-                  {visit.visitAttended ? "حضر" : "لم يحضر"}
-                </span>
-              )}
-            </div>
+            </article>
           ))
         )}
       </main>

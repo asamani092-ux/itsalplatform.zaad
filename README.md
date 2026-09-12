@@ -15,7 +15,7 @@
 ```
 [عام]  /  → نموذج تقديم
          /approve?token=  → موافقة المدير (magic link، 7 أيام)
-[جلسة] /login  → MANAGER → /dashboard/*  |  EMPLOYEE → /employee/*
+[جلسة] /login  → DIRECTOR/SECTION_MANAGER → /dashboard/*  |  EMPLOYEE → /employee/* (استقبال: /dashboard/reception عند صلاحية المكتب)
 [API]  /api/public/*  /api/manager/*  /api/employee/*  (+ legacy wrappers محمية)
 ```
 
@@ -26,24 +26,14 @@
 | `main` | خط الأساس — design system |
 | `cursor/zaad-portal-architecture-f122` | **الفرع النشط** — معمارية كاملة + UI Phase 1 + Security Phase 1 |
 
-## نظام التصميم (Design_system_f)
+## نظام التصميم (@zaad/design-system)
 
-المصدر الوحيد للتصميم:
+المصدر الوحيد: الحزمة `@zaad/design-system` من `asamani092-ux/designSystemFinal` (الإصدار المثبّت في `package.json`).
 
-```
-Design_system_f/
-└── uploads/design-system/
-    ├── tokens.css
-    ├── tokens.json
-    ├── components.css
-    ├── tailwind.preset.ts
-    ├── README.md
-    └── examples/html-rtl-demo.html
-```
-
-- `tailwind.config.ts` → `Design_system_f/uploads/design-system/tailwind.preset.ts`
-- `app/globals.css` → يستورد `tokens.css` + `components.css` من المسار أعلاه
-- alias: `@/design-system/*` → `Design_system_f/uploads/design-system/*`
+- `tokens.css` + `components.css` عبر `app/globals.css`
+- Tailwind preset: `@zaad/design-system/tailwind.preset`
+- الجذر: `lang="ar" dir="rtl"` و `class="zad-root"`
+- عقود المكوّنات: `node_modules/@zaad/design-system/components.md`
 
 ## المتطلبات
 
@@ -111,10 +101,10 @@ npx tsc --noEmit     # فحص TypeScript
 
 ## حسابات تجريبية (بعد seed)
 
-| الدور | الهاتف | كلمة المرور |
+| الدور | البريد | كلمة المرور |
 |-------|--------|-------------|
-| مدير | `0500000001` | `password123` |
-| موظف | `0500000002` | `password123` |
+| مدير | `manager@zaad.org` | `password123` |
+| موظف | `sara.comm@zaad.org` | `password123` |
 
 رمز الاستقبال: `reception-demo-token` → `/reception/reception-demo-token`
 
@@ -122,10 +112,9 @@ npx tsc --noEmit     # فحص TypeScript
 
 | المسار | الوصف |
 |--------|-------|
-| `/` | نموذج تقديم (مركّز) |
-| `/submit/[slug]` | نموذج عميق حسب slug |
+| `/` | تسجيل الدخول |
 | `/approve?token=` | موافقة المدير |
-| `/login` | تسجيل الدخول |
+| `/login` | إعادة توجيه إلى `/` |
 | `/dashboard` | KPIs (مدير) |
 | `/dashboard/kanban` | Kanban |
 | `/dashboard/team` | الفريق |
@@ -165,7 +154,7 @@ npx tsc --noEmit     # فحص TypeScript
 | PATCH | `/api/manager/tickets/:id/status` |
 | GET/POST/PATCH | `/api/manager/team`, `/api/manager/settings/*` |
 
-### Legacy (محمية — MANAGER فقط)
+### Legacy (محمية — أدوار الإدارة فقط)
 
 `/api/dashboard/*`, `/api/employees`, `/api/hospitality/bookings`, `/api/media/documents`
 

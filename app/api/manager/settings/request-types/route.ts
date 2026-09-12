@@ -2,6 +2,22 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireManagerSession } from "@/lib/auth/route-guard";
 import { handleApiError, jsonError, jsonOk } from "@/lib/api-utils";
+import { slugFromDisplayName } from "@/lib/slug";
+
+/** Unique request-type slug; O(k) lookups on collision. */
+async function uniqueRequestTypeSlug(base: string): Promise<string> {
+  let candidate = base;
+  let suffix = 2;
+  while (await prisma.requestType.findUnique({ where: { slug: candidate } })) {
+    candidate = `${base.slice(0, 36)}-${suffix}`;
+    suffix += 1;
+    if (suffix > 50) {
+      candidate = `${base.slice(0, 30)}-${Date.now().toString(36)}`;
+      break;
+    }
+  }
+  return candidate;
+}
 
 export async function GET() {
   try {
@@ -31,14 +47,19 @@ export async function POST(request: NextRequest) {
       departmentId?: string;
     };
 
-    if (!body.name?.trim() || !body.slug?.trim()) {
-      return jsonError("الاسم والمعرّف مطلوبان", "VALIDATION", 400);
+    if (!body.name?.trim()) {
+      return jsonError("اسم نوع الطلب مطلوب", "VALIDATION", 400);
     }
+
+    const baseSlug = body.slug?.trim()
+      ? slugFromDisplayName(body.slug, "rt")
+      : slugFromDisplayName(body.name, "rt");
+    const slug = await uniqueRequestTypeSlug(baseSlug);
 
     const requestType = await prisma.requestType.create({
       data: {
         name: body.name.trim(),
-        slug: body.slug.trim(),
+        slug,
         description: body.description?.trim() ?? "",
         requiresVisitDate: body.requiresVisitDate ?? false,
         departmentId: body.departmentId ?? null,
@@ -99,7 +120,8 @@ export async function DELETE(request: NextRequest) {
     if (!id) return jsonError("معرّف نوع الطلب مطلوب", "VALIDATION", 400);
 
     const used = await prisma.communicationRequest.count({ where: { requestTypeId: id } });
-    if (used > 0) {
+    const forms = await prisma.requestForm.count({ where: { requestTypeId: id } });
+    if (used > 0 || forms > 0) {
       const deactivated = await prisma.requestType.update({
         where: { id },
         data: { isActive: false },
@@ -109,11 +131,15 @@ export async function DELETE(request: NextRequest) {
         deleted: false,
         deactivated: true,
         requestType: deactivated,
-        message: "النوع مستخدم في طلبات قائمة — تم تعطيله بدل حذفه",
+        message: "النوع مستخدم في طلبات أو نماذج — تم تعطيله بدل حذفه",
       });
     }
 
     await prisma.routingRule.deleteMany({ where: { requestTypeId: id } });
+    await prisma.requestForm.updateMany({
+      where: { requestTypeId: id },
+      data: { requestTypeId: null },
+    });
     await prisma.requestType.delete({ where: { id } });
     return jsonOk({ id, deleted: true, deactivated: false });
   } catch (error) {

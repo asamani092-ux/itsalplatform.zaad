@@ -11,6 +11,7 @@ export const LOCKED_FIELDS = [
   "department",
   "requestType",
   "title",
+  "contactName",
   "contactEmail",
 ] as const;
 
@@ -18,6 +19,7 @@ export const FORM_FIELD_KEYS = [
   "department",
   "requestType",
   "title",
+  "contactName",
   "description",
   "requiredDate",
   "visitDate",
@@ -44,6 +46,8 @@ export interface FormSettingsData {
   submitLabel: string;
   successTitle: string;
   successMessage: string;
+  /** Newline-separated post-submit steps shown under the success message. */
+  successNextSteps: string;
   fields: FormFieldsConfig;
 }
 
@@ -89,6 +93,12 @@ const DEFAULT_FIELDS: FormFieldsConfig = {
     label: "عنوان الطلب",
     placeholder: "مثال: طلب تغطية إعلامية",
   },
+  contactName: {
+    enabled: true,
+    required: true,
+    label: "اسم مقدّم الطلب",
+    placeholder: "الاسم الكامل",
+  },
   description: {
     enabled: true,
     required: true,
@@ -115,11 +125,19 @@ const DEFAULT_FIELDS: FormFieldsConfig = {
   },
   contactPhone: {
     enabled: true,
-    required: true,
+    required: false,
     label: "رقم الجوال",
     placeholder: "05xxxxxxxx",
   },
 };
+
+/** Default post-submit steps (one line = one step). Editable per form in dashboard. */
+export const DEFAULT_SUCCESS_NEXT_STEPS = [
+  "سيُرسل رابط الموافقة لمدير القسم المستقبِل تلقائياً.",
+  "إذا حددت إدارتك، يُشعَر مديرك المباشر بالطلب.",
+  "بعد الموافقة ينتقل الطلب إلى لوحة القسم المستقبِل.",
+  "ستصلك تحديثات على البريد المُدخل.",
+].join("\n");
 
 export const DEFAULT_FORM_SETTINGS: FormSettingsData = {
   isPublished: true,
@@ -129,8 +147,17 @@ export const DEFAULT_FORM_SETTINGS: FormSettingsData = {
   submitLabel: "تقديم الطلب",
   successTitle: "تم تقديم الطلب بنجاح",
   successMessage: "سيُرسل رابط الموافقة للمدير المباشر تلقائياً.",
+  successNextSteps: DEFAULT_SUCCESS_NEXT_STEPS,
   fields: DEFAULT_FIELDS,
 };
+
+export function parseSuccessNextSteps(raw: string | null | undefined): string[] {
+  const text = (raw ?? "").trim() || DEFAULT_SUCCESS_NEXT_STEPS;
+  return text
+    .split(/\r?\n/)
+    .map((line) => line.replace(/^\s*[-*\d.)]+\s*/, "").trim())
+    .filter(Boolean);
+}
 
 export function isLockedField(key: FormFieldKey): boolean {
   return (LOCKED_FIELDS as readonly string[]).includes(key);

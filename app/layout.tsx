@@ -1,9 +1,16 @@
 import type { Metadata } from "next";
+import { ToastProvider } from "@/components/ui/toast";
+import ChunkLoadRecovery from "@/components/shared/chunk-load-recovery";
 import "./globals.css";
 
 export const metadata: Metadata = {
   title: "منصة قسم الاتصال المؤسسي — جمعية الزاد",
   description: "بوابة قسم الاتصال المؤسسي — Backend API",
+  icons: {
+    icon: [{ url: "/brand/icon-mark.png", type: "image/png", sizes: "180x180" }],
+    apple: [{ url: "/brand/icon-mark.png", sizes: "180x180", type: "image/png" }],
+    shortcut: "/brand/icon-mark.png",
+  },
 };
 
 export default function RootLayout({
@@ -12,9 +19,18 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ar" dir="rtl">
-      <body className="tmkeen-root min-h-screen bg-surface-muted font-sans antialiased">
-        {children}
+    <html lang="ar" dir="rtl" data-theme="light">
+      <head>
+        <link
+          rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap"
+        />
+      </head>
+      <body className="zad-root min-h-screen bg-surface-muted font-sans antialiased">
+        <ToastProvider>
+          <ChunkLoadRecovery />
+          {children}
+        </ToastProvider>
       </body>
     </html>
   );

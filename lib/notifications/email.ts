@@ -40,12 +40,32 @@ function wrapArabicEmail(title: string, bodyHtml: string, ctaLabel?: string, cta
 </html>`;
 }
 
-export type EmailTemplateKind = "approval_needed" | "assigned" | "completed";
+export type EmailTemplateKind =
+  | "approval_needed"
+  | "submitted"
+  | "approved"
+  | "in_progress"
+  | "assigned"
+  | "completed"
+  | "rejected"
+  | "cancelled"
+  | "pending_review"
+  | "returned"
+  | "requester_manager_info"
+  | "reassignment_request";
 
 export function buildEmailTemplate(
   kind: EmailTemplateKind,
-  data: { title: string; link?: string; reference?: string },
+  data: {
+    title: string;
+    link?: string;
+    reference?: string;
+    note?: string;
+    reason?: string;
+  },
 ): { subject: string; html: string } {
+  const rejectionText = data.reason ?? data.note;
+
   if (kind === "approval_needed") {
     return {
       subject: "طلب جديد بانتظار موافقتك",
@@ -59,6 +79,42 @@ export function buildEmailTemplate(
     };
   }
 
+  if (kind === "submitted") {
+    return {
+      subject: "تم استلام طلبك",
+      html: wrapArabicEmail(
+        "تم استلام طلبك",
+        `<p>تم استلام طلبك: <strong style="color:#8B1538">${data.title}</strong> بنجاح.</p>
+         <p>الرقم المرجعي: <span dir="ltr">${data.reference ?? "—"}</span></p>
+         <p>سيتم إشعارك عند اعتماده وبدء العمل عليه.</p>`,
+      ),
+    };
+  }
+
+  if (kind === "approved") {
+    return {
+      subject: "تمت الموافقة على طلبك",
+      html: wrapArabicEmail(
+        "تمت الموافقة على طلبك",
+        `<p>وافق المدير المباشر على طلبك: <strong style="color:#8B1538">${data.title}</strong>.</p>
+         <p>الرقم المرجعي: <span dir="ltr">${data.reference ?? "—"}</span></p>
+         <p>سيتم إسناده للتنفيذ قريباً وإشعارك عند بدء العمل.</p>`,
+      ),
+    };
+  }
+
+  if (kind === "in_progress") {
+    return {
+      subject: "بدأ العمل على طلبك",
+      html: wrapArabicEmail(
+        "بدأ العمل على طلبك",
+        `<p>بدأ فريق قسم الاتصال المؤسسي العمل على طلبك: <strong style="color:#8B1538">${data.title}</strong>.</p>
+         <p>الرقم المرجعي: <span dir="ltr">${data.reference ?? "—"}</span></p>
+         <p>سيتم إشعارك عند اكتمال التنفيذ.</p>`,
+      ),
+    };
+  }
+
   if (kind === "assigned") {
     return {
       subject: "تم إسناد تذكرة جديدة إليك",
@@ -67,6 +123,88 @@ export function buildEmailTemplate(
         `<p>تم إسناد الطلب: <strong style="color:#8B1538">${data.title}</strong> إليك.</p>
          <p>يمكنك متابعة التذكرة من مساحة الموظف.</p>`,
         "فتح التذكرة",
+        data.link,
+      ),
+    };
+  }
+
+  if (kind === "rejected") {
+    const reasonHtml = rejectionText
+      ? `<p><strong>سبب الرفض:</strong></p><p style="background:#F5F5F5;padding:12px;border-radius:8px">${rejectionText}</p>`
+      : "";
+    return {
+      subject: "تم رفض طلبك",
+      html: wrapArabicEmail(
+        "تم رفض طلبك",
+        `<p>نأسف لإبلاغك برفض الطلب: <strong style="color:#8B1538">${data.title}</strong>.</p>
+         <p>الرقم المرجعي: <span dir="ltr">${data.reference ?? "—"}</span></p>
+         ${reasonHtml}
+         <p>للاستفسار يرجى التواصل مع قسم الاتصال المؤسسي.</p>`,
+      ),
+    };
+  }
+
+  if (kind === "cancelled") {
+    const reasonHtml = rejectionText
+      ? `<p><strong>سبب الإلغاء:</strong></p><p style="background:#F5F5F5;padding:12px;border-radius:8px">${rejectionText}</p>`
+      : "";
+    return {
+      subject: "تم إلغاء طلبك",
+      html: wrapArabicEmail(
+        "تم إلغاء طلبك",
+        `<p>نفيدك بإلغاء الطلب: <strong style="color:#8B1538">${data.title}</strong>.</p>
+         <p>الرقم المرجعي: <span dir="ltr">${data.reference ?? "—"}</span></p>
+         ${reasonHtml}
+         <p>للاستفسار يرجى التواصل مع قسم الاتصال المؤسسي.</p>`,
+      ),
+    };
+  }
+
+  if (kind === "pending_review") {
+    return {
+      subject: "تذكرة بانتظار مراجعتك",
+      html: wrapArabicEmail(
+        "تذكرة بانتظار مراجعتك",
+        `<p>أعلن الموظف انتهاء العمل على: <strong style="color:#8B1538">${data.title}</strong>.</p>
+         <p>يرجى اعتماد الإكمال أو إرجاع التذكرة.</p>`,
+        "فتح لوحة العمل",
+        data.link,
+      ),
+    };
+  }
+
+  if (kind === "returned") {
+    return {
+      subject: "أُعيدت التذكرة إليك",
+      html: wrapArabicEmail(
+        "أُعيدت التذكرة إليك",
+        `<p>أُعيدت التذكرة: <strong style="color:#8B1538">${data.title}</strong> للمراجعة والتصحيح.</p>
+         ${rejectionText ? `<p>ملاحظة المدير: ${rejectionText}</p>` : ""}`,
+        "فتح التذكرة",
+        data.link,
+      ),
+    };
+  }
+
+  if (kind === "requester_manager_info") {
+    return {
+      subject: "طلب جديد من أحد منسوبي إدارتك",
+      html: wrapArabicEmail(
+        "طلب جديد من أحد منسوبي إدارتك",
+        `<p>قدّم أحد منسوبي إدارتك طلباً جديداً بعنوان: <strong style="color:#8B1538">${data.title}</strong>.</p>
+         <p>هذه رسالة علمٍ فقط ولا يتطلب منك أي إجراء.</p>`,
+      ),
+    };
+  }
+
+  if (kind === "reassignment_request") {
+    return {
+      subject: "رفض إسناد / طلب إعادة إسناد",
+      html: wrapArabicEmail(
+        "رفض إسناد / طلب إعادة إسناد",
+        `<p>رفض الموظف التذكرة: <strong style="color:#8B1538">${data.title}</strong> وطلب إعادة الإسناد.</p>
+         ${rejectionText ? `<p>ملاحظة الموظف: ${rejectionText}</p>` : ""}`,
+        "فتح لوحة العمل",
         data.link,
       ),
     };

@@ -1,4 +1,4 @@
-const DEFAULT_TIMEOUT_MS = 8000;
+const DEFAULT_TIMEOUT_MS = 20_000;
 
 export async function fetchWithTimeout(
   input: RequestInfo | URL,
@@ -12,7 +12,9 @@ export async function fetchWithTimeout(
     return await fetch(input, { ...init, signal: controller.signal });
   } catch (error) {
     if (error instanceof Error && error.name === "AbortError") {
-      throw new Error("TIMEOUT: انتهت مهلة الاتصال بالخادم");
+      throw new Error(
+        "TIMEOUT: انتهت مهلة الاتصال بالخادم — تأكد أن المعاينة تعمل عبر Ports في Cursor",
+      );
     }
     throw error;
   } finally {

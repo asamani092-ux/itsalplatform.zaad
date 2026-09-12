@@ -11,8 +11,10 @@ import BrandLogo from "@/components/shared/brand-logo";
 import { IconEye, IconEyeOff } from "@/components/shared/icons";
 
 const DEMO_ACCOUNTS = [
-  { role: "مدير", email: "manager@zaad.org" },
+  { role: "مدير الإدارة", email: "director@zaad.org" },
+  { role: "مدير القسم", email: "manager@zaad.org" },
   { role: "موظف", email: "sara.comm@zaad.org" },
+  { role: "استقبال", email: "reception@zaad.org" },
 ] as const;
 
 export default function LoginForm({
@@ -43,7 +45,7 @@ export default function LoginForm({
         body: JSON.stringify({ email, password, rememberMe }),
       });
       const payload = await parseApiResponse<{
-        user: { role: string };
+        user: { role: string; deskAccess?: boolean };
       }>(res);
 
       if (!res.ok || !payload.success) {
@@ -51,9 +53,15 @@ export default function LoginForm({
         return;
       }
 
-      const role = payload.data.user.role;
+      const { role, deskAccess } = payload.data.user;
+      const isManagement = role === "DIRECTOR" || role === "SECTION_MANAGER";
       const dest =
-        nextUrl ?? (role === "MANAGER" ? "/dashboard" : "/employee");
+        nextUrl ??
+        (isManagement
+          ? "/dashboard"
+          : deskAccess
+            ? "/dashboard/reception"
+            : "/employee");
       router.push(dest);
       router.refresh();
     } catch (err) {
@@ -88,7 +96,6 @@ export default function LoginForm({
           placeholder="name@zaad.org"
           required
         />
-
         <div className="space-y-1">
           <label className="label-field" htmlFor="password">
             كلمة المرور
@@ -117,7 +124,7 @@ export default function LoginForm({
 
         <div className="flex flex-wrap items-center justify-between gap-2">
           <label
-            className="inline-flex cursor-pointer items-center gap-2 text-sm text-brand-gray"
+            className="zad-touch inline-flex cursor-pointer items-center gap-2 text-sm text-brand-gray"
             htmlFor="remember"
           >
             <input
@@ -127,9 +134,9 @@ export default function LoginForm({
               checked={rememberMe}
               onChange={(e) => setRememberMe(e.target.checked)}
             />
-            تذكرني
+            تذكرني (حتى تسجيل الخروج)
           </label>
-          <Link href="/forgot-password" className="text-sm text-primary underline">
+          <Link href="/forgot-password" className="zad-touch inline-flex items-center text-sm text-primary underline">
             نسيت كلمة المرور؟
           </Link>
         </div>
@@ -148,27 +155,34 @@ export default function LoginForm({
           {loading ? "جاري الدخول..." : "دخول"}
         </Button>
 
-        {showDemoHints && (
-          <div className="rounded-md bg-surface-muted p-3 text-start text-xs text-brand-gray">
-            <p className="mb-1 font-semibold text-primary">حسابات تجريبية (كلمة المرور: password123)</p>
+        {showDemoHints ? (
+          <div
+            className="rounded-md border border-dashed border-brand-gray/40 bg-surface-muted/60 p-3 text-start text-xs text-brand-gray"
+            dir="rtl"
+          >
+            <p className="mb-2 font-semibold text-primary">حسابات تجريبية (غير إنتاجي)</p>
             <ul className="space-y-1">
-              {DEMO_ACCOUNTS.map((account) => (
-                <li key={account.email}>
+              {DEMO_ACCOUNTS.map((a) => (
+                <li key={a.email}>
+                  <span className="text-brand-gray">{a.role}: </span>
                   <button
                     type="button"
                     className="underline"
                     onClick={() => {
-                      setEmail(account.email);
+                      setEmail(a.email);
                       setPassword("password123");
                     }}
                   >
-                    {account.role}: {account.email}
+                    {a.email}
                   </button>
                 </li>
               ))}
             </ul>
+            <p className="mt-2" dir="ltr">
+              password: password123
+            </p>
           </div>
-        )}
+        ) : null}
       </form>
     </div>
   );

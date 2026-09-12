@@ -11,29 +11,77 @@ enum RequestStatus {
   Pending_Manager
   Approved_Pending_Assignment
   In_Progress
+  Pending_Review
+  Returned
+  Rejected
+  Cancelled
   Completed
   Archived
 }
 
 enum EmployeeRole {
   EMPLOYEE
-  MANAGER
+  SECTION_MANAGER
+  DIRECTOR
+}
+
+enum AdministrationKind {
+  INTERNAL
+  EXTERNAL
+}
+
+enum GrantStatus {
+  Open
+  Closed
+}
+
+enum GrantStageStatus {
+  Pending
+  Done
+}
+
+/**
+ * Top-level org unit (إدارة). INTERNAL = إدارة الاتصال المؤسسي that owns the
+ * handling sections (Department). EXTERNAL = requesting administrations whose
+ * employees submit requests; managerEmail is the submitter's line manager.
+ */
+model Administration {
+  id                String                 @id @default(cuid())
+  name              String
+  slug              String                 @unique
+  managerEmail      String
+  managerName       String                 @default("")
+  kind              AdministrationKind     @default(EXTERNAL)
+  isActive          Boolean                @default(true)
+  departments       Department[]
+  requesterRequests CommunicationRequest[] @relation("RequesterAdministration")
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+
+  @@index([isActive])
+  @@index([kind])
 }
 
 model Department {
-  id            String                 @id @default(cuid())
-  name          String
-  slug          String                 @unique
-  managerEmail  String
-  receptionToken String?               @unique
-  isActive      Boolean                @default(true)
-  requestTypes  RequestType[]
-  requests      CommunicationRequest[]
-  requestForms  RequestForm[]
-  createdAt     DateTime               @default(now())
-  updatedAt     DateTime               @updatedAt
+  id               String                 @id @default(cuid())
+  name             String
+  slug             String                 @unique
+  managerEmail     String
+  receptionToken   String?                @unique
+  isActive         Boolean                @default(true)
+  administrationId String?
+  administration   Administration?        @relation(fields: [administrationId], references: [id])
+  requestTypes     RequestType[]
+  requests         CommunicationRequest[]
+  requestForms     RequestForm[]
+  visitorLogs      ReceptionVisitorLog[]
+  employees        CommEmployee[]         @relation("EmployeeDepartment")
+  grants           Grant[]
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
 
   @@index([isActive])
+  @@index([administrationId])
 }
 
 model RequestType {
@@ -74,20 +122,27 @@ model CommEmployee {
   id                String                @id @default(cuid())
   name              String
   email             String                @unique
-  phoneNumber       String                @unique
+  phoneNumber       String?               @unique
   passwordHash      String
   role              EmployeeRole          @default(EMPLOYEE)
   isActive          Boolean               @default(true)
+  departmentId      String?
+  department        Department?           @relation("EmployeeDepartment", fields: [departmentId], references: [id])
+  isReceptionDesk   Boolean               @default(false)
   assignedRequests  CommunicationRequest[] @relation("AssignedEmployee")
   assignmentHistory AssignmentHistory[]
   routingRules      RoutingRule[]
   notifications     Notification[]
   passwordResets    PasswordResetToken[]
+  visitorLogs       ReceptionVisitorLog[] @relation("MarkedByReception")
+  attendanceEvents  AttendanceEvent[]     @relation("AttendanceEventCreator")
+  grantsCreated     Grant[]               @relation("GrantCreator")
   createdAt         DateTime              @default(now())
   updatedAt         DateTime              @updatedAt
 
   @@index([isActive])
   @@index([role])
+  @@index([departmentId])
 }
 
 model Notification {
@@ -109,11 +164,15 @@ model Notification {
 model CommunicationRequest {
   id                 String              @id @default(cuid())
   title              String
+  contactName        String              @default("")
   description        String
   requiredDate       DateTime
   contactEmail       String
   contactPhone       String
   managerEmail       String
+  requesterManagerEmail     String?
+  requesterAdministrationId String?
+  requesterAdministration   Administration? @relation("RequesterAdministration", fields: [requesterAdministrationId], references: [id])
   departmentId       String
   department         Department          @relation(fields: [departmentId], references: [id])
   requestTypeId      String
@@ -126,13 +185,21 @@ model CommunicationRequest {
   approvedAt         DateTime?
   assignedAt         DateTime?
   completedAt        DateTime?
+  completionDeclaredAt DateTime?
+  rejectedAt         DateTime?
+  rejectionReason    String?
+  cancelledAt        DateTime?
+  cancellationReason String?
   proofFileUrl       String?
+  reviewNote         String?
+  employeeNote       String?
   visitDate          DateTime?
   visitAttended      Boolean?
   visitMarkedAt      DateTime?
   assignmentHistory  AssignmentHistory[]
   statusHistory      StatusHistory[]
   hospitalityBooking HospitalityBooking?
+  visitorLogs        ReceptionVisitorLog[]
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
 
@@ -140,9 +207,69 @@ model CommunicationRequest {
   @@index([approvalToken])
   @@index([assignedEmployeeId])
   @@index([departmentId])
+  @@index([requesterAdministrationId])
   @@index([requestTypeId])
   @@index([createdAt])
   @@index([visitDate])
+}
+
+/** Cumulative visitor log — aligned with approved Apps Script visitor sheet. */
+model ReceptionVisitorLog {
+  id             String                @id @default(cuid())
+  visitorName    String
+  visitorPhone   String
+  organization   String
+  visitType      String
+  visitTarget    String
+  reason         String                @default("")
+  visitTimeSlot  String
+  visitAt        DateTime
+  departmentId   String?
+  department     Department?           @relation(fields: [departmentId], references: [id])
+  requestId      String?
+  request        CommunicationRequest? @relation(fields: [requestId], references: [id], onDelete: SetNull)
+  markedById     String?
+  markedBy       CommEmployee?         @relation("MarkedByReception", fields: [markedById], references: [id], onDelete: SetNull)
+  createdAt      DateTime              @default(now())
+
+  @@index([visitAt])
+  @@index([departmentId])
+  @@index([requestId])
+  @@index([visitorPhone])
+  @@index([visitType])
+  @@index([visitTimeSlot])
+  @@index([createdAt])
+}
+
+/** Meeting / job-interview attendance lists for high headcount check-in. */
+model AttendanceEvent {
+  id          String               @id @default(cuid())
+  title       String
+  kind        String
+  scheduledAt DateTime
+  notes       String               @default("")
+  createdById String?
+  createdBy   CommEmployee?        @relation("AttendanceEventCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  attendees   AttendanceAttendee[]
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  @@index([scheduledAt])
+  @@index([kind])
+}
+
+model AttendanceAttendee {
+  id          String          @id @default(cuid())
+  eventId     String
+  event       AttendanceEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name        String
+  phone       String          @default("")
+  attended    Boolean         @default(false)
+  checkedInAt DateTime?
+  createdAt   DateTime        @default(now())
+
+  @@index([eventId])
+  @@index([attended])
 }
 
 model AssignmentHistory {
@@ -179,13 +306,14 @@ model HospitalityBooking {
   id             String                @id @default(cuid())
   requesterName  String
   requesterEmail String
-  requesterPhone String
+  requesterPhone String                @default("")
   roomName       String
   meetingDate    DateTime
   startTime      String
   endTime        String
   attendeesCount Int
   notes          String                @default("")
+  cateringRequests String              @default("")
   requestId      String?               @unique
   request        CommunicationRequest? @relation(fields: [requestId], references: [id], onDelete: SetNull)
   createdAt      DateTime              @default(now())
@@ -237,6 +365,7 @@ model RequestForm {
   submitLabel    String       @default("تقديم الطلب")
   successTitle   String       @default("تم تقديم الطلب بنجاح")
   successMessage String       @default("سيُرسل رابط الموافقة للمدير المباشر تلقائياً.")
+  successNextSteps String     @default("")
   fields         Json         @default("{}")
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
@@ -244,6 +373,49 @@ model RequestForm {
   @@index([isPublished])
   @@index([departmentId])
   @@index([requestTypeId])
+}
+
+/**
+ * Grant (منحة) tracked by تنمية الموارد المالية from intake to closure, with
+ * manually-updated follow-up stages (or a single closure stage when none set).
+ */
+model Grant {
+  id           String       @id @default(cuid())
+  title        String
+  donorName    String
+  amount       Float
+  details      String       @default("")
+  stageCount   Int          @default(0)
+  status       GrantStatus  @default(Open)
+  departmentId String?
+  department   Department?  @relation(fields: [departmentId], references: [id])
+  createdById  String?
+  createdBy    CommEmployee? @relation("GrantCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  stages       GrantStage[]
+  closedAt     DateTime?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@index([status])
+  @@index([departmentId])
+  @@index([createdAt])
+}
+
+model GrantStage {
+  id        String           @id @default(cuid())
+  grantId   String
+  grant     Grant            @relation(fields: [grantId], references: [id], onDelete: Cascade)
+  index     Int
+  label     String
+  amount    Float?
+  dueDate   DateTime?
+  status    GrantStageStatus @default(Pending)
+  note      String           @default("")
+  updatedAt DateTime         @updatedAt
+  createdAt DateTime         @default(now())
+
+  @@index([grantId])
+  @@index([status])
 }
 
 model MediaDocument {

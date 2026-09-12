@@ -1,5 +1,5 @@
-import DashboardHeader from "@/components/dashboard/DashboardHeader";
-import DashboardSidebar from "@/components/dashboard/DashboardSidebar";
+import DashboardShell from "@/components/dashboard/DashboardShell";
+import { getRouteSession } from "@/lib/auth/route-guard";
 import { getEnabledModules } from "@/lib/modules/server";
 
 export const dynamic = "force-dynamic";
@@ -9,15 +9,22 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const modules = await getEnabledModules();
+  const [modules, session] = await Promise.all([
+    getEnabledModules(),
+    getRouteSession(),
+  ]);
+
+  // Desk-only employees (reception section) see just the reception module.
+  // Grants management is a director-only tool, so hide it from section managers.
+  const deskOnly =
+    session?.role === "EMPLOYEE" && session?.deskAccess === true;
+  const visibleModules = deskOnly
+    ? modules.filter((m) => m.key === "reception")
+    : modules.filter((m) => m.key !== "grants" || session?.role === "DIRECTOR");
 
   return (
-    <div dir="rtl" className="min-h-screen bg-surface-muted">
-      <DashboardSidebar modules={modules} />
-      <div className="mr-64 flex min-h-screen flex-col">
-        <DashboardHeader />
-        <main className="flex-1 p-6">{children}</main>
-      </div>
+    <div dir="rtl">
+      <DashboardShell modules={visibleModules}>{children}</DashboardShell>
     </div>
   );
 }

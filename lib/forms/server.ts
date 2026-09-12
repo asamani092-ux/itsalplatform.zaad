@@ -6,10 +6,25 @@ import {
   DEFAULT_FORM_SETTINGS,
   FORM_FIELD_KEYS,
   normalizeFields,
-  normalizeSlug,
   type FormFieldsConfig,
   type RequestFormData,
 } from "./schema";
+import { slugFromDisplayName } from "@/lib/slug";
+
+/** Unique form slug; O(k) lookups on collision. */
+async function uniqueFormSlug(base: string): Promise<string> {
+  let candidate = base;
+  let suffix = 2;
+  while (await prisma.requestForm.findUnique({ where: { slug: candidate } })) {
+    candidate = `${base.slice(0, 36)}-${suffix}`;
+    suffix += 1;
+    if (suffix > 50) {
+      candidate = `${base.slice(0, 30)}-${Date.now().toString(36)}`;
+      break;
+    }
+  }
+  return candidate;
+}
 
 interface RequestFormRow {
   id: string;
@@ -25,6 +40,7 @@ interface RequestFormRow {
   submitLabel: string;
   successTitle: string;
   successMessage: string;
+  successNextSteps: string;
   fields: Prisma.JsonValue;
 }
 
@@ -61,6 +77,7 @@ function toFormData(row: RequestFormRow): RequestFormData {
     submitLabel: row.submitLabel,
     successTitle: row.successTitle,
     successMessage: row.successMessage,
+    successNextSteps: row.successNextSteps || DEFAULT_FORM_SETTINGS.successNextSteps,
     fields: normalizeFields(row.fields),
   };
 }
@@ -116,6 +133,7 @@ export interface RequestFormInput {
   submitLabel?: string;
   successTitle?: string;
   successMessage?: string;
+  successNextSteps?: string;
   fields?: unknown;
 }
 
@@ -123,11 +141,10 @@ export async function createRequestForm(input: RequestFormInput): Promise<Reques
   const name = input.name?.trim();
   if (!name) throw new Error("VALIDATION: اسم النموذج مطلوب");
 
-  const slug = normalizeSlug(input.slug?.trim() || name);
-  if (!slug) throw new Error("VALIDATION: المعرّف (slug) غير صالح");
-
-  const existing = await prisma.requestForm.findUnique({ where: { slug } });
-  if (existing) throw new Error("VALIDATION: المعرّف مستخدم بالفعل");
+  const baseSlug = input.slug?.trim()
+    ? slugFromDisplayName(input.slug, "form")
+    : slugFromDisplayName(name, "form");
+  const slug = await uniqueFormSlug(baseSlug);
 
   const row = await prisma.requestForm.create({
     data: {
@@ -143,6 +160,10 @@ export async function createRequestForm(input: RequestFormInput): Promise<Reques
       successTitle: input.successTitle?.trim() || DEFAULT_FORM_SETTINGS.successTitle,
       successMessage:
         input.successMessage?.trim() || DEFAULT_FORM_SETTINGS.successMessage,
+      successNextSteps:
+        typeof input.successNextSteps === "string"
+          ? input.successNextSteps.trim()
+          : DEFAULT_FORM_SETTINGS.successNextSteps,
       fields: fieldsToJson(normalizeFields(input.fields)),
     },
   });
@@ -157,16 +178,8 @@ export async function updateRequestForm(
   const current = await getFormById(id);
   if (!current) throw new Error("NOT_FOUND: النموذج غير موجود");
 
-  let slug = current.slug;
-  if (input.slug !== undefined) {
-    const candidate = normalizeSlug(input.slug);
-    if (!candidate) throw new Error("VALIDATION: المعرّف (slug) غير صالح");
-    if (candidate !== current.slug) {
-      const clash = await prisma.requestForm.findUnique({ where: { slug: candidate } });
-      if (clash) throw new Error("VALIDATION: المعرّف مستخدم بالفعل");
-      slug = candidate;
-    }
-  }
+  // Slug is immutable after create — generated server-side from the name.
+  const slug = current.slug;
 
   const row = await prisma.requestForm.update({
     where: { id },
@@ -188,6 +201,10 @@ export async function updateRequestForm(
       submitLabel: input.submitLabel?.trim() || current.submitLabel,
       successTitle: input.successTitle?.trim() || current.successTitle,
       successMessage: input.successMessage?.trim() || current.successMessage,
+      successNextSteps:
+        typeof input.successNextSteps === "string"
+          ? input.successNextSteps.trim()
+          : current.successNextSteps,
       fields:
         input.fields === undefined
           ? fieldsToJson(current.fields)

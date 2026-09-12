@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import DynamicSubmitForm from "@/components/public/DynamicSubmitForm";
 import PublicSubmitShell from "@/components/public/PublicSubmitShell";
@@ -43,9 +42,6 @@ export default async function PublicFormPage({
             هذا النموذج غير متاح حالياً. يرجى المحاولة لاحقاً أو التواصل مع قسم الاتصال
             المؤسسي.
           </p>
-          <Link href="/" className="btn-secondary inline-flex">
-            العودة لبوابة المنصة
-          </Link>
         </div>
       </div>
     );

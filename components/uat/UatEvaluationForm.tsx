@@ -14,8 +14,7 @@ import {
   type UatState,
   type UatWorks,
 } from "@/lib/uat/report";
-
-const STORAGE_KEY = "zaad-uat-v1";
+import { loadUatDraft, saveUatDraft } from "@/lib/uat/storage";
 
 const RATINGS: { value: UatRating; label: string }[] = [
   { value: "5", label: "5" },
@@ -26,7 +25,14 @@ const RATINGS: { value: UatRating; label: string }[] = [
   { value: "na", label: "غير مُجرَّب" },
 ];
 
-const ROLES = ["مدير", "موظف", "استقبال", "مقدّم طلب", "فريق التقنية"];
+const ROLES = [
+  "مدير الإدارة",
+  "مدير القسم",
+  "موظف",
+  "استقبال",
+  "مقدّم طلب",
+  "فريق التقنية",
+];
 const ENVIRONMENTS = ["محلي", "VPS تجريبي", "إنتاج"];
 
 function emptyState(): UatState {
@@ -42,14 +48,22 @@ function emptyState(): UatState {
 export default function UatEvaluationForm() {
   const [state, setState] = useState<UatState>(emptyState);
   const [hydrated, setHydrated] = useState(false);
+  const [restoredNotice, setRestoredNotice] = useState("");
   const [copyStatus, setCopyStatus] = useState("");
+  const [pathHint, setPathHint] = useState("");
+  const [demoApprovalPath, setDemoApprovalPath] = useState(
+    "/approve?token=uat-demo-approval-token",
+  );
   const [openSection, setOpenSection] = useState<string>(UAT_SECTIONS[0].id);
 
   useEffect(() => {
     try {
-      const saved = window.localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        setState(JSON.parse(saved) as UatState);
+      const { state: restored, migratedFrom } = loadUatDraft();
+      if (restored) {
+        setState(restored);
+        if (migratedFrom) {
+          setRestoredNotice("تمت استعادة مسودة التقييم السابقة من إصدار أقدم في هذا المتصفح.");
+        }
       }
     } catch {
       // Corrupted local draft — start fresh
@@ -60,7 +74,7 @@ export default function UatEvaluationForm() {
   useEffect(() => {
     if (!hydrated) return;
     try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      saveUatDraft(state);
     } catch {
       // Storage unavailable (private mode) — evaluation still works in memory
     }
@@ -83,6 +97,38 @@ export default function UatEvaluationForm() {
   const overall = useMemo(() => overallAverage(state.results), [state.results]);
   const progress = Math.round((done / UAT_TOTAL_ITEMS) * 100);
   const report = useMemo(() => buildMarkdownReport(state), [state]);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const res = await fetch("/api/uat/demo-links");
+        const payload = (await res.json()) as {
+          success?: boolean;
+          data?: { approvalPath?: string };
+        };
+        if (payload.success && payload.data?.approvalPath) {
+          setDemoApprovalPath(payload.data.approvalPath);
+        }
+      } catch {
+        // Keep seeded fallback path.
+      }
+    })();
+  }, []);
+
+  async function copyText(text: string, okMsg: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      setPathHint(okMsg);
+    } catch {
+      setPathHint("تعذّر النسخ — انسخ يدوياً");
+    }
+    window.setTimeout(() => setPathHint(""), 3000);
+  }
+
+  function absolutePath(path: string) {
+    if (path.startsWith("http")) return path;
+    return `${window.location.origin}${path.startsWith("/") ? path : `/${path}`}`;
+  }
 
   async function copyReport() {
     try {
@@ -112,6 +158,14 @@ export default function UatEvaluationForm() {
 
   return (
     <div className="space-y-6">
+      {restoredNotice && (
+        <p
+          className="rounded-md border border-[color-mix(in_srgb,var(--zaad-primary)_25%,white)] bg-[color-mix(in_srgb,var(--zaad-primary)_8%,white)] px-3 py-2 text-sm text-primary"
+          role="status"
+        >
+          {restoredNotice}
+        </p>
+      )}
       <section className="card space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -195,6 +249,43 @@ export default function UatEvaluationForm() {
           </div>
         </div>
 
+        <div className="rounded-lg border border-surface-border bg-surface-muted p-3 space-y-2">
+          <p className="text-sm font-semibold text-primary">روابط سريعة للتجربة</p>
+          <p className="text-xs text-brand-gray" dir="ltr">
+            {demoApprovalPath}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              className="btn-secondary text-xs"
+              onClick={() =>
+                void copyText(absolutePath(demoApprovalPath), "تم نسخ رابط موافقة المدير")
+              }
+            >
+              نسخ رحلة موافقة المدير
+            </button>
+            <a
+              href={demoApprovalPath}
+              target="_blank"
+              rel="noreferrer"
+              className="btn-secondary text-xs"
+            >
+              فتح رحلة الموافقة
+            </a>
+            <button
+              type="button"
+              className="btn-secondary text-xs"
+              onClick={() => void copyText(absolutePath("/request"), "تم نسخ مسار النموذج")}
+            >
+              نسخ /request
+            </button>
+            <a href="/request" target="_blank" rel="noreferrer" className="btn-secondary text-xs">
+              فتح النموذج
+            </a>
+          </div>
+          {pathHint && <p className="text-xs text-brand-gray">{pathHint}</p>}
+        </div>
+
         <div>
           <div
             className="h-2 w-full overflow-hidden rounded-full bg-surface-muted"
@@ -261,6 +352,32 @@ export default function UatEvaluationForm() {
 
             {isOpen && (
               <div className="space-y-3 border-t border-surface-border p-4">
+                {section.path && (
+                  <div className="flex flex-wrap items-center gap-2 rounded-md bg-surface-muted px-3 py-2">
+                    <span className="font-mono text-xs text-brand-gray" dir="ltr">
+                      {section.id === "approval" ? demoApprovalPath : section.path}
+                    </span>
+                    <button
+                      type="button"
+                      className="btn-secondary text-xs"
+                      onClick={() => {
+                        const p =
+                          section.id === "approval" ? demoApprovalPath : section.path!;
+                        void copyText(absolutePath(p), "تم نسخ المسار");
+                      }}
+                    >
+                      نسخ المسار
+                    </button>
+                    <a
+                      href={section.id === "approval" ? demoApprovalPath : section.path}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="btn-secondary text-xs"
+                    >
+                      فتح
+                    </a>
+                  </div>
+                )}
                 {section.items.map((item) => {
                   const result = state.results[item.id] ?? EMPTY_ITEM;
                   return (
@@ -313,8 +430,8 @@ export default function UatEvaluationForm() {
                             className={`rounded-lg px-3 py-1 text-xs font-semibold ${
                               result.works === option.value
                                 ? option.value === "yes"
-                                  ? "bg-[var(--tmkeen-success)] text-white"
-                                  : "bg-[var(--tmkeen-danger)] text-white"
+                                  ? "bg-[var(--zaad-success)] text-white"
+                                  : "bg-[var(--zaad-danger)] text-white"
                                 : "border border-surface-border bg-surface text-brand-gray"
                             }`}
                             onClick={() =>
@@ -408,7 +525,7 @@ export default function UatEvaluationForm() {
             </button>
             <button
               type="button"
-              className="btn-secondary border-[var(--tmkeen-danger)] text-sm text-[var(--tmkeen-danger)]"
+              className="btn-secondary border-[var(--zaad-danger)] text-sm text-[var(--zaad-danger)]"
               onClick={resetAll}
             >
               إعادة تعيين

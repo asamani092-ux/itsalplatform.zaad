@@ -6,8 +6,22 @@ import { getApiErrorMessage, parseApiResponse } from "@/components/lib/api-types
 import { fetchWithTimeout } from "@/lib/client/fetch-with-timeout";
 import {
   DEFAULT_FORM_SETTINGS,
+  formPublicPath,
+  parseSuccessNextSteps,
   type FormSettingsData,
 } from "@/lib/forms/schema";
+import {
+  getPublicSubmitVisibility,
+  isHospitalityContext,
+  resolveEffectiveRequiredDate,
+  validatePublicSubmit,
+  type PublicSubmitFieldErrors,
+} from "@/lib/forms/validate-public-submit";
+import Stepper from "@/components/ui/stepper";
+import HallBookingFields, {
+  type HallBookingSelection,
+} from "@/components/public/HallBookingFields";
+import { useToast } from "@/components/ui/toast";
 
 interface Department {
   id: string;
@@ -24,16 +38,15 @@ interface RequestType {
   departmentId: string | null;
 }
 
-interface FieldErrors {
-  departmentId?: string;
-  requestTypeId?: string;
-  title?: string;
-  description?: string;
-  requiredDate?: string;
-  visitDate?: string;
-  contactEmail?: string;
-  contactPhone?: string;
+interface Administration {
+  id: string;
+  name: string;
+  slug: string;
+  managerName?: string;
+  managerEmail?: string;
 }
+
+type FieldErrors = PublicSubmitFieldErrors;
 
 function resolveSlugDefaults(
   slug: string,
@@ -50,57 +63,6 @@ function resolveSlugDefaults(
     if (typeBySlug.departmentId) departmentId = typeBySlug.departmentId;
   }
   return { departmentId, requestTypeId };
-}
-
-function validateFields(
-  values: {
-    departmentId: string;
-    requestTypeId: string;
-    title: string;
-    description: string;
-    requiredDate: string;
-    visitDate: string;
-    contactEmail: string;
-    contactPhone: string;
-    needsVisit: boolean;
-  },
-  settings: FormSettingsData,
-): FieldErrors {
-  const errors: FieldErrors = {};
-  const f = settings.fields;
-
-  if (!values.departmentId) errors.departmentId = "اختر القسم";
-  if (!values.requestTypeId) errors.requestTypeId = "اختر نوع الطلب";
-  if (!values.title.trim()) errors.title = "العنوان مطلوب";
-
-  if (f.description.enabled && f.description.required && !values.description.trim()) {
-    errors.description = "الوصف مطلوب";
-  }
-  if (f.requiredDate.enabled && f.requiredDate.required && !values.requiredDate) {
-    errors.requiredDate = "التاريخ المطلوب مطلوب";
-  }
-  if (values.needsVisit && f.visitDate.enabled && !values.visitDate) {
-    errors.visitDate = "تاريخ الزيارة مطلوب";
-  }
-
-  if (!values.contactEmail.trim()) {
-    errors.contactEmail = "البريد الإلكتروني مطلوب";
-  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.contactEmail.trim())) {
-    errors.contactEmail = "صيغة البريد غير صحيحة";
-  }
-
-  if (f.contactPhone.enabled) {
-    if (f.contactPhone.required && !values.contactPhone.trim()) {
-      errors.contactPhone = "رقم الجوال مطلوب";
-    } else if (
-      values.contactPhone.trim() &&
-      !/^05\d{8}$/.test(values.contactPhone.trim())
-    ) {
-      errors.contactPhone = "أدخل رقم جوال سعودي صحيح (05xxxxxxxx)";
-    }
-  }
-
-  return errors;
 }
 
 export default function DynamicSubmitForm({
@@ -120,6 +82,7 @@ export default function DynamicSubmitForm({
   pinnedDepartmentId?: string | null;
   pinnedRequestTypeId?: string | null;
 }) {
+  const { pushToast } = useToast();
   const fields = settings.fields;
   const hasInitial = Boolean(initialDepartments?.length);
   const defaults = hasInitial
@@ -132,6 +95,9 @@ export default function DynamicSubmitForm({
   const [requestTypes, setRequestTypes] = useState<RequestType[]>(
     initialRequestTypes ?? [],
   );
+  const [administrations, setAdministrations] = useState<Administration[]>([]);
+  const [adminLoading, setAdminLoading] = useState(true);
+  const [requesterAdministrationId, setRequesterAdministrationId] = useState("");
   const [departmentId, setDepartmentId] = useState(
     pinnedDepartmentId ?? defaults.departmentId,
   );
@@ -139,18 +105,36 @@ export default function DynamicSubmitForm({
     pinnedRequestTypeId ?? defaults.requestTypeId,
   );
   const [title, setTitle] = useState("");
+  const [contactName, setContactName] = useState("");
   const [description, setDescription] = useState("");
   const [requiredDate, setRequiredDate] = useState("");
   const [visitDate, setVisitDate] = useState("");
   const [contactEmail, setContactEmail] = useState("");
   const [contactPhone, setContactPhone] = useState("");
+  const [hallBooking, setHallBooking] = useState<HallBookingSelection | null>(null);
   const [loading, setLoading] = useState(!hasInitial);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [submittedId, setSubmittedId] = useState<string | null>(null);
+  const [approvalUrl, setApprovalUrl] = useState<string | null>(null);
+  const [copyHint, setCopyHint] = useState("");
 
   const selectedType = requestTypes.find((rt) => rt.id === requestTypeId);
+  const selectedAdministration = administrations.find(
+    (a) => a.id === requesterAdministrationId,
+  );
+  const isHospitality = isHospitalityContext({
+    formSlug: slug,
+    requestTypeSlug: selectedType?.slug,
+  });
+  const visibility = getPublicSubmitVisibility({
+    settings,
+    isHospitality,
+    requiresVisitDate: Boolean(selectedType?.requiresVisitDate),
+    pinnedDepartmentId,
+    pinnedRequestTypeId,
+  });
 
   const loadMeta = useCallback(async () => {
     setLoading(true);
@@ -188,6 +172,42 @@ export default function DynamicSubmitForm({
     if (!hasInitial) void loadMeta();
   }, [hasInitial, loadMeta]);
 
+  // Hide/clear visit date when the selected type no longer requires it.
+  useEffect(() => {
+    if (!visibility.visitDate && visitDate) {
+      setVisitDate("");
+      setFieldErrors((prev) => ({ ...prev, visitDate: undefined }));
+    }
+  }, [visibility.visitDate, visitDate]);
+
+  // Clear hall slot / requiredDate when hospitality visibility flips.
+  useEffect(() => {
+    if (!visibility.hallBooking && hallBooking) {
+      setHallBooking(null);
+      setFieldErrors((prev) => ({ ...prev, hallBooking: undefined }));
+    }
+    if (!visibility.requiredDate && requiredDate) {
+      setRequiredDate("");
+      setFieldErrors((prev) => ({ ...prev, requiredDate: undefined }));
+    }
+  }, [visibility.hallBooking, visibility.requiredDate, hallBooking, requiredDate]);
+
+  // Requester administrations are always loaded (never passed as initial props).
+  useEffect(() => {
+    void (async () => {
+      setAdminLoading(true);
+      try {
+        const res = await fetchWithTimeout("/api/public/administrations");
+        const payload = await parseApiResponse<{ administrations: Administration[] }>(res);
+        if (payload.success) setAdministrations(payload.data.administrations);
+      } catch {
+        // Optional field — ignore load failures.
+      } finally {
+        setAdminLoading(false);
+      }
+    })();
+  }, []);
+
   useEffect(() => {
     if (!departmentId || hasInitial) return;
     void (async () => {
@@ -207,51 +227,99 @@ export default function DynamicSubmitForm({
     e.preventDefault();
     setError("");
 
-    const errors = validateFields(
+    const errors = validatePublicSubmit(
       {
         departmentId,
         requestTypeId,
         title,
+        contactName,
         description,
         requiredDate,
         visitDate,
         contactEmail,
         contactPhone,
-        needsVisit: Boolean(selectedType?.requiresVisitDate),
+        hallBooking: hallBooking
+          ? { meetingDate: hallBooking.meetingDate }
+          : null,
       },
       settings,
+      visibility,
     );
     setFieldErrors(errors);
-    if (Object.keys(errors).length > 0) return;
+    if (Object.keys(errors).length > 0) {
+      const firstMsg = Object.values(errors)[0];
+      const message = firstMsg || "يرجى إكمال الحقول المطلوبة";
+      setError(message);
+      pushToast(message, "danger");
+      window.requestAnimationFrame(() => {
+        const el =
+          document.querySelector<HTMLElement>('[aria-invalid="true"]') ??
+          document.querySelector<HTMLElement>('[data-field-error]');
+        el?.scrollIntoView({ behavior: "smooth", block: "center" });
+        el?.focus?.();
+      });
+      return;
+    }
 
     setSubmitting(true);
 
+    const effectiveRequiredDate = resolveEffectiveRequiredDate({
+      isHospitality,
+      requiredDate,
+      hallMeetingDate: hallBooking?.meetingDate,
+    });
+
     try {
-      const res = await fetchWithTimeout("/api/public/requests", {
+      const endpoint = isHospitality
+        ? "/api/public/hospitality/book"
+        : "/api/public/requests";
+      const body = isHospitality && hallBooking
+        ? {
+            roomName: hallBooking.roomName,
+            meetingDate: hallBooking.meetingDate,
+            startTime: hallBooking.startTime,
+            endTime: hallBooking.endTime,
+            durationHours: hallBooking.durationHours,
+            contactName: contactName.trim(),
+            contactEmail: contactEmail.trim(),
+            contactPhone: contactPhone.trim(),
+            title: title.trim(),
+            description: description.trim(),
+            requesterAdministrationId: requesterAdministrationId || undefined,
+          }
+        : {
+            title: title.trim(),
+            contactName: contactName.trim(),
+            description: description.trim(),
+            requiredDate: effectiveRequiredDate,
+            contactEmail: contactEmail.trim(),
+            contactPhone: contactPhone.trim(),
+            departmentId,
+            requestTypeId,
+            requesterAdministrationId: requesterAdministrationId || undefined,
+            formSlug: slug,
+            visitDate: visibility.visitDate ? visitDate : undefined,
+          };
+      const res = await fetchWithTimeout(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: title.trim(),
-          description: description.trim(),
-          requiredDate,
-          contactEmail: contactEmail.trim(),
-          contactPhone: contactPhone.trim(),
-          departmentId,
-          requestTypeId,
-          formSlug: slug,
-          visitDate:
-            selectedType?.requiresVisitDate && fields.visitDate.enabled
-              ? visitDate
-              : undefined,
-        }),
+        body: JSON.stringify(body),
       });
       const payload = await parseApiResponse<{ id: string; approvalUrl: string }>(res);
       if (!res.ok || !payload.success) {
         throw new Error(getApiErrorMessage(payload, "فشل التقديم"));
       }
       setSubmittedId(payload.data.id);
+      const rawUrl =
+        typeof payload.data.approvalUrl === "string" && payload.data.approvalUrl
+          ? payload.data.approvalUrl
+          : null;
+      setApprovalUrl(rawUrl);
+      pushToast(settings.successTitle || "تم إرسال الطلب بنجاح", "success");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "خطأ");
+      const message = err instanceof Error ? err.message : "خطأ";
+      setError(message);
+      pushToast(message, "danger");
     } finally {
       setSubmitting(false);
     }
@@ -260,6 +328,14 @@ export default function DynamicSubmitForm({
   if (submittedId) {
     return (
       <div className="space-y-4 text-center" role="status">
+        <Stepper
+          currentId="done"
+          steps={[
+            { id: "fill", label: "تعبئة الطلب" },
+            { id: "send", label: "الإرسال" },
+            { id: "done", label: "التأكيد" },
+          ]}
+        />
         <span className="badge-success">{settings.successTitle}</span>
         <div className="card-section space-y-2 text-sm text-brand-gray">
           <p>
@@ -269,15 +345,56 @@ export default function DynamicSubmitForm({
             </span>
           </p>
           <p>{settings.successMessage}</p>
-          <p>الخطوات التالية:</p>
-          <ol className="list-decimal space-y-1 ps-5 text-start">
-            <li>سيُرسل رابط الموافقة للمدير المباشر تلقائياً.</li>
-            <li>بعد الموافقة ينتقل الطلب إلى لوحة قسم الاتصال.</li>
-            <li>ستصلك تحديثات على البريد المُدخل.</li>
-          </ol>
+          {parseSuccessNextSteps(settings.successNextSteps).length > 0 && (
+            <>
+              <p>الخطوات التالية:</p>
+              <ol className="list-decimal space-y-1 ps-5 text-start">
+                {parseSuccessNextSteps(settings.successNextSteps).map((step) => (
+                  <li key={step}>{step}</li>
+                ))}
+              </ol>
+            </>
+          )}
+          {approvalUrl && (
+            <div className="space-y-2 rounded-md border border-dashed border-surface-border bg-surface-muted p-3 text-start">
+              <p className="text-xs font-semibold text-primary">
+                رابط موافقة المدير للتجربة
+              </p>
+              <p className="break-all font-mono text-[11px]" dir="ltr">
+                {approvalUrl}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className="btn-secondary text-xs"
+                  onClick={() => {
+                    const full =
+                      typeof window !== "undefined"
+                        ? `${window.location.origin}${approvalUrl}`
+                        : approvalUrl;
+                    void navigator.clipboard.writeText(full).then(() => {
+                      setCopyHint("تم نسخ رابط الموافقة");
+                      setTimeout(() => setCopyHint(""), 2000);
+                    });
+                  }}
+                >
+                  نسخ رابط الموافقة
+                </button>
+                <a
+                  href={approvalUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="btn-secondary text-xs"
+                >
+                  فتح رحلة الموافقة
+                </a>
+              </div>
+              {copyHint && <p className="text-xs text-brand-gray">{copyHint}</p>}
+            </div>
+          )}
         </div>
         <Link
-          href="/request"
+          href={slug ? formPublicPath(slug) : "/request"}
           className="btn-secondary inline-flex focus-visible:ring-2 focus-visible:ring-primary/20"
         >
           تقديم طلب آخر
@@ -287,23 +404,31 @@ export default function DynamicSubmitForm({
   }
 
   return (
-    <form onSubmit={(e) => void handleSubmit(e)} className="w-full space-y-4">
+    <form noValidate onSubmit={(e) => void handleSubmit(e)} className="w-full space-y-4">
+      <Stepper
+        currentId={submitting ? "send" : "fill"}
+        steps={[
+          { id: "fill", label: "تعبئة الطلب" },
+          { id: "send", label: "الإرسال" },
+          { id: "done", label: "التأكيد" },
+        ]}
+      />
       {preview && (
-        <div className="rounded-lg border border-primary bg-[color-mix(in_srgb,var(--tmkeen-primary)_8%,transparent)] px-3 py-2 text-xs text-brand-gray">
+        <div className="rounded-lg border border-primary bg-[color-mix(in_srgb,var(--zaad-primary)_8%,transparent)] px-3 py-2 text-xs text-brand-gray">
           وضع المعاينة — هذا ما يراه مقدّم الطلب. الإرسال يعمل للاختبار.
         </div>
       )}
       {loading ? (
         <div className="flex items-center justify-center gap-3 py-8">
           <div
-            className="h-8 w-8 animate-pulse rounded-full bg-[color-mix(in_srgb,var(--tmkeen-primary)_15%,transparent)]"
+            className="h-8 w-8 animate-pulse rounded-full bg-[color-mix(in_srgb,var(--zaad-primary)_15%,transparent)]"
             aria-hidden
           />
           <p className="text-sm text-brand-gray">جاري تحميل النموذج...</p>
         </div>
       ) : error && !departments.length ? (
         <div className="space-y-3">
-          <p className="text-sm text-[var(--tmkeen-danger)]" role="alert">
+          <p className="text-sm text-[var(--zaad-danger)]" role="alert">
             {error}
           </p>
           <button
@@ -316,7 +441,59 @@ export default function DynamicSubmitForm({
         </div>
       ) : (
         <>
-          {!pinnedDepartmentId && (
+          {(adminLoading || administrations.length > 0) && (
+            <div className="space-y-1 rounded-lg border border-[color-mix(in_srgb,var(--zaad-primary)_20%,transparent)] bg-[color-mix(in_srgb,var(--zaad-primary)_5%,transparent)] p-3">
+              {adminLoading ? (
+                <div className="space-y-2" aria-busy="true">
+                  <div className="h-4 w-40 animate-pulse rounded bg-surface-muted" />
+                  <div className="h-10 w-full animate-pulse rounded-lg bg-surface-muted" />
+                  <div className="h-3 w-3/4 animate-pulse rounded bg-surface-muted" />
+                </div>
+              ) : (
+              <>
+              <label className="label-field" htmlFor="requesterAdministration">
+                إدارتك (مقدّم الطلب)
+                <span className="text-brand-gray"> (اختياري)</span>
+              </label>
+              <select
+                id="requesterAdministration"
+                className="input-field w-full focus-visible:ring-2 focus-visible:ring-primary/20"
+                value={requesterAdministrationId}
+                onChange={(e) => setRequesterAdministrationId(e.target.value)}
+              >
+                <option value="">— اختر إدارتك —</option>
+                {administrations.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-brand-gray">
+                يُستخدم لإشعار مديرك المباشر بالطلب. الحقول أدناه تخص القسم المستقبِل للطلب.
+              </p>
+              {selectedAdministration &&
+                (selectedAdministration.managerName ||
+                  selectedAdministration.managerEmail) && (
+                  <div className="mt-2 rounded-md border border-surface-border bg-surface p-2 text-xs text-brand-gray">
+                    <p>
+                      مديرك المباشر:{" "}
+                      <span className="font-semibold text-primary">
+                        {selectedAdministration.managerName || "—"}
+                      </span>
+                    </p>
+                    {selectedAdministration.managerEmail && (
+                      <p dir="ltr" className="font-mono">
+                        {selectedAdministration.managerEmail}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </>
+              )}
+            </div>
+          )}
+
+          {visibility.department && (
           <div className="space-y-1">
             <label className="label-field" htmlFor="department">
               {fields.department.label}
@@ -341,14 +518,14 @@ export default function DynamicSubmitForm({
               ))}
             </select>
             {fieldErrors.departmentId && (
-              <p id="department-error" className="text-xs text-[var(--tmkeen-danger)]">
+              <p id="department-error" className="text-xs text-[var(--zaad-danger)]" role="alert" data-field-error>
                 {fieldErrors.departmentId}
               </p>
             )}
           </div>
           )}
 
-          {!pinnedRequestTypeId && (
+          {visibility.requestType && (
           <div className="space-y-1">
             <label className="label-field" htmlFor="requestType">
               {fields.requestType.label}
@@ -358,8 +535,15 @@ export default function DynamicSubmitForm({
               className="input-field w-full focus-visible:ring-2 focus-visible:ring-primary/20"
               value={requestTypeId}
               onChange={(e) => {
-                setRequestTypeId(e.target.value);
-                setFieldErrors((prev) => ({ ...prev, requestTypeId: undefined }));
+                const nextTypeId = e.target.value;
+                setRequestTypeId(nextTypeId);
+                setFieldErrors((prev) => ({
+                  ...prev,
+                  requestTypeId: undefined,
+                  visitDate: undefined,
+                  hallBooking: undefined,
+                  requiredDate: undefined,
+                }));
               }}
               aria-invalid={Boolean(fieldErrors.requestTypeId)}
               aria-describedby={fieldErrors.requestTypeId ? "requestType-error" : undefined}
@@ -373,7 +557,7 @@ export default function DynamicSubmitForm({
               ))}
             </select>
             {fieldErrors.requestTypeId && (
-              <p id="requestType-error" className="text-xs text-[var(--tmkeen-danger)]">
+              <p id="requestType-error" className="text-xs text-[var(--zaad-danger)]" role="alert" data-field-error>
                 {fieldErrors.requestTypeId}
               </p>
             )}
@@ -398,13 +582,37 @@ export default function DynamicSubmitForm({
               required
             />
             {fieldErrors.title && (
-              <p id="title-error" className="text-xs text-[var(--tmkeen-danger)]">
+              <p id="title-error" className="text-xs text-[var(--zaad-danger)]" role="alert" data-field-error>
                 {fieldErrors.title}
               </p>
             )}
           </div>
 
-          {fields.description.enabled && (
+          <div className="space-y-1">
+            <label className="label-field" htmlFor="contactName">
+              {fields.contactName.label}
+            </label>
+            <input
+              id="contactName"
+              className="input-field w-full focus-visible:ring-2 focus-visible:ring-primary/20"
+              placeholder={fields.contactName.placeholder}
+              value={contactName}
+              onChange={(e) => {
+                setContactName(e.target.value);
+                setFieldErrors((prev) => ({ ...prev, contactName: undefined }));
+              }}
+              aria-invalid={Boolean(fieldErrors.contactName)}
+              aria-describedby={fieldErrors.contactName ? "contactName-error" : undefined}
+              required
+            />
+            {fieldErrors.contactName && (
+              <p id="contactName-error" className="text-xs text-[var(--zaad-danger)]" role="alert" data-field-error>
+                {fieldErrors.contactName}
+              </p>
+            )}
+          </div>
+
+          {visibility.description && (
             <div className="space-y-1">
               <label className="label-field" htmlFor="description">
                 {fields.description.label}
@@ -426,14 +634,14 @@ export default function DynamicSubmitForm({
                 required={fields.description.required}
               />
               {fieldErrors.description && (
-                <p id="description-error" className="text-xs text-[var(--tmkeen-danger)]">
+                <p id="description-error" className="text-xs text-[var(--zaad-danger)]" role="alert" data-field-error>
                   {fieldErrors.description}
                 </p>
               )}
             </div>
           )}
 
-          {fields.requiredDate.enabled && (
+          {visibility.requiredDate && (
             <div className="space-y-1">
               <label className="label-field" htmlFor="requiredDate">
                 {fields.requiredDate.label}
@@ -457,14 +665,30 @@ export default function DynamicSubmitForm({
                 required={fields.requiredDate.required}
               />
               {fieldErrors.requiredDate && (
-                <p id="requiredDate-error" className="text-xs text-[var(--tmkeen-danger)]">
+                <p id="requiredDate-error" className="text-xs text-[var(--zaad-danger)]" role="alert" data-field-error>
                   {fieldErrors.requiredDate}
                 </p>
               )}
             </div>
           )}
 
-          {selectedType?.requiresVisitDate && fields.visitDate.enabled && (
+          {visibility.hallBooking && (
+            <div className="space-y-1">
+              <HallBookingFields
+                onSelect={(selection) => {
+                  setHallBooking(selection);
+                  setFieldErrors((prev) => ({ ...prev, hallBooking: undefined }));
+                }}
+              />
+              {fieldErrors.hallBooking && (
+                <p className="text-xs text-[var(--zaad-danger)]" role="alert" data-field-error>
+                  {fieldErrors.hallBooking}
+                </p>
+              )}
+            </div>
+          )}
+
+          {visibility.visitDate && (
             <div className="space-y-1">
               <label className="label-field" htmlFor="visitDate">
                 {fields.visitDate.label}
@@ -483,7 +707,7 @@ export default function DynamicSubmitForm({
                 required
               />
               {fieldErrors.visitDate && (
-                <p id="visitDate-error" className="text-xs text-[var(--tmkeen-danger)]">
+                <p id="visitDate-error" className="text-xs text-[var(--zaad-danger)]" role="alert" data-field-error>
                   {fieldErrors.visitDate}
                 </p>
               )}
@@ -510,13 +734,13 @@ export default function DynamicSubmitForm({
               required
             />
             {fieldErrors.contactEmail && (
-              <p id="contactEmail-error" className="text-xs text-[var(--tmkeen-danger)]">
+              <p id="contactEmail-error" className="text-xs text-[var(--zaad-danger)]" role="alert" data-field-error>
                 {fieldErrors.contactEmail}
               </p>
             )}
           </div>
 
-          {fields.contactPhone.enabled && (
+          {visibility.contactPhone && (
             <div className="space-y-1">
               <label className="label-field" htmlFor="contactPhone">
                 {fields.contactPhone.label}
@@ -542,7 +766,7 @@ export default function DynamicSubmitForm({
                 required={fields.contactPhone.required}
               />
               {fieldErrors.contactPhone && (
-                <p id="contactPhone-error" className="text-xs text-[var(--tmkeen-danger)]">
+                <p id="contactPhone-error" className="text-xs text-[var(--zaad-danger)]" role="alert" data-field-error>
                   {fieldErrors.contactPhone}
                 </p>
               )}
@@ -550,7 +774,7 @@ export default function DynamicSubmitForm({
           )}
 
           {error && (
-            <p className="text-sm text-[var(--tmkeen-danger)]" role="alert">
+            <p className="text-sm text-[var(--zaad-danger)]" role="alert">
               {error}
             </p>
           )}

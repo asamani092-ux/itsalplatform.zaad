@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 import { NextRequest } from "next/server";
 import { writeFile, mkdir } from "fs/promises";
 import path from "path";
+import { requireManagerSession } from "@/lib/auth/route-guard";
 import { handleApiError, jsonError, jsonOk } from "@/lib/api-utils";
 import { detectFileTypeFromBytes } from "@/lib/file-validation";
 import { checkRateLimit, rateLimitKey } from "@/lib/rate-limit";
@@ -10,6 +11,9 @@ const MAX_SIZE = 5 * 1024 * 1024;
 
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireManagerSession();
+    if (auth.error) return auth.error;
+
     const limit = checkRateLimit(rateLimitKey(request, "uploads"), 10, 60_000);
     if (!limit.allowed) {
       return jsonError("تم تجاوز عدد المحاولات المسموح. حاول لاحقاً.", "RATE_LIMITED", 429);
@@ -34,11 +38,11 @@ export async function POST(request: NextRequest) {
     }
 
     const filename = `${randomUUID()}.${detected.ext}`;
-    const uploadDir = path.join(process.cwd(), "public", "uploads", "proofs");
+    const uploadDir = path.join(process.cwd(), "public", "uploads", "media");
     await mkdir(uploadDir, { recursive: true });
     await writeFile(path.join(uploadDir, filename), bytes);
 
-    return jsonOk({ url: `/uploads/proofs/${filename}` }, 201);
+    return jsonOk({ url: `/uploads/media/${filename}` }, 201);
   } catch (error) {
     return handleApiError(error);
   }

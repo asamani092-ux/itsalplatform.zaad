@@ -36,8 +36,13 @@ yarn-error.log*
 # uploads
 /public/uploads/proofs/*
 !/public/uploads/proofs/.gitkeep
+/storage/proofs/*
+!/storage/proofs/.gitkeep
 
 # playwright
 /playwright-report
 /test-results
 /test-results/
+
+# runtime auth lock state
+.data/

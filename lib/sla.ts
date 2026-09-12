@@ -14,7 +14,7 @@ interface SlaTimestamps {
 
 function diffMs(start: Date | null, end: Date | null): number | null {
   if (!start || !end) return null;
-  return end.getTime() - start.getTime();
+  return Math.max(0, end.getTime() - start.getTime());
 }
 
 export function calculateSlaMetrics(timestamps: SlaTimestamps): SlaMetrics {

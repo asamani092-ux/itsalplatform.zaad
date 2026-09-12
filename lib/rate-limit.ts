@@ -1,13 +1,19 @@
 /**
- * In-memory sliding-window rate limiter keyed by IP + route.
- * Suitable for single-instance deployments; replace with Redis for multi-instance.
+ * In-memory sliding-window rate limiter (burst protection).
+ * For login failure lockouts use lib/auth/login-lock.ts (DB-backed).
  */
 
 interface WindowEntry {
   timestamps: number[];
 }
 
-const store = new Map<string, WindowEntry>();
+const globalStore = globalThis as typeof globalThis & {
+  __zaadRateLimitStore?: Map<string, WindowEntry>;
+};
+
+const store =
+  globalStore.__zaadRateLimitStore ??
+  (globalStore.__zaadRateLimitStore = new Map<string, WindowEntry>());
 
 export interface RateLimitResult {
   allowed: boolean;
@@ -42,5 +48,5 @@ export function getClientIp(request: Request): string {
 }
 
 export function rateLimitKey(request: Request, route: string): string {
-  return `${getClientIp(request)}:${route}`;
+  return `${route}:${getClientIp(request)}`;
 }

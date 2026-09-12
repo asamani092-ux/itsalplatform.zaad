@@ -4,8 +4,9 @@ import { ARCHIVE_STATUSES, ACTIVE_STATUSES, assertTransition } from "./workflow"
 import { resolveAssignee } from "./routing-service";
 import { RequestStatus } from "../generated/prisma/client";
 import { generateApprovalToken } from "./tokens";
-import { notify, notifyManager } from "./notifications";
+import { notify, notifyManager, notifyRequesterManager, notifySubmitter } from "./notifications";
 import { getAppUrl } from "./api-utils";
+import { canCancelStatus } from "./request-stop";
 
 type DashboardView = "active" | "archive" | "all";
 
@@ -31,21 +32,42 @@ const requestInclude = {
   requestType: {
     select: { id: true, name: true, slug: true, requiresVisitDate: true },
   },
+  hospitalityBooking: {
+    select: {
+      roomName: true,
+      meetingDate: true,
+      startTime: true,
+      endTime: true,
+      attendeesCount: true,
+    },
+  },
 } as const;
+
+function normalizeProofUrl<T extends { proofFileUrl?: string | null }>(
+  request: T,
+): T {
+  const url = request.proofFileUrl;
+  if (typeof url === "string" && url.startsWith("/uploads/proofs/")) {
+    return { ...request, proofFileUrl: `/api${url}` };
+  }
+  return request;
+}
 
 function withSla<T extends {
   createdAt: Date;
   approvedAt: Date | null;
   assignedAt: Date | null;
   completedAt: Date | null;
+  proofFileUrl?: string | null;
 }>(request: T) {
+  const normalized = normalizeProofUrl(request);
   return {
-    ...request,
+    ...normalized,
     sla: calculateSlaMetrics({
-      createdAt: request.createdAt,
-      approvedAt: request.approvedAt,
-      assignedAt: request.assignedAt,
-      completedAt: request.completedAt,
+      createdAt: normalized.createdAt,
+      approvedAt: normalized.approvedAt,
+      assignedAt: normalized.assignedAt,
+      completedAt: normalized.completedAt,
     }),
   };
 }
@@ -56,9 +78,17 @@ export async function listRequests(options: {
   departmentId?: string;
   requestTypeId?: string;
   assignedEmployeeId?: string;
+  /** When true, skip the default Pending_Manager hiding applied to view=all. */
+  includePendingManager?: boolean;
 }) {
-  const { view = "all", status, departmentId, requestTypeId, assignedEmployeeId } =
-    options;
+  const {
+    view = "all",
+    status,
+    departmentId,
+    requestTypeId,
+    assignedEmployeeId,
+    includePendingManager = false,
+  } = options;
 
   let statusFilter: RequestStatus[] | undefined;
   if (status) {
@@ -69,9 +99,14 @@ export async function listRequests(options: {
     statusFilter = ARCHIVE_STATUSES;
   }
 
+  const hidePendingManager = view === "all" && !status && !includePendingManager;
+
   const requests = await prisma.communicationRequest.findMany({
     where: {
       ...(statusFilter ? { status: { in: statusFilter } } : {}),
+      ...(hidePendingManager
+        ? { status: { not: RequestStatus.Pending_Manager } }
+        : {}),
       ...(departmentId ? { departmentId } : {}),
       ...(requestTypeId ? { requestTypeId } : {}),
       ...(assignedEmployeeId ? { assignedEmployeeId } : {}),
@@ -113,7 +148,10 @@ export async function getRequestByToken(token: string) {
     throw new Error("NOT_FOUND: رمز الموافقة غير صالح");
   }
 
-  assertApprovalTokenNotExpired(request);
+  // Expiry applies only while awaiting decision
+  if (request.status === RequestStatus.Pending_Manager) {
+    assertApprovalTokenNotExpired(request);
+  }
 
   return withSla(request);
 }
@@ -154,6 +192,7 @@ export async function recordAssignment(params: {
 
 export async function submitRequest(params: {
   title: string;
+  contactName?: string;
   description: string;
   requiredDate: Date;
   contactEmail: string;
@@ -161,12 +200,30 @@ export async function submitRequest(params: {
   departmentId: string;
   requestTypeId: string;
   visitDate?: Date | null;
+  requesterAdministrationId?: string | null;
 }) {
   const department = await prisma.department.findFirst({
     where: { id: params.departmentId, isActive: true },
   });
   if (!department) {
     throw new Error("NOT_FOUND: القسم غير موجود");
+  }
+
+  // Resolve the submitter's line manager from their (external) administration so
+  // the request can notify their own manager — independent of the handling section.
+  let requesterAdministration: {
+    id: string;
+    managerEmail: string;
+    managerName: string;
+  } | null = null;
+  if (params.requesterAdministrationId) {
+    requesterAdministration = await prisma.administration.findFirst({
+      where: { id: params.requesterAdministrationId, isActive: true },
+      select: { id: true, managerEmail: true, managerName: true },
+    });
+    if (!requesterAdministration) {
+      throw new Error("NOT_FOUND: إدارة مقدّم الطلب غير موجودة");
+    }
   }
 
   const requestType = await prisma.requestType.findFirst({
@@ -181,20 +238,32 @@ export async function submitRequest(params: {
   }
 
   const approvalToken = generateApprovalToken();
+  const { skipDepartmentApproval } = await import("./app-settings").then((m) =>
+    m.getWorkflowSettings(),
+  );
+
+  const initialStatus = skipDepartmentApproval
+    ? RequestStatus.Approved_Pending_Assignment
+    : RequestStatus.Pending_Manager;
+
   const created = await prisma.communicationRequest.create({
     data: {
       title: params.title,
+      contactName: params.contactName?.trim() || "",
       description: params.description,
       requiredDate: params.requiredDate,
       contactEmail: params.contactEmail,
       contactPhone: params.contactPhone,
       managerEmail: department.managerEmail,
+      requesterAdministrationId: requesterAdministration?.id ?? null,
+      requesterManagerEmail: requesterAdministration?.managerEmail ?? null,
       departmentId: params.departmentId,
       requestTypeId: params.requestTypeId,
       visitDate: params.visitDate ?? null,
       approvalToken,
       approvalTokenExpiresAt: approvalTokenExpiresAtFromNow(),
-      status: RequestStatus.Pending_Manager,
+      status: initialStatus,
+      approvedAt: skipDepartmentApproval ? new Date() : null,
     },
     include: requestInclude,
   });
@@ -202,18 +271,92 @@ export async function submitRequest(params: {
   await recordStatusChange({
     requestId: created.id,
     fromStatus: null,
-    toStatus: RequestStatus.Pending_Manager,
-    note: "تم تقديم الطلب",
+    toStatus: initialStatus,
+    note: skipDepartmentApproval
+      ? "تقديم مباشر للوحة العمل (تجاوز موافقة مدير الإدارة)"
+      : "تم تقديم الطلب",
   });
 
-  const approvalUrl = `${getAppUrl()}/approve?token=${approvalToken}`;
+  // Acknowledge receipt to the requester.
+  await notifySubmitter({
+    contactEmail: created.contactEmail,
+    contactPhone: created.contactPhone,
+    requestTitle: created.title,
+    message: "تم استلام طلبك",
+    reference: created.id.slice(-8),
+    emailKind: "submitted",
+  });
+
+  // Notify the submitter's own line manager (from their administration), if known.
+  if (requesterAdministration?.managerEmail) {
+    await notifyRequesterManager({
+      managerEmail: requesterAdministration.managerEmail,
+      requestTitle: params.title,
+      requestId: created.id,
+    });
+  }
+
+  if (skipDepartmentApproval) {
+    const assignee = await resolveAssignee(params.requestTypeId);
+    if (assignee) {
+      assertTransition(
+        RequestStatus.Approved_Pending_Assignment,
+        RequestStatus.In_Progress,
+      );
+      const assigned = await prisma.communicationRequest.update({
+        where: { id: created.id },
+        data: {
+          status: RequestStatus.In_Progress,
+          assignedEmployeeId: assignee.id,
+          assignedAt: new Date(),
+        },
+        include: requestInclude,
+      });
+      await recordStatusChange({
+        requestId: created.id,
+        fromStatus: RequestStatus.Approved_Pending_Assignment,
+        toStatus: RequestStatus.In_Progress,
+        changedBy: "routing-service",
+        note: "إسناد تلقائي عبر قاعدة التوجيه",
+      });
+      await recordAssignment({
+        requestId: created.id,
+        employeeId: assignee.id,
+        assignedBy: "routing-service",
+        note: "إسناد تلقائي",
+      });
+      await notify({
+        recipientId: assignee.id,
+        recipientEmail: assignee.email,
+        type: "assignment",
+        title: "تم إسناد تذكرة جديدة إليك",
+        body: `الطلب: ${assigned.title}`,
+        link: `/employee/tickets/${assigned.id}`,
+        channel: "both",
+        emailKind: "assigned",
+      });
+      await notifySubmitter({
+        contactEmail: assigned.contactEmail,
+        contactPhone: assigned.contactPhone,
+        requestTitle: assigned.title,
+        message: "بدأ العمل على طلبك",
+        reference: assigned.id.slice(-8),
+        emailKind: "in_progress",
+      });
+      return { request: withSla(assigned), approvalUrl: null as string | null };
+    }
+    return { request: withSla(created), approvalUrl: null as string | null };
+  }
+
+  const approvalPath = `/approve?token=${approvalToken}`;
+  const approvalUrl = `${getAppUrl()}${approvalPath}`;
   await notifyManager({
     managerEmail: department.managerEmail,
     requestTitle: params.title,
     approvalUrl,
   });
 
-  return { request: withSla(created), approvalUrl };
+  return { request: withSla(created), approvalUrl: approvalPath };
 }
 
 export async function approveRequest(token: string) {
@@ -291,6 +434,16 @@ export async function approveRequest(token: string) {
       "/dashboard/kanban",
     );
 
+    // Auto-assignment: approval and work-start coincide — inform the requester.
+    await notifySubmitter({
+      contactEmail: updated.contactEmail,
+      contactPhone: updated.contactPhone,
+      requestTitle: updated.title,
+      message: "بدأ العمل على طلبك",
+      reference: updated.id.slice(-8),
+      emailKind: "in_progress",
+    });
+
     return withSla(updated);
   }
 
@@ -320,6 +473,145 @@ export async function approveRequest(token: string) {
     `تمت الموافقة على: ${updated.title}`,
     "/dashboard/kanban",
   );
+
+  // Inform the requester that their manager approved the request.
+  await notifySubmitter({
+    contactEmail: updated.contactEmail,
+    contactPhone: updated.contactPhone,
+    requestTitle: updated.title,
+    message: "تمت الموافقة على طلبك",
+    reference: updated.id.slice(-8),
+    emailKind: "approved",
+  });
+
+  return withSla(updated);
+}
+
+export async function approveRequestById(requestId: string) {
+  const request = await prisma.communicationRequest.findUnique({
+    where: { id: requestId },
+    select: { approvalToken: true },
+  });
+  if (!request) {
+    throw new Error("NOT_FOUND: الطلب غير موجود");
+  }
+  return approveRequest(request.approvalToken);
+}
+
+export async function rejectRequest(params: {
+  reason: string;
+  token?: string;
+  requestId?: string;
+  changedBy?: string;
+}) {
+  const reason = params.reason.trim();
+  if (reason.length < 3) {
+    throw new Error("VALIDATION: سبب الرفض مطلوب (3 أحرف على الأقل)");
+  }
+
+  if (!params.token && !params.requestId) {
+    throw new Error("VALIDATION: معرّف الطلب أو رمز الموافقة مطلوب");
+  }
+
+  const request = params.token
+    ? await prisma.communicationRequest.findUnique({
+        where: { approvalToken: params.token },
+      })
+    : await prisma.communicationRequest.findUnique({
+        where: { id: params.requestId! },
+      });
+
+  if (!request) {
+    throw new Error("NOT_FOUND: الطلب غير موجود");
+  }
+
+  if (request.status !== RequestStatus.Pending_Manager) {
+    throw new Error("ALREADY_PROCESSED: تمت معالجة هذا الطلب مسبقاً");
+  }
+
+  if (params.token) {
+    assertApprovalTokenNotExpired(request);
+  }
+
+  assertTransition(request.status, RequestStatus.Rejected);
+
+  const updated = await prisma.communicationRequest.update({
+    where: { id: request.id },
+    data: {
+      status: RequestStatus.Rejected,
+      rejectedAt: new Date(),
+      rejectionReason: reason,
+      approvalTokenExpiresAt: new Date(),
+    },
+    include: requestInclude,
+  });
+
+  await recordStatusChange({
+    requestId: request.id,
+    fromStatus: RequestStatus.Pending_Manager,
+    toStatus: RequestStatus.Rejected,
+    changedBy: params.changedBy ?? request.managerEmail,
+    note: reason,
+  });
+
+  await notifySubmitter({
+    contactEmail: updated.contactEmail,
+    contactPhone: updated.contactPhone,
+    requestTitle: updated.title,
+    message: `تم رفض الطلب: ${reason}`,
+    reference: updated.id.slice(-8),
+    emailKind: "rejected",
+    reason,
+  });
+
+  return withSla(updated);
+}
+
+export async function cancelRequest(params: {
+  requestId: string;
+  reason: string;
+  changedBy?: string;
+}) {
+  const reason = params.reason.trim();
+  if (reason.length < 3) {
+    throw new Error("VALIDATION: سبب الإلغاء مطلوب (3 أحرف على الأقل)");
+  }
+
+  const existing = await getRequestById(params.requestId);
+
+  if (!canCancelStatus(existing.status)) {
+    throw new Error("INVALID_STATE: لا يمكن إلغاء الطلب في حالته الحالية");
+  }
+
+  assertTransition(existing.status, RequestStatus.Cancelled);
+
+  const updated = await prisma.communicationRequest.update({
+    where: { id: params.requestId },
+    data: {
+      status: RequestStatus.Cancelled,
+      cancelledAt: new Date(),
+      cancellationReason: reason,
+    },
+    include: requestInclude,
+  });
+
+  await recordStatusChange({
+    requestId: params.requestId,
+    fromStatus: existing.status,
+    toStatus: RequestStatus.Cancelled,
+    changedBy: params.changedBy,
+    note: reason,
+  });
+
+  await notifySubmitter({
+    contactEmail: updated.contactEmail,
+    contactPhone: updated.contactPhone,
+    requestTitle: updated.title,
+    message: `تم إلغاء الطلب: ${reason}`,
+    reference: updated.id.slice(-8),
+    emailKind: "cancelled",
+    reason,
+  });
 
   return withSla(updated);
 }
@@ -405,6 +697,16 @@ export async function assignRequest(params: {
     emailKind: "assigned",
   });
 
+  // Manual assignment starts execution — inform the requester.
+  await notifySubmitter({
+    contactEmail: updated.contactEmail,
+    contactPhone: updated.contactPhone,
+    requestTitle: updated.title,
+    message: "بدأ العمل على طلبك",
+    reference: updated.id.slice(-8),
+    emailKind: "in_progress",
+  });
+
   return withSla(updated);
 }
 
@@ -485,6 +787,51 @@ export async function updateRequestStatus(params: {
   return withSla(updated);
 }
 
+async function notifyManagersBoth(
+  managerEmail: string,
+  type: string,
+  title: string,
+  body: string,
+  link: string,
+  emailKind?: import("./notifications/email").EmailTemplateKind,
+  note?: string,
+): Promise<void> {
+  try {
+    const manager = await prisma.commEmployee.findFirst({
+      where: { email: managerEmail, isActive: true },
+    });
+    if (manager) {
+      await notify({
+        recipientId: manager.id,
+        recipientEmail: manager.email,
+        type,
+        title,
+        body,
+        link,
+        channel: "both",
+        emailKind,
+        note,
+      });
+      return;
+    }
+    if (emailKind) {
+      const { buildEmailTemplate, sendEmail } = await import("./notifications/email");
+      const template = buildEmailTemplate(emailKind, {
+        title,
+        link,
+        note,
+      });
+      await sendEmail({
+        to: managerEmail,
+        subject: template.subject,
+        html: template.html,
+      });
+    }
+  } catch (error) {
+    console.error("[request-service] notifyManagersBoth failed", error);
+  }
+}
+
 export async function completeEmployeeTicket(params: {
   requestId: string;
   employeeId: string;
@@ -497,27 +844,237 @@ export async function completeEmployeeTicket(params: {
   }
 
   if (existing.status !== RequestStatus.In_Progress) {
-    throw new Error("INVALID_STATE: يمكن إكمال الطلبات قيد التنفيذ فقط");
+    throw new Error("INVALID_STATE: يمكن إعلان الانتهاء للطلبات قيد التنفيذ فقط");
+  }
+
+  assertTransition(existing.status, RequestStatus.Pending_Review);
+  const now = new Date();
+
+  const updated = await prisma.communicationRequest.update({
+    where: { id: params.requestId },
+    data: {
+      status: RequestStatus.Pending_Review,
+      completionDeclaredAt: now,
+      ...(params.proofFileUrl ? { proofFileUrl: params.proofFileUrl } : {}),
+    },
+    include: requestInclude,
+  });
+
+  await recordStatusChange({
+    requestId: params.requestId,
+    fromStatus: existing.status,
+    toStatus: RequestStatus.Pending_Review,
+    changedBy: params.employeeId,
+    note: "إعلان الانتهاء من مساحة الموظف",
+  });
+
+  await notifyManagersBoth(
+    updated.managerEmail,
+    "pending_review",
+    "تذكرة بانتظار مراجعتك",
+    `أعلن الموظف انتهاء العمل على: ${updated.title}`,
+    "/dashboard/kanban",
+    "pending_review",
+  );
+
+  return withSla(updated);
+}
+
+/** Token-based reject for the public approval link (no session). */
+export async function rejectRequestByToken(token: string, reason: string) {
+  return rejectRequest({ token, reason });
+}
+
+export async function approveCompletion(params: {
+  requestId: string;
+  managerId: string;
+}) {
+  const existing = await getRequestById(params.requestId);
+  if (existing.status !== RequestStatus.Pending_Review) {
+    throw new Error("INVALID_STATE: يمكن اعتماد الإكمال للتذاكر بانتظار المراجعة فقط");
   }
 
   const completed = await updateRequestStatus({
     requestId: params.requestId,
     status: RequestStatus.Completed,
-    changedBy: params.employeeId,
-    note: "إكمال من مساحة الموظف",
-    proofFileUrl: params.proofFileUrl,
+    changedBy: params.managerId,
+    note: "اعتماد إكمال من المدير",
   });
 
-  const { notifySubmitter } = await import("./notifications");
-  await notifySubmitter({
-    contactEmail: completed.contactEmail,
-    contactPhone: completed.contactPhone,
-    requestTitle: completed.title,
-    message: `تم إكمال طلبك "${completed.title}".`,
-    reference: completed.id.slice(-8).toUpperCase(),
-  });
+  try {
+    const { notifySubmitter } = await import("./notifications");
+    await notifySubmitter({
+      contactEmail: completed.contactEmail,
+      contactPhone: completed.contactPhone,
+      requestTitle: completed.title,
+      message: `تم إكمال طلبك "${completed.title}".`,
+      reference: completed.id.slice(-8).toUpperCase(),
+      emailKind: "completed",
+    });
+  } catch (error) {
+    console.error("[request-service] approveCompletion notify failed", error);
+  }
 
   return completed;
+}
+
+export async function returnToEmployee(params: {
+  requestId: string;
+  managerId: string;
+  reviewNote: string;
+}) {
+  const reviewNote = params.reviewNote.trim();
+  if (!reviewNote) {
+    throw new Error("VALIDATION: ملاحظة الإرجاع مطلوبة");
+  }
+
+  const existing = await getRequestById(params.requestId);
+  if (existing.status !== RequestStatus.Pending_Review) {
+    throw new Error("INVALID_STATE: يمكن إرجاع التذاكر بانتظار المراجعة فقط");
+  }
+  if (!existing.assignedEmployeeId || !existing.assignedEmployee) {
+    throw new Error("INVALID_STATE: لا يوجد موظف مسند لإرجاع التذكرة إليه");
+  }
+
+  assertTransition(existing.status, RequestStatus.Returned);
+
+  const updated = await prisma.communicationRequest.update({
+    where: { id: params.requestId },
+    data: {
+      status: RequestStatus.Returned,
+      reviewNote,
+    },
+    include: requestInclude,
+  });
+
+  await recordStatusChange({
+    requestId: params.requestId,
+    fromStatus: RequestStatus.Pending_Review,
+    toStatus: RequestStatus.Returned,
+    changedBy: params.managerId,
+    note: reviewNote,
+  });
+
+  try {
+    const assignee = existing.assignedEmployee;
+    await notify({
+      recipientId: assignee.id,
+      recipientEmail: assignee.email,
+      type: "returned",
+      title: "أُعيدت التذكرة",
+      body: `أُعيدت التذكرة "${updated.title}": ${reviewNote}`,
+      link: `/employee/tickets/${updated.id}`,
+      channel: "both",
+      emailKind: "returned",
+      note: reviewNote,
+    });
+  } catch (error) {
+    console.error("[request-service] returnToEmployee notify failed", error);
+  }
+
+  return withSla(updated);
+}
+
+export async function redeclareAfterReturn(params: {
+  requestId: string;
+  employeeId: string;
+  proofFileUrl?: string;
+  employeeNote?: string;
+}) {
+  const existing = await getRequestById(params.requestId);
+
+  if (existing.assignedEmployeeId !== params.employeeId) {
+    throw new Error("FORBIDDEN: هذا الطلب غير مسند إليك");
+  }
+  if (existing.status !== RequestStatus.Returned) {
+    throw new Error("INVALID_STATE: يمكن إعادة الإعلان للتذاكر المُعادة فقط");
+  }
+
+  assertTransition(existing.status, RequestStatus.Pending_Review);
+  const now = new Date();
+
+  const updated = await prisma.communicationRequest.update({
+    where: { id: params.requestId },
+    data: {
+      status: RequestStatus.Pending_Review,
+      completionDeclaredAt: now,
+      ...(params.proofFileUrl ? { proofFileUrl: params.proofFileUrl } : {}),
+      ...(params.employeeNote ? { employeeNote: params.employeeNote } : {}),
+    },
+    include: requestInclude,
+  });
+
+  await recordStatusChange({
+    requestId: params.requestId,
+    fromStatus: RequestStatus.Returned,
+    toStatus: RequestStatus.Pending_Review,
+    changedBy: params.employeeId,
+    note: params.employeeNote?.trim() || "إعادة إعلان بعد التصحيح",
+  });
+
+  await notifyManagersBoth(
+    updated.managerEmail,
+    "pending_review",
+    "تذكرة بانتظار مراجعتك",
+    `أعاد الموظف إعلان الانتهاء على: ${updated.title}`,
+    "/dashboard/kanban",
+    "pending_review",
+  );
+
+  return withSla(updated);
+}
+
+export async function employeeRejectAssignment(params: {
+  requestId: string;
+  employeeId: string;
+  employeeNote: string;
+}) {
+  const employeeNote = params.employeeNote.trim();
+  if (!employeeNote) {
+    throw new Error("VALIDATION: ملاحظة رفض الإسناد مطلوبة");
+  }
+
+  const existing = await getRequestById(params.requestId);
+
+  if (existing.assignedEmployeeId !== params.employeeId) {
+    throw new Error("FORBIDDEN: هذا الطلب غير مسند إليك");
+  }
+  if (existing.status !== RequestStatus.In_Progress) {
+    throw new Error("INVALID_STATE: يمكن رفض الإسناد للتذاكر قيد التنفيذ فقط");
+  }
+
+  assertTransition(existing.status, RequestStatus.Approved_Pending_Assignment);
+
+  const updated = await prisma.communicationRequest.update({
+    where: { id: params.requestId },
+    data: {
+      status: RequestStatus.Approved_Pending_Assignment,
+      employeeNote,
+      assignedEmployeeId: null,
+      assignedAt: null,
+    },
+    include: requestInclude,
+  });
+
+  await recordStatusChange({
+    requestId: params.requestId,
+    fromStatus: RequestStatus.In_Progress,
+    toStatus: RequestStatus.Approved_Pending_Assignment,
+    changedBy: params.employeeId,
+    note: employeeNote,
+  });
+
+  await notifyManagersBoth(
+    updated.managerEmail,
+    "reassignment_request",
+    "رفض / طلب إعادة إسناد",
+    `رفض الموظف التذكرة "${updated.title}": ${employeeNote}`,
+    "/dashboard/kanban",
+    "reassignment_request",
+    employeeNote,
+  );
+
+  return withSla(updated);
 }
 
 interface KpiDepartmentNameRow {
@@ -551,7 +1108,37 @@ interface KpiCompletedLifecycleRow {
   completedAt: Date | null;
 }
 
-export async function getManagerKpis() {
+interface KpiAssignTimestampRow {
+  createdAt: Date;
+  assignedAt: Date | null;
+}
+
+interface KpiAssignPairRow {
+  createdAt: Date;
+  assignedAt: Date;
+}
+
+interface KpiDepartmentBucketRow {
+  departmentId: string;
+  departmentName: string;
+  count: number;
+}
+
+interface KpiOverdueListRow {
+  id: string;
+  title: string;
+  status: RequestStatus;
+  requiredDate: Date;
+  departmentId: string;
+  department: { name: string } | null;
+}
+
+export async function getManagerKpis(options?: { departmentId?: string }) {
+  // Scope every metric to a single section when a departmentId is provided.
+  const scopeWhere = options?.departmentId
+    ? { departmentId: options.departmentId }
+    : {};
+
   const [statusCounts, byDepartment, byRequestType, allCompleted]: [
     KpiStatusCountGroupRow[],
     KpiDepartmentCountGroupRow[],
@@ -560,18 +1147,21 @@ export async function getManagerKpis() {
   ] = await Promise.all([
       prisma.communicationRequest.groupBy({
         by: ["status"],
+        where: scopeWhere,
         _count: { _all: true },
       }),
       prisma.communicationRequest.groupBy({
         by: ["departmentId"],
+        where: scopeWhere,
         _count: { _all: true },
       }),
       prisma.communicationRequest.groupBy({
         by: ["requestTypeId"],
+        where: scopeWhere,
         _count: { _all: true },
       }),
       prisma.communicationRequest.findMany({
-        where: { completedAt: { not: null } },
+        where: { ...scopeWhere, completedAt: { not: null } },
         select: {
           requestTypeId: true,
           createdAt: true,
@@ -597,7 +1187,7 @@ export async function getManagerKpis() {
   const slaByType: Record<string, { count: number; avgMs: number }> = {};
   for (const row of allCompleted) {
     if (!row.completedAt) continue;
-    const ms = row.completedAt.getTime() - row.createdAt.getTime();
+    const ms = Math.max(0, row.completedAt.getTime() - row.createdAt.getTime());
     if (!slaByType[row.requestTypeId]) {
       slaByType[row.requestTypeId] = { count: 0, avgMs: 0 };
     }
@@ -615,23 +1205,164 @@ export async function getManagerKpis() {
     statusCounts.find((s: KpiStatusCountGroupRow) => s.status === RequestStatus.Completed)?._count
       ._all ?? 0;
 
+  const countOf = (status: RequestStatus) =>
+    statusCounts.find((s: KpiStatusCountGroupRow) => s.status === status)?._count._all ?? 0;
+
+  const weekAgo = new Date();
+  weekAgo.setDate(weekAgo.getDate() - 7);
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const monthAhead = new Date();
+  monthAhead.setDate(monthAhead.getDate() + 30);
+
+  const overdueOpenWhere = {
+    ...scopeWhere,
+    requiredDate: { lt: todayStart },
+    status: { notIn: [RequestStatus.Completed, RequestStatus.Archived] },
+  };
+
+  const [
+    completedThisWeek,
+    overdueOpen,
+    upcomingBookings,
+    visitsToday,
+    avgAssignMsRows,
+    overdueByDepartmentRows,
+    overdueList,
+  ]: [
+    number,
+    number,
+    number,
+    number,
+    KpiAssignTimestampRow[],
+    KpiDepartmentCountGroupRow[],
+    KpiOverdueListRow[],
+  ] = await Promise.all([
+      prisma.communicationRequest.count({
+        where: { ...scopeWhere, completedAt: { gte: weekAgo } },
+      }),
+      prisma.communicationRequest.count({ where: overdueOpenWhere }),
+      prisma.hospitalityBooking.count({
+        where: { meetingDate: { gte: todayStart, lte: monthAhead } },
+      }),
+      prisma.communicationRequest.count({
+        where: {
+          ...scopeWhere,
+          visitDate: { gte: todayStart, lt: new Date(todayStart.getTime() + 86400000) },
+          approvedAt: { not: null },
+          requestType: { requiresVisitDate: true },
+        },
+      }),
+      prisma.communicationRequest.findMany({
+        where: { ...scopeWhere, assignedAt: { not: null } },
+        select: { createdAt: true, assignedAt: true },
+        take: 500,
+        orderBy: { assignedAt: "desc" },
+      }),
+      prisma.communicationRequest.groupBy({
+        by: ["departmentId"],
+        where: overdueOpenWhere,
+        _count: { _all: true },
+      }),
+      prisma.communicationRequest.findMany({
+        where: overdueOpenWhere,
+        select: {
+          id: true,
+          title: true,
+          status: true,
+          requiredDate: true,
+          departmentId: true,
+          department: { select: { name: true } },
+        },
+        orderBy: { requiredDate: "asc" },
+        take: 10,
+      }),
+    ]);
+
+  let avgAssignmentMs: number | null = null;
+  {
+    const assignRows: KpiAssignTimestampRow[] = avgAssignMsRows;
+    const assignPairs: KpiAssignPairRow[] = assignRows.filter(
+      (row: KpiAssignTimestampRow): row is KpiAssignPairRow =>
+        row.assignedAt != null,
+    );
+    if (assignPairs.length > 0) {
+      const sum = assignPairs.reduce(
+        (acc: number, row: KpiAssignPairRow) =>
+          acc + Math.max(0, row.assignedAt.getTime() - row.createdAt.getTime()),
+        0,
+      );
+      avgAssignmentMs = sum / assignPairs.length;
+    }
+  }
+
+  const completedLifecycle = allCompleted.filter(
+    (r: KpiCompletedLifecycleRow): r is KpiCompletedLifecycleRow & { completedAt: Date } =>
+      r.completedAt != null,
+  );
+  const avgLifecycleMs =
+    completedLifecycle.length > 0
+      ? completedLifecycle.reduce(
+          (acc: number, r: KpiCompletedLifecycleRow & { completedAt: Date }) =>
+            acc + Math.max(0, r.completedAt.getTime() - r.createdAt.getTime()),
+          0,
+        ) / completedLifecycle.length
+      : null;
+
   return {
     totalRequests: total,
     completionRate: total > 0 ? completed / total : 0,
+    pendingManager: countOf(RequestStatus.Pending_Manager),
+    pendingAssignment: countOf(RequestStatus.Approved_Pending_Assignment),
+    inProgress: countOf(RequestStatus.In_Progress),
+    completed,
+    completedThisWeek,
+    overdueOpen,
+    upcomingBookings,
+    visitsToday,
+    avgLifecycleMs,
+    avgAssignmentMs,
     statusCounts: statusCounts.map((s: KpiStatusCountGroupRow) => ({
       status: s.status,
       count: s._count._all,
     })),
-    byDepartment: byDepartment.map((d: KpiDepartmentCountGroupRow) => ({
-      departmentId: d.departmentId,
-      departmentName: deptMap[d.departmentId] ?? d.departmentId,
-      count: d._count._all,
-    })),
+    byDepartment: byDepartment
+      .map(
+        (d: KpiDepartmentCountGroupRow): KpiDepartmentBucketRow => ({
+          departmentId: d.departmentId,
+          departmentName: deptMap[d.departmentId] ?? d.departmentId,
+          count: d._count._all,
+        }),
+      )
+      .sort(
+        (a: KpiDepartmentBucketRow, b: KpiDepartmentBucketRow) =>
+          b.count - a.count,
+      ),
     byRequestType: byRequestType.map((r: KpiRequestTypeCountGroupRow) => ({
       requestTypeId: r.requestTypeId,
       requestTypeName: typeMap[r.requestTypeId] ?? r.requestTypeId,
       count: r._count._all,
       avgLifecycleMs: slaByType[r.requestTypeId]?.avgMs ?? null,
+    })),
+    // Director focus: late / unclosed requests, overall and per section.
+    overdueByDepartment: overdueByDepartmentRows
+      .map(
+        (d: KpiDepartmentCountGroupRow): KpiDepartmentBucketRow => ({
+          departmentId: d.departmentId,
+          departmentName: deptMap[d.departmentId] ?? d.departmentId,
+          count: d._count._all,
+        }),
+      )
+      .sort(
+        (a: KpiDepartmentBucketRow, b: KpiDepartmentBucketRow) =>
+          b.count - a.count,
+      ),
+    overdueList: overdueList.map((r: KpiOverdueListRow) => ({
+      id: r.id,
+      title: r.title,
+      status: r.status,
+      requiredDate: r.requiredDate.toISOString(),
+      departmentName: r.department?.name ?? r.departmentId,
     })),
   };
 }
@@ -699,6 +1430,72 @@ export async function markVisitAttendance(params: {
   return { department, request: withSla(updated) };
 }
 
+/** Central desk: all departments' visit requests from today onward. Time O(n), Space O(n). */
+export async function listCentralReceptionVisits() {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const requests = await prisma.communicationRequest.findMany({
+    where: {
+      approvedAt: { not: null },
+      requestType: { requiresVisitDate: true },
+      visitDate: { gte: today },
+      status: {
+        in: [
+          RequestStatus.Approved_Pending_Assignment,
+          RequestStatus.In_Progress,
+          RequestStatus.Completed,
+        ],
+      },
+    },
+    include: requestInclude,
+    orderBy: [{ visitDate: "asc" }, { title: "asc" }],
+  });
+
+  return { requests: requests.map(withSla) };
+}
+
+/** Mark attendance by request id (central desk). Time O(1), Space O(1). */
+export async function markCentralVisitAttendance(params: {
+  requestId: string;
+  attended: boolean;
+}) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const existing = await prisma.communicationRequest.findFirst({
+    where: {
+      id: params.requestId,
+      approvedAt: { not: null },
+      requestType: { requiresVisitDate: true },
+      visitDate: { gte: today },
+      status: {
+        in: [
+          RequestStatus.Approved_Pending_Assignment,
+          RequestStatus.In_Progress,
+          RequestStatus.Completed,
+        ],
+      },
+    },
+    select: { id: true },
+  });
+
+  if (!existing) {
+    throw new Error("NOT_FOUND: الطلب غير موجود في قائمة الاستقبال المركزي");
+  }
+
+  const updated = await prisma.communicationRequest.update({
+    where: { id: params.requestId },
+    data: {
+      visitAttended: params.attended,
+      visitMarkedAt: new Date(),
+    },
+    include: requestInclude,
+  });
+
+  return { request: withSla(updated) };
+}
+
 export async function regenerateApprovalLink(requestId: string) {
   const request = await prisma.communicationRequest.findUnique({
     where: { id: requestId },
@@ -722,7 +1519,8 @@ export async function regenerateApprovalLink(requestId: string) {
     include: requestInclude,
   });
 
-  const approvalUrl = `${getAppUrl()}/approve?token=${approvalToken}`;
+  const approvalPath = `/approve?token=${approvalToken}`;
+  const approvalUrl = `${getAppUrl()}${approvalPath}`;
   await notifyManager({
     managerEmail: updated.managerEmail,
     requestTitle: updated.title,
@@ -731,7 +1529,7 @@ export async function regenerateApprovalLink(requestId: string) {
 
   return {
     id: updated.id,
-    approvalUrl,
+    approvalUrl: approvalPath,
     approvalTokenExpiresAt,
   };
 }

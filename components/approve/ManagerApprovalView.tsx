@@ -4,10 +4,14 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { getApiErrorMessage, parseApiResponse } from "@/components/lib/api-types";
 import { fetchWithTimeout } from "@/lib/client/fetch-with-timeout";
+import BrandLogo from "@/components/shared/brand-logo";
+import Skeleton from "@/components/ui/skeleton";
+import { useToast } from "@/components/ui/toast";
 
 interface TokenSummary {
   id: string;
   title: string;
+  contactName: string;
   description: string;
   requiredDate: string;
   contactEmail: string;
@@ -19,11 +23,13 @@ interface TokenSummary {
   department?: { name: string };
   requestType?: { name: string; requiresVisitDate: boolean };
   visitDate: string | null;
+  assignedEmployee?: { name: string } | null;
 }
 
 interface RequestDetails {
   id: string;
   title: string;
+  contactName: string;
   description: string;
   requiredDate: string;
   contactEmail: string;
@@ -31,9 +37,11 @@ interface RequestDetails {
   managerEmail: string;
   status: string;
   approvedAt: string | null;
+  rejectionReason?: string | null;
   department?: { name: string };
   requestType?: { name: string };
   visitDate: string | null;
+  assignedEmployee?: { name: string } | null;
 }
 
 type ViewState =
@@ -50,6 +58,10 @@ const STATUS_LABELS: Record<string, string> = {
   Pending_Manager: "بانتظار موافقتك",
   Approved_Pending_Assignment: "معتمد — بانتظار الإسناد",
   In_Progress: "قيد التنفيذ",
+  Pending_Review: "بانتظار المراجعة",
+  Returned: "مُعادة للموظف",
+  Rejected: "مرفوضة",
+  Cancelled: "ملغاة",
   Completed: "مكتمل",
   Archived: "مؤرشف",
 };
@@ -66,6 +78,7 @@ export default function ManagerApprovalView({
   token?: string | null;
 }) {
   const token = tokenProp ?? null;
+  const { pushToast } = useToast();
 
   const [viewState, setViewState] = useState<ViewState>(
     token ? "loading" : "missing_token",
@@ -76,6 +89,8 @@ export default function ManagerApprovalView({
     null,
   );
   const [showRejectConfirm, setShowRejectConfirm] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
+  const [savedRejectReason, setSavedRejectReason] = useState("");
 
   const loadRequest = useCallback(async (approvalToken: string) => {
     setViewState("loading");
@@ -127,7 +142,11 @@ export default function ManagerApprovalView({
     try {
       const response = await fetch(
         `/api/approve?token=${encodeURIComponent(token)}`,
-        { method: "POST" },
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "approve" }),
+        },
       );
       const payload = await parseApiResponse<{
         message: string;
@@ -139,42 +158,98 @@ export default function ManagerApprovalView({
           setViewState("expired");
           return;
         }
-        setErrorMessage(
-          getApiErrorMessage(payload, "تعذّر تنفيذ الموافقة"),
-        );
+        const message = getApiErrorMessage(payload, "تعذّر تنفيذ الموافقة");
+        setErrorMessage(message);
+        pushToast(message, "danger");
         return;
       }
 
       setViewState("approved");
+      pushToast("تمت الموافقة على الطلب بنجاح", "success");
     } catch {
-      setErrorMessage("حدث خطأ أثناء الموافقة.");
+      const message = "حدث خطأ أثناء الموافقة.";
+      setErrorMessage(message);
+      pushToast(message, "danger");
     } finally {
       setActionLoading(null);
     }
   }
 
-  function handleRejectConfirm() {
+  async function handleRejectConfirm() {
+    if (!token) return;
+    if (rejectReason.trim().length < 3) {
+      const message = "سبب الرفض مطلوب (3 أحرف على الأقل)";
+      setErrorMessage(message);
+      pushToast(message, "danger");
+      return;
+    }
+
     setActionLoading("reject");
-    setShowRejectConfirm(false);
-    setViewState("rejected_info");
-    setActionLoading(null);
+    setErrorMessage("");
+
+    try {
+      const response = await fetch(
+        `/api/approve?token=${encodeURIComponent(token)}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "reject", reason: rejectReason.trim() }),
+        },
+      );
+      const payload = await parseApiResponse<{
+        message: string;
+        status: string;
+        rejectionReason?: string;
+      }>(response);
+
+      if (!response.ok || !payload.success) {
+        if (!payload.success && payload.error.code === "TOKEN_EXPIRED") {
+          setViewState("expired");
+          return;
+        }
+        const message = getApiErrorMessage(payload, "تعذّر رفض الطلب");
+        setErrorMessage(message);
+        pushToast(message, "danger");
+        return;
+      }
+
+      setDetails((prev) =>
+        prev
+          ? {
+              ...prev,
+              status: "Rejected",
+              rejectionReason:
+                payload.data.rejectionReason ?? rejectReason.trim(),
+            }
+          : prev,
+      );
+      setSavedRejectReason(payload.data.rejectionReason ?? rejectReason.trim());
+      setShowRejectConfirm(false);
+      setViewState("rejected_info");
+      pushToast("تم رفض الطلب", "success");
+    } catch {
+      const message = "حدث خطأ أثناء الرفض.";
+      setErrorMessage(message);
+      pushToast(message, "danger");
+    } finally {
+      setActionLoading(null);
+    }
   }
 
   return (
     <div className="page-shell flex min-h-screen flex-col">
-      <header className="border-b border-surface-border bg-surface px-4 py-4 text-center shadow-sm">
-        <p className="text-xs font-semibold text-brand-gray">جمعية الزاد</p>
-        <h1 className="text-lg font-bold text-primary">موافقة المدير المباشر</h1>
+      <header className="flex flex-col items-center gap-2 border-b border-surface-border bg-surface px-4 py-4 text-center shadow-sm">
+        <BrandLogo size="sm" />
+        <div>
+          <p className="text-xs font-semibold text-brand-gray">جمعية الزاد</p>
+          <h1 className="text-lg font-bold text-primary">موافقة المدير المباشر</h1>
+        </div>
       </header>
 
       <main className="page-container-narrow flex flex-1 flex-col py-6">
         {viewState === "loading" && (
-          <div className="card flex flex-1 flex-col items-center justify-center gap-3 text-center">
-            <div
-              className="h-10 w-10 animate-pulse rounded-full bg-[color-mix(in_srgb,var(--zaad-primary)_15%,transparent)]"
-              aria-hidden
-            />
-            <p className="text-sm text-brand-gray">جاري تحميل الطلب...</p>
+          <div className="card flex flex-1 flex-col justify-center gap-3">
+            <Skeleton lines={5} />
           </div>
         )}
 
@@ -241,7 +316,7 @@ export default function ManagerApprovalView({
                     {viewState === "approved"
                       ? "تمت الموافقة"
                       : viewState === "rejected_info"
-                        ? "رفض — إجراء يدوي"
+                        ? "مرفوض"
                         : STATUS_LABELS[details.status] ?? details.status}
                   </span>
                   <span className="font-mono text-xs text-brand-gray" dir="ltr">
@@ -285,10 +360,24 @@ export default function ManagerApprovalView({
                       {formatDate(details.requiredDate)}
                     </dd>
                   </div>
+                  {details.assignedEmployee?.name ? (
+                    <div className="flex justify-between gap-4">
+                      <dt className="text-brand-gray">الموظف المسند</dt>
+                      <dd className="font-semibold text-primary">
+                        {details.assignedEmployee.name}
+                      </dd>
+                    </div>
+                  ) : null}
                   <div className="flex justify-between gap-4">
                     <dt className="text-brand-gray">مقدّم الطلب</dt>
-                    <dd className="font-semibold" dir="ltr">
-                      {details.contactEmail}
+                    <dd className="text-end">
+                      <span className="font-semibold text-primary">
+                        {details.contactName || "—"}
+                      </span>
+                      <br />
+                      <span className="text-xs text-brand-gray" dir="ltr">
+                        {details.contactEmail}
+                      </span>
                     </dd>
                   </div>
                   <div className="flex justify-between gap-4">
@@ -314,13 +403,18 @@ export default function ManagerApprovalView({
               {viewState === "rejected_info" && (
                 <div className="card-section space-y-2 text-sm text-brand-gray">
                   <p className="font-semibold text-[var(--zaad-danger)]">
-                    لم تتم الموافقة على الطلب.
+                    تم رفض الطلب وتسجيله في النظام.
                   </p>
                   <p>
-                    لا يُسجّل الرفض آلياً في النظام حالياً. يُرجى إبلاغ{" "}
-                    <span dir="ltr">{details.contactEmail}</span> أو{" "}
-                    <span dir="ltr">{details.contactPhone}</span> مباشرةً بقرارك.
+                    أُرسل سبب الرفض إلى بريد مقدّم الطلب{" "}
+                    <span dir="ltr">{details.contactEmail}</span>.
                   </p>
+                  {(savedRejectReason || details.rejectionReason) && (
+                    <p className="rounded-lg bg-surface-muted p-3 text-sm text-primary">
+                      <span className="font-semibold">السبب: </span>
+                      {savedRejectReason || details.rejectionReason}
+                    </p>
+                  )}
                 </div>
               )}
 
@@ -347,22 +441,40 @@ export default function ManagerApprovalView({
               {showRejectConfirm && viewState === "ready" && (
                 <div className="modal-overlay">
                   <div className="modal-panel card space-y-4">
-                    <h3 className="text-lg font-bold text-primary">تأكيد الرفض</h3>
+                    <h3 className="text-lg font-bold text-primary">رفض الطلب</h3>
                     <p className="text-sm text-brand-gray">
-                      لن يُرسل الطلب لقسم الاتصال. هل تريد المتابعة؟
+                      سيُسجَّل الرفض ويُرسل السبب إلى بريد مقدّم الطلب.
                     </p>
+                    <div className="space-y-1">
+                      <label className="label-field" htmlFor="reject-reason">
+                        سبب الرفض
+                      </label>
+                      <textarea
+                        id="reject-reason"
+                        className="input-field min-h-24 w-full"
+                        value={rejectReason}
+                        onChange={(e) => setRejectReason(e.target.value)}
+                        placeholder="اكتب سبب الرفض بوضوح..."
+                        required
+                      />
+                    </div>
                     <div className="flex flex-col gap-2 sm:flex-row">
                       <button
                         type="button"
                         className="btn-secondary flex-1 border-[var(--zaad-danger)] text-[var(--zaad-danger)]"
-                        onClick={handleRejectConfirm}
+                        disabled={actionLoading === "reject"}
+                        onClick={() => void handleRejectConfirm()}
                       >
-                        نعم، رفض
+                        {actionLoading === "reject" ? "جاري الرفض..." : "تأكيد الرفض"}
                       </button>
                       <button
                         type="button"
                         className="btn-primary flex-1"
-                        onClick={() => setShowRejectConfirm(false)}
+                        disabled={actionLoading === "reject"}
+                        onClick={() => {
+                          setShowRejectConfirm(false);
+                          setRejectReason("");
+                        }}
                       >
                         إلغاء
                       </button>

@@ -6,8 +6,5 @@ export default async function LoginPage({
   searchParams: Promise<{ next?: string }>;
 }) {
   const { next } = await searchParams;
-  if (next) {
-    redirect(`/?next=${encodeURIComponent(next)}`);
-  }
-  redirect("/");
+  redirect(next ? `/?next=${encodeURIComponent(next)}` : "/");
 }

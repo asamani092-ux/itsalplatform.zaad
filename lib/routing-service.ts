@@ -18,16 +18,19 @@ export async function resolveAssignee(requestTypeId: string) {
   return rule?.employee ?? null;
 }
 
-export async function listRoutingRules(requestTypeId?: string) {
+export async function listRoutingRules(options?: {
+  requestTypeId?: string;
+  includeInactive?: boolean;
+}) {
   return prisma.routingRule.findMany({
     where: {
-      isActive: true,
-      ...(requestTypeId ? { requestTypeId } : {}),
+      ...(options?.includeInactive ? {} : { isActive: true }),
+      ...(options?.requestTypeId ? { requestTypeId: options.requestTypeId } : {}),
     },
     include: {
       requestType: { select: { id: true, name: true, slug: true } },
       employee: { select: { id: true, name: true, email: true } },
     },
-    orderBy: { createdAt: "asc" },
+    orderBy: [{ requestType: { name: "asc" } }, { createdAt: "asc" }],
   });
 }

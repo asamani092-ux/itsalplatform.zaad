@@ -10,7 +10,7 @@ export default function EmptyState({
   action?: ReactNode;
 }) {
   return (
-    <div className="card space-y-3 py-12 text-center">
+    <div className="card space-y-3 py-12 text-center" role="status">
       <p className="text-lg font-bold text-primary">{title}</p>
       {description && <p className="text-sm text-brand-gray">{description}</p>}
       {action}

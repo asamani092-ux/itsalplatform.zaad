@@ -17,6 +17,7 @@ export async function notify(params: {
   channel: NotifyChannel;
   emailKind?: EmailTemplateKind;
   reference?: string;
+  note?: string;
 }): Promise<void> {
   try {
     if (params.channel === "inapp" || params.channel === "both") {
@@ -37,6 +38,8 @@ export async function notify(params: {
         title: params.title,
         link: params.link,
         reference: params.reference,
+        note: params.note,
+        reason: params.note,
       });
       await sendEmail({
         to: params.recipientEmail,
@@ -57,7 +60,7 @@ export async function notifyManager(params: {
 }): Promise<void> {
   try {
     const manager = await prisma.commEmployee.findFirst({
-      where: { email: params.managerEmail, role: "MANAGER", isActive: true },
+      where: { email: params.managerEmail, isActive: true },
     });
 
     if (manager) {
@@ -89,17 +92,65 @@ export async function notifyManager(params: {
   }
 }
 
+/** Notify the submitter's own line manager (their administration manager). */
+export async function notifyRequesterManager(params: {
+  managerEmail: string;
+  requestTitle: string;
+  requestId: string;
+}): Promise<void> {
+  try {
+    const manager = await prisma.commEmployee.findFirst({
+      where: { email: params.managerEmail, isActive: true },
+    });
+
+    const title = "طلب جديد من أحد منسوبي إدارتك";
+    const body = `الطلب: ${params.requestTitle}`;
+
+    if (manager) {
+      await notify({
+        recipientId: manager.id,
+        recipientEmail: manager.email,
+        type: "requester_manager_info",
+        title,
+        body,
+        channel: "both",
+        emailKind: "requester_manager_info",
+      });
+      return;
+    }
+
+    // No account matched — email-only heads-up.
+    const template = buildEmailTemplate("requester_manager_info", {
+      title: params.requestTitle,
+    });
+    await sendEmail({
+      to: params.managerEmail,
+      subject: template.subject,
+      html: template.html,
+    });
+  } catch (error) {
+    console.error("[notifications] notifyRequesterManager failed", error);
+  }
+}
+
 export async function notifySubmitter(params: {
   contactEmail: string;
   contactPhone: string;
   requestTitle: string;
   message: string;
   reference?: string;
+  emailKind?: EmailTemplateKind;
+  note?: string;
+  reason?: string;
 }): Promise<void> {
   try {
-    const template = buildEmailTemplate("completed", {
+    const kind = params.emailKind ?? "completed";
+    const rejectionText = params.reason ?? params.note;
+    const template = buildEmailTemplate(kind, {
       title: params.requestTitle,
       reference: params.reference,
+      note: rejectionText,
+      reason: rejectionText,
     });
     await sendEmail({
       to: params.contactEmail,
@@ -109,6 +160,7 @@ export async function notifySubmitter(params: {
     console.log("[notifications] submitter notified", {
       phone: params.contactPhone,
       message: params.message,
+      kind,
     });
   } catch (error) {
     console.error("[notifications] notifySubmitter failed", error);

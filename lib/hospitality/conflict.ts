@@ -16,6 +16,7 @@ export function timesOverlap(
   const bStart = timeToMinutes(startB);
   const bEnd = timeToMinutes(endB);
   if ([aStart, aEnd, bStart, bEnd].some((v) => v < 0)) return false;
+  // Any overlapping minute conflicts; exact back-to-back (end==start) allowed.
   return aStart < bEnd && bStart < aEnd;
 }
 
