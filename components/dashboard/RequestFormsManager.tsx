@@ -41,14 +41,14 @@ interface RequestType {
 type EditorPanel = "main" | "content" | "fields";
 
 const FIELD_TITLES: Record<FormFieldKey, string> = {
+  contactName: "الاسم",
+  contactEmail: "البريد",
+  title: "العنوان",
+  description: "الوصف",
   department: "القسم",
   requestType: "نوع الطلب",
-  title: "عنوان الطلب",
-  contactName: "اسم مقدّم الطلب",
-  description: "الوصف",
   requiredDate: "التاريخ المطلوب",
   visitDate: "تاريخ الزيارة",
-  contactEmail: "البريد الإلكتروني",
   contactPhone: "رقم الجوال",
 };
 
@@ -718,8 +718,9 @@ export default function RequestFormsManager({
             {editorPanel === "fields" && (
               <>
                 <p className="text-sm text-brand-gray">
-                  الحقول الأساسية (مقفل) تظهر دائماً — يمكن تغيير تسميتها فقط. بقية الحقول
-                  يمكن إظهارها أو إخفاؤها لهذا النموذج.
+                  الحقول الأساسية (الاسم، البريد، العنوان، الوصف + القسم ونوع الطلب) مقفلة
+                  وتظهر دائماً في كل النماذج — يمكن تغيير تسميتها فقط. بقية الحقول تظهر حسب
+                  نوع الطلب ويمكن إظهارها أو إخفاؤها.
                 </p>
                 <div className="max-h-[50vh] space-y-3 overflow-y-auto pe-1">
                   {FORM_FIELD_KEYS.map((key) => {
