@@ -75,7 +75,8 @@ export async function listVisitorLogs(params?: {
   const logs = await prisma.receptionVisitorLog.findMany({
     where,
     include: logInclude,
-    orderBy: { visitAt: "desc" },
+    // Newest registration first; secondary key breaks ties within the same time slot.
+    orderBy: [{ visitAt: "desc" }, { createdAt: "desc" }],
     take: params?.limit ?? 500,
   });
   return { logs };
@@ -305,7 +306,7 @@ export async function getReceptionReports(params: {
     prisma.receptionVisitorLog.findMany({
       where,
       include: logInclude,
-      orderBy: { visitAt: "asc" },
+      orderBy: [{ visitAt: "desc" }, { createdAt: "desc" }],
     }),
     prisma.department.findMany({
       where: { isActive: true },

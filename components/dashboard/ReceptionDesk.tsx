@@ -80,6 +80,7 @@ interface VisitorLog {
   reason: string;
   visitTimeSlot: string;
   visitAt: string;
+  createdAt: string;
   department?: { id: string; name: string } | null;
   markedBy?: { id: string; name: string } | null;
 }
@@ -148,8 +149,22 @@ interface ReportVisit {
   reason: string;
   visitTimeSlot: string;
   visitAt: string;
+  createdAt?: string;
   departmentName: string | null;
   markedByName: string | null;
+}
+
+/** Newest first — matches platform-wide log ordering. */
+function sortLogsNewestFirst<T extends { visitAt: string; createdAt?: string }>(
+  rows: T[],
+): T[] {
+  return [...rows].sort((a, b) => {
+    const byVisit = new Date(b.visitAt).getTime() - new Date(a.visitAt).getTime();
+    if (byVisit !== 0) return byVisit;
+    const aCreated = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+    const bCreated = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+    return bCreated - aCreated;
+  });
 }
 
 interface VisitorFormState {
@@ -331,7 +346,7 @@ export default function ReceptionDesk() {
         throw new Error(getApiErrorMessage(payload, "تعذّر تحميل بيانات الاستقبال"));
       }
       setVisits(payload.data.visits);
-      setLogs(payload.data.attendanceLogs);
+      setLogs(sortLogsNewestFirst(payload.data.attendanceLogs));
       setStats(payload.data.stats);
       setMeta(payload.data.meta);
       setForm((prev) => ({
@@ -389,7 +404,7 @@ export default function ReceptionDesk() {
         throw new Error(getApiErrorMessage(payload, "تعذّر تحميل التقارير"));
       }
       setKpis(payload.data.departmentKpis);
-      setReportVisits(payload.data.visits);
+      setReportVisits(sortLogsNewestFirst(payload.data.visits));
       setReportTotals(payload.data.totals);
       if (payload.data.departments?.length) {
         setDepartments(payload.data.departments);
