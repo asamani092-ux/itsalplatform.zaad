@@ -11,6 +11,13 @@ export const VISIT_TARGETS = [
 
 export const VISIT_TYPES = ["شخصي", "تابع لجهة"] as const;
 
+/** Organization is required only for affiliation visits — personal visits may omit it. */
+export const AFFILIATED_VISIT_TYPE = "تابع لجهة" as const;
+
+export function isOrganizationRequired(visitType: string): boolean {
+  return visitType.trim() === AFFILIATED_VISIT_TYPE;
+}
+
 export const VISIT_TIME_SLOTS = ["الصباح", "الظهر", "المساء"] as const;
 
 export type VisitTimeSlot = (typeof VISIT_TIME_SLOTS)[number];

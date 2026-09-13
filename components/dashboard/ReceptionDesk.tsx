@@ -5,6 +5,7 @@ import { getApiErrorMessage, parseApiResponse } from "@/components/lib/api-types
 import { IconButton } from "@/components/ui/icon-button";
 import { IconPlus, IconX } from "@/components/shared/icons";
 import { useToast } from "@/components/ui/toast";
+import { isOrganizationRequired } from "@/lib/reception/constants";
 
 const PHONE_RE = /^05\d{8}$/;
 
@@ -22,8 +23,9 @@ function validateVisitorForm(state: {
   if (!state.visitorName.trim()) return "اسم الزائر مطلوب";
   if (!PHONE_RE.test(state.visitorPhone.trim()))
     return "رقم الجوال يجب أن يكون بصيغة 05xxxxxxxx";
-  if (!state.organization.trim()) return "الجهة / المؤسسة مطلوبة";
   if (!state.visitType.trim()) return "نوع الزيارة مطلوب";
+  if (isOrganizationRequired(state.visitType) && !state.organization.trim())
+    return "الجهة / المؤسسة مطلوبة للزيارات التابعة لجهة";
   if (!state.visitTarget.trim()) return "جهة الزيارة مطلوبة";
   if (state.visitTarget === "زائر" && !state.reason.trim())
     return "سبب الزيارة مطلوب";
@@ -788,13 +790,21 @@ export default function ReceptionDesk() {
         <div className="space-y-1">
           <label className="label-field" htmlFor={`${prefix}-org`}>
             الجهة / المؤسسة
+            {!isOrganizationRequired(state.visitType) && (
+              <span className="ms-1 font-normal text-brand-gray">(اختياري للزيارات الشخصية)</span>
+            )}
           </label>
           <input
             id={`${prefix}-org`}
             className="input-field w-full"
-            required
+            required={isOrganizationRequired(state.visitType)}
             value={state.organization}
             onChange={(e) => onChange("organization", e.target.value)}
+            placeholder={
+              isOrganizationRequired(state.visitType)
+                ? "اسم الجهة"
+                : "اختياري إن كانت الزيارة شخصية"
+            }
           />
         </div>
 
