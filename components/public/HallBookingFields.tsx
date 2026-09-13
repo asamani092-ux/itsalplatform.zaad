@@ -5,15 +5,7 @@ import { getApiErrorMessage, parseApiResponse } from "@/components/lib/api-types
 import { fetchWithTimeout } from "@/lib/client/fetch-with-timeout";
 import Skeleton from "@/components/ui/skeleton";
 import { formatTime12h } from "@/lib/hospitality/format-time";
-
-const FALLBACK_ROOMS = [
-  "قاعة الحسني",
-  "قاعة الضبيب",
-  "قاعة الاجتماعات الكبرى",
-  "قاعة التدريب",
-  "قاعة الاستقبال",
-  "قاعة الوسائط",
-];
+import { DEFAULT_ROOMS } from "@/lib/hospitality/rooms";
 
 const DURATION_OPTIONS = [1, 2, 3, 4, 5];
 
@@ -52,7 +44,7 @@ export default function HallBookingFields({
   className?: string;
 }) {
   const todayIso = toLocalISODate(new Date());
-  const [rooms, setRooms] = useState<string[]>(FALLBACK_ROOMS);
+  const [rooms, setRooms] = useState<string[]>(DEFAULT_ROOMS);
   const [roomName, setRoomName] = useState(initialRoomName);
   const [meetingDate, setMeetingDate] = useState(initialMeetingDate || todayIso);
   const [durationHours, setDurationHours] = useState(initialDurationHours);
@@ -70,11 +62,11 @@ export default function HallBookingFields({
         const next =
           Array.isArray(payload.data.rooms) && payload.data.rooms.length > 0
             ? payload.data.rooms.map(String).filter(Boolean)
-            : FALLBACK_ROOMS;
+            : DEFAULT_ROOMS;
         setRooms(next);
         setRoomName((prev) => (prev && next.includes(prev) ? prev : next[0] ?? ""));
       } catch {
-        // keep FALLBACK_ROOMS
+        // keep DEFAULT_ROOMS
       }
     })();
   }, []);

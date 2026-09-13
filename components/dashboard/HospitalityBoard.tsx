@@ -10,6 +10,7 @@ import { IconChevron, IconPlus, IconX } from "@/components/shared/icons";
 import EmptyState from "@/components/shared/empty-state";
 import Skeleton from "@/components/ui/skeleton";
 import { formatTimeRange12h } from "@/lib/hospitality/format-time";
+import { DEFAULT_ROOMS, canonicalizeRoomName } from "@/lib/hospitality/rooms";
 
 interface Booking {
   id: string;
@@ -40,15 +41,6 @@ const STATUS_LABELS: Record<string, string> = {
   Rejected: "مرفوض",
   Cancelled: "ملغى",
 };
-
-const FALLBACK_ROOMS = [
-  "قاعة الحسني",
-  "قاعة الضبيب",
-  "قاعة الاجتماعات الكبرى",
-  "قاعة التدريب",
-  "قاعة الاستقبال",
-  "قاعة الوسائط",
-];
 
 const WEEKDAY_SHORT = ["أحد", "إثن", "ثلا", "أرب", "خمي", "جمع", "سبت"];
 const WEEKDAY_FULL = [
@@ -118,7 +110,7 @@ function hasConflict(booking: Booking, all: Booking[]): boolean {
     (other) =>
       other.id !== booking.id &&
       isActiveBooking(other) &&
-      other.roomName === booking.roomName &&
+      canonicalizeRoomName(other.roomName) === canonicalizeRoomName(booking.roomName) &&
       toLocalISODate(new Date(other.meetingDate)) ===
         toLocalISODate(new Date(booking.meetingDate)) &&
       timesOverlap(booking.startTime, booking.endTime, other.startTime, other.endTime),
@@ -154,7 +146,7 @@ function buildMonthGrid(viewMonth: Date): CalendarDay[] {
 export default function HospitalityBoard() {
   const [viewMonth, setViewMonth] = useState(() => startOfMonth(new Date()));
   const [bookings, setBookings] = useState<Booking[]>([]);
-  const [rooms, setRooms] = useState<string[]>(FALLBACK_ROOMS);
+  const [rooms, setRooms] = useState<string[]>(DEFAULT_ROOMS);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [selectedDay, setSelectedDay] = useState<string | null>(() => toLocalISODate(new Date()));
@@ -163,7 +155,7 @@ export default function HospitalityBoard() {
   const [formError, setFormError] = useState("");
   const todayIso = toLocalISODate(new Date());
   const [form, setForm] = useState({
-    roomName: FALLBACK_ROOMS[0],
+    roomName: DEFAULT_ROOMS[0],
     meetingDate: "",
     startTime: "09:00",
     endTime: "10:00",
@@ -195,7 +187,7 @@ export default function HospitalityBoard() {
         );
       }
     } catch {
-      // keep FALLBACK_ROOMS
+      // keep DEFAULT_ROOMS
     }
   }, []);
 

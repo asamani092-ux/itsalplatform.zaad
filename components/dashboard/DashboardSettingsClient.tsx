@@ -214,7 +214,10 @@ export default function DashboardSettingsClient({
         {section === "rooms" && (
           <div className="card space-y-3 p-4">
             <h2 className="text-lg font-bold text-primary">القاعات</h2>
-            <p className="text-sm text-brand-gray">قاعة في كل سطر — تُستخدم في الحجوزات والنموذج العام.</p>
+            <p className="text-sm text-brand-gray">
+              قاعة في كل سطر — تُستخدم في الحجوزات والنموذج العام. إعادة تسمية سطر مع الإبقاء على
+              ترتيبه تنقل الحجوزات النشطة تلقائياً إلى الاسم الجديد.
+            </p>
             <textarea
               className="input-field min-h-40 w-full"
               value={roomsText}

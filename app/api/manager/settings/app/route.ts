@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { handleApiError, jsonError, jsonOk } from "@/lib/api-utils";
 import { requireManagerSession } from "@/lib/auth/route-guard";
 import {
-  getHospitalitySettings,
+  getConfiguredHospitalitySettings,
   getWorkflowSettings,
   setHospitalitySettings,
   setWorkflowSettings,
@@ -15,7 +15,7 @@ export async function GET() {
 
     const [workflow, hospitality] = await Promise.all([
       getWorkflowSettings(),
-      getHospitalitySettings(),
+      getConfiguredHospitalitySettings(),
     ]);
 
     return jsonOk({
@@ -52,7 +52,7 @@ export async function PATCH(request: NextRequest) {
 
     const hospitalityRooms = body.hospitality?.rooms ?? body.rooms;
     if (Array.isArray(hospitalityRooms) || body.hospitality) {
-      const current = await getHospitalitySettings();
+      const current = await getConfiguredHospitalitySettings();
       await setHospitalitySettings({
         rooms: Array.isArray(hospitalityRooms) ? hospitalityRooms : current.rooms,
         dayStart: body.hospitality?.dayStart ?? current.dayStart,
@@ -62,7 +62,7 @@ export async function PATCH(request: NextRequest) {
 
     const [workflow, hospitality] = await Promise.all([
       getWorkflowSettings(),
-      getHospitalitySettings(),
+      getConfiguredHospitalitySettings(),
     ]);
 
     return jsonOk({

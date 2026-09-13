@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { requireManagerSession } from "@/lib/auth/route-guard";
 import { prisma } from "@/lib/prisma";
 import { handleApiError, jsonError, jsonOk } from "@/lib/api-utils";
+import { canonicalizeRoomName } from "@/lib/app-settings";
 import { createBookingWithRequest, findBookingConflict } from "@/lib/hospitality/service";
 
 interface BookingBody {
@@ -90,7 +91,7 @@ export async function POST(request: NextRequest) {
 
     const startTime = body.startTime.trim();
     const endTime = body.endTime.trim();
-    const roomName = body.roomName.trim();
+    const roomName = canonicalizeRoomName(body.roomName.trim());
 
     if (timeToMinutes(startTime) >= timeToMinutes(endTime)) {
       return jsonError("وقت النهاية يجب أن يكون بعد وقت البداية", "VALIDATION", 400);

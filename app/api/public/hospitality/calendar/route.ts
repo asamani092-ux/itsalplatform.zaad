@@ -1,13 +1,14 @@
 import { NextRequest } from "next/server";
 import { handleApiError, jsonOk } from "@/lib/api-utils";
-import { getHospitalityRooms } from "@/lib/app-settings";
+import { getHospitalityRooms, roomNameMatchVariants } from "@/lib/app-settings";
 import { prisma } from "@/lib/prisma";
 import { ACTIVE_BOOKING_FILTER } from "@/lib/hospitality/service";
 
 /** Public: upcoming hospitality bookings (room + date + time only). */
 export async function GET(request: NextRequest) {
   try {
-    const room = request.nextUrl.searchParams.get("room");
+    const roomRaw = request.nextUrl.searchParams.get("room");
+    const roomVariants = roomRaw ? roomNameMatchVariants(roomRaw) : null;
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -15,7 +16,7 @@ export async function GET(request: NextRequest) {
       prisma.hospitalityBooking.findMany({
         where: {
           meetingDate: { gte: today },
-          ...(room ? { roomName: room } : {}),
+          ...(roomVariants ? { roomName: { in: roomVariants } } : {}),
           ...ACTIVE_BOOKING_FILTER,
         },
         select: {

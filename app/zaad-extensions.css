@@ -186,41 +186,6 @@
   background: var(--surface-raised);
 }
 
-/* Accordion */
-.zad-accordion {
-  border: var(--border-hairline) solid var(--border-subtle);
-  border-radius: var(--radius-xl);
-  background: var(--surface-raised);
-  overflow: hidden;
-}
-.zad-accordion__item + .zad-accordion__item {
-  border-block-start: var(--border-hairline) solid var(--border-subtle);
-}
-.zad-accordion__trigger {
-  display: flex;
-  width: 100%;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  min-height: var(--touch-min);
-  padding: var(--space-3) var(--space-4);
-  border: none;
-  background: transparent;
-  color: var(--text-brand);
-  font-weight: var(--weight-bold);
-  text-align: start;
-  cursor: pointer;
-}
-.zad-accordion__trigger:focus-visible {
-  outline: none;
-  box-shadow: var(--shadow-focus);
-}
-.zad-accordion__panel {
-  padding: 0 var(--space-4) var(--space-4);
-  color: var(--text-secondary);
-  font-size: var(--text-xs);
-}
-
 /* Stepper */
 .zad-stepper {
   display: flex;
@@ -333,38 +298,6 @@
   font-weight: var(--weight-black);
   color: var(--text-brand);
   font-variant-numeric: tabular-nums;
-}
-
-/* Pagination */
-.zad-pagination {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-2);
-}
-.zad-pagination button {
-  min-height: var(--touch-min);
-  min-width: var(--touch-min);
-  padding-inline: var(--space-3);
-  border-radius: var(--radius-lg);
-  border: var(--border-hairline) solid var(--border-default);
-  background: var(--surface-raised);
-  color: var(--text-secondary);
-  cursor: pointer;
-}
-.zad-pagination button[data-active="true"] {
-  background: var(--action-primary-surface);
-  border-color: var(--action-primary-surface);
-  color: var(--action-primary-text);
-}
-.zad-pagination button:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-.zad-pagination button:focus-visible {
-  outline: none;
-  box-shadow: var(--shadow-focus);
 }
 
 /* Detail / beneficiary cards */
