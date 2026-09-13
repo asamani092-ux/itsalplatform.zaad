@@ -9,6 +9,8 @@ import { IconButton } from "@/components/ui/icon-button";
 import { IconChevron, IconPlus, IconX } from "@/components/shared/icons";
 import EmptyState from "@/components/shared/empty-state";
 import Skeleton from "@/components/ui/skeleton";
+import { formatTimeRange12h } from "@/lib/hospitality/format-time";
+import { DEFAULT_ROOMS, canonicalizeRoomName } from "@/lib/hospitality/rooms";
 
 interface Booking {
   id: string;
@@ -36,14 +38,9 @@ const STATUS_LABELS: Record<string, string> = {
   In_Progress: "قيد التنفيذ",
   Completed: "مكتمل",
   Archived: "مؤرشف",
+  Rejected: "مرفوض",
+  Cancelled: "ملغى",
 };
-
-const FALLBACK_ROOMS = [
-  "قاعة الاجتماعات الكبرى",
-  "قاعة التدريب",
-  "قاعة الاستقبال",
-  "قاعة الوسائط",
-];
 
 const WEEKDAY_SHORT = ["أحد", "إثن", "ثلا", "أرب", "خمي", "جمع", "سبت"];
 const WEEKDAY_FULL = [
@@ -100,11 +97,20 @@ function addMonths(d: Date, delta: number): Date {
   return new Date(d.getFullYear(), d.getMonth() + delta, 1);
 }
 
+const RELEASED_STATUSES = new Set(["Rejected", "Cancelled"]);
+
+function isActiveBooking(booking: Booking): boolean {
+  const status = booking.request?.status;
+  return !status || !RELEASED_STATUSES.has(status);
+}
+
 function hasConflict(booking: Booking, all: Booking[]): boolean {
+  if (!isActiveBooking(booking)) return false;
   return all.some(
     (other) =>
       other.id !== booking.id &&
-      other.roomName === booking.roomName &&
+      isActiveBooking(other) &&
+      canonicalizeRoomName(other.roomName) === canonicalizeRoomName(booking.roomName) &&
       toLocalISODate(new Date(other.meetingDate)) ===
         toLocalISODate(new Date(booking.meetingDate)) &&
       timesOverlap(booking.startTime, booking.endTime, other.startTime, other.endTime),
@@ -140,7 +146,7 @@ function buildMonthGrid(viewMonth: Date): CalendarDay[] {
 export default function HospitalityBoard() {
   const [viewMonth, setViewMonth] = useState(() => startOfMonth(new Date()));
   const [bookings, setBookings] = useState<Booking[]>([]);
-  const [rooms, setRooms] = useState<string[]>(FALLBACK_ROOMS);
+  const [rooms, setRooms] = useState<string[]>(DEFAULT_ROOMS);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [selectedDay, setSelectedDay] = useState<string | null>(() => toLocalISODate(new Date()));
@@ -149,7 +155,7 @@ export default function HospitalityBoard() {
   const [formError, setFormError] = useState("");
   const todayIso = toLocalISODate(new Date());
   const [form, setForm] = useState({
-    roomName: FALLBACK_ROOMS[0],
+    roomName: DEFAULT_ROOMS[0],
     meetingDate: "",
     startTime: "09:00",
     endTime: "10:00",
@@ -181,7 +187,7 @@ export default function HospitalityBoard() {
         );
       }
     } catch {
-      // keep FALLBACK_ROOMS
+      // keep DEFAULT_ROOMS
     }
   }, []);
 
@@ -446,7 +452,7 @@ export default function HospitalityBoard() {
                         dir="ltr"
                       >
                         {dualDateFmt.format(new Date(booking.meetingDate)).split("،")[0]} ·{" "}
-                        {booking.startTime} — {booking.endTime}
+                        {formatTimeRange12h(booking.startTime, booking.endTime)}
                       </p>
                       <p className="text-sm text-brand-gray">
                         الغرض: {booking.notes || "—"}

@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { handleApiError, jsonError, jsonOk } from "@/lib/api-utils";
 import { checkRateLimit, rateLimitKey } from "@/lib/rate-limit";
 import { createBookingWithRequest, findBookingConflict } from "@/lib/hospitality/service";
-import { getHospitalitySettings } from "@/lib/app-settings";
+import { getHospitalitySettings, canonicalizeRoomName } from "@/lib/app-settings";
 import { timeToMinutes } from "@/lib/hospitality/availability";
 
 interface BookBody {
@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
 
     const body = (await request.json()) as BookBody;
 
-    const roomName = body.roomName?.trim() ?? "";
+    const roomName = canonicalizeRoomName(body.roomName?.trim() ?? "");
     const meetingDateStr = body.meetingDate?.trim() ?? "";
     const startTime = body.startTime?.trim() ?? "";
     const endTime = body.endTime?.trim() ?? "";

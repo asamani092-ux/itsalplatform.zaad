@@ -73,7 +73,7 @@ export function getPublicSubmitVisibility(opts: {
     requestType: !opts.pinnedRequestTypeId,
     title: true,
     contactName: true,
-    description: f.description.enabled,
+    description: true,
     // Hidden on hospitality — date comes from the selected hall slot.
     requiredDate: f.requiredDate.enabled && !opts.isHospitality,
     visitDate:

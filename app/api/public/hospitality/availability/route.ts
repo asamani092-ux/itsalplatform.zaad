@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { handleApiError, jsonError, jsonOk } from "@/lib/api-utils";
 import { checkRateLimit, rateLimitKey } from "@/lib/rate-limit";
-import { getHospitalitySettings } from "@/lib/app-settings";
+import { getHospitalitySettings, canonicalizeRoomName, roomNameMatchVariants } from "@/lib/app-settings";
 import { computeAvailableSlots } from "@/lib/hospitality/availability";
 import { ACTIVE_BOOKING_FILTER } from "@/lib/hospitality/service";
 
@@ -15,16 +15,19 @@ export async function GET(request: NextRequest) {
       return jsonError("تم تجاوز عدد المحاولات المسموح. حاول لاحقاً.", "RATE_LIMITED", 429);
     }
 
-    const room = request.nextUrl.searchParams.get("room")?.trim() ?? "";
+    const roomRaw = request.nextUrl.searchParams.get("room")?.trim() ?? "";
     const date = request.nextUrl.searchParams.get("date")?.trim() ?? "";
     const durationHoursParam = request.nextUrl.searchParams.get("durationHours");
 
-    if (!room) {
+    if (!roomRaw) {
       return jsonError("اسم القاعة مطلوب", "VALIDATION", 400);
     }
     if (!DATE_RE.test(date)) {
       return jsonError("التاريخ يجب أن يكون بصيغة YYYY-MM-DD", "VALIDATION", 400);
     }
+
+    const room = canonicalizeRoomName(roomRaw);
+    const roomVariants = roomNameMatchVariants(roomRaw);
 
     const dayStart = new Date(`${date}T00:00:00`);
     const dayEnd = new Date(`${date}T23:59:59.999`);
@@ -35,7 +38,7 @@ export async function GET(request: NextRequest) {
     const [bookings, hospitalitySettings] = await Promise.all([
       prisma.hospitalityBooking.findMany({
         where: {
-          roomName: room,
+          roomName: { in: roomVariants },
           meetingDate: { gte: dayStart, lte: dayEnd },
           ...ACTIVE_BOOKING_FILTER,
         },

@@ -6,6 +6,7 @@ import { requireManagerSession } from "@/lib/auth/route-guard";
 import { handleApiError, jsonError, jsonOk } from "@/lib/api-utils";
 import { detectFileTypeFromBytes } from "@/lib/file-validation";
 import { checkRateLimit, rateLimitKey } from "@/lib/rate-limit";
+import { buildMediaPublicUrl, getMediaStorageDir } from "@/lib/uploads/storage-path";
 
 const MAX_SIZE = 5 * 1024 * 1024;
 
@@ -38,11 +39,11 @@ export async function POST(request: NextRequest) {
     }
 
     const filename = `${randomUUID()}.${detected.ext}`;
-    const uploadDir = path.join(process.cwd(), "public", "uploads", "media");
+    const uploadDir = getMediaStorageDir();
     await mkdir(uploadDir, { recursive: true });
     await writeFile(path.join(uploadDir, filename), bytes);
 
-    return jsonOk({ url: `/uploads/media/${filename}` }, 201);
+    return jsonOk({ url: buildMediaPublicUrl(filename) }, 201);
   } catch (error) {
     return handleApiError(error);
   }

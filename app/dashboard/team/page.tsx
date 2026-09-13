@@ -13,6 +13,7 @@ import {
 } from "@/components/shared/icons";
 import ConfirmDialog from "@/components/ui/confirm-dialog";
 import Skeleton from "@/components/ui/skeleton";
+import { useToast } from "@/components/ui/toast";
 
 interface DepartmentOption {
   id: string;
@@ -68,6 +69,7 @@ function MemberModal({
   onSubmit,
   submitting,
   error,
+  canAssignManagementRoles,
 }: {
   open: boolean;
   mode: "create" | "edit";
@@ -77,6 +79,8 @@ function MemberModal({
   onSubmit: (form: MemberForm) => Promise<void>;
   submitting: boolean;
   error: string;
+  /** Only directors may assign SECTION_MANAGER / DIRECTOR. */
+  canAssignManagementRoles: boolean;
 }) {
   const [form, setForm] = useState<MemberForm>(initial);
 
@@ -171,13 +175,23 @@ function MemberModal({
             <select
               id="member-role"
               className="input-field w-full"
-              value={form.role}
+              value={canAssignManagementRoles ? form.role : "EMPLOYEE"}
               onChange={(e) => setForm({ ...form, role: e.target.value })}
+              disabled={!canAssignManagementRoles}
             >
               <option value="EMPLOYEE">موظف</option>
-              <option value="SECTION_MANAGER">مدير قسم</option>
-              <option value="DIRECTOR">مدير إدارة</option>
+              {canAssignManagementRoles && (
+                <>
+                  <option value="SECTION_MANAGER">مدير قسم</option>
+                  <option value="DIRECTOR">مدير إدارة</option>
+                </>
+              )}
             </select>
+            {!canAssignManagementRoles && (
+              <p className="text-xs text-brand-gray">
+                لإنشاء مدير إدارة أو مدير قسم سجّل الدخول بحساب مدير الإدارة.
+              </p>
+            )}
           </div>
           <div className="space-y-1">
             <label className="label-field" htmlFor="member-department">
@@ -233,6 +247,7 @@ function MemberModal({
 }
 
 export default function DashboardTeamPage() {
+  const { pushToast } = useToast();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [departments, setDepartments] = useState<DepartmentOption[]>([]);
   const [loading, setLoading] = useState(true);
@@ -246,6 +261,7 @@ export default function DashboardTeamPage() {
   const [modalError, setModalError] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<Employee | null>(null);
   const [resettingId, setResettingId] = useState("");
+  const [canAssignManagementRoles, setCanAssignManagementRoles] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -257,7 +273,9 @@ export default function DashboardTeamPage() {
       }
       setEmployees(payload.data.employees);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "خطأ");
+      const msg = e instanceof Error ? e.message : "خطأ";
+      setError(msg);
+      pushToast(msg, "danger");
     } finally {
       setLoading(false);
     }
@@ -276,14 +294,29 @@ export default function DashboardTeamPage() {
     }
   }, []);
 
+  const loadViewerRole = useCallback(async () => {
+    try {
+      const res = await fetch("/api/auth/me");
+      const payload = await parseApiResponse<{ user: { role: string } }>(res);
+      if (!res.ok || !payload.success) return;
+      setCanAssignManagementRoles(payload.data.user.role === "DIRECTOR");
+    } catch {
+      setCanAssignManagementRoles(false);
+    }
+  }, []);
+
   useEffect(() => {
     void load();
     void loadDepartments();
-  }, [load, loadDepartments]);
+    void loadViewerRole();
+  }, [load, loadDepartments, loadViewerRole]);
 
   function openCreate() {
     setModalMode("create");
-    setModalInitial(EMPTY_FORM);
+    setModalInitial({
+      ...EMPTY_FORM,
+      role: canAssignManagementRoles ? EMPTY_FORM.role : "EMPLOYEE",
+    });
     setEditingId("");
     setModalError("");
     setModalOpen(true);
@@ -339,7 +372,9 @@ export default function DashboardTeamPage() {
       });
       const payload = await parseApiResponse<Employee>(res);
       if (!res.ok || !payload.success) {
-        setModalError(getApiErrorMessage(payload, "فشل الحفظ"));
+        const msg = getApiErrorMessage(payload, "فشل الحفظ");
+        setModalError(msg);
+        pushToast(msg, "danger");
         return;
       }
       setModalOpen(false);
@@ -348,7 +383,9 @@ export default function DashboardTeamPage() {
       } else {
         await load();
       }
-      setStatus(isEdit ? "تم تحديث بيانات العضو" : "تمت إضافة العضو");
+      const okMsg = isEdit ? "تم تحديث بيانات العضو" : "تمت إضافة العضو";
+      setStatus(okMsg);
+      pushToast(okMsg, "success");
       window.setTimeout(() => setStatus(""), 4000);
     } finally {
       setSubmitting(false);
@@ -364,7 +401,9 @@ export default function DashboardTeamPage() {
     });
     const payload = await parseApiResponse<Employee>(res);
     if (!res.ok || !payload.success) {
-      setError(getApiErrorMessage(payload, "فشل التحديث"));
+      const msg = getApiErrorMessage(payload, "فشل التحديث");
+      setError(msg);
+      pushToast(msg, "danger");
       return;
     }
     if (payload.data?.id) {
@@ -385,10 +424,14 @@ export default function DashboardTeamPage() {
       });
       const payload = await parseApiResponse<{ message?: string }>(res);
       if (!res.ok || !payload.success) {
-        setError(getApiErrorMessage(payload, "تعذّر إرسال رابط الاستعادة"));
+        const msg = getApiErrorMessage(payload, "تعذّر إرسال رابط الاستعادة");
+        setError(msg);
+        pushToast(msg, "danger");
         return;
       }
-      setStatus(payload.data.message ?? "تم إرسال رابط الاستعادة إن وُجد الحساب");
+      const okMsg = payload.data.message ?? "تم إرسال رابط الاستعادة إن وُجد الحساب";
+      setStatus(okMsg);
+      pushToast(okMsg, "success");
       window.setTimeout(() => setStatus(""), 5000);
     } finally {
       setResettingId("");
@@ -411,14 +454,16 @@ export default function DashboardTeamPage() {
         employee?: Employee;
       }>(res);
       if (!res.ok || !payload.success) {
-        setError(getApiErrorMessage(payload, "فشل الحذف"));
-        return;
+        const msg = getApiErrorMessage(payload, "فشل الحذف");
+        setError(msg);
+        pushToast(msg, "danger");
+      return;
       }
-      setStatus(
-        payload.data.deactivated
+      const okMsg = payload.data.deactivated
           ? (payload.data.message ?? "تم تعطيل الحساب")
-          : "تم حذف العضو",
-      );
+          : "تم حذف العضو";
+      setStatus(okMsg);
+      pushToast(okMsg, "success");
       window.setTimeout(() => setStatus(""), 5000);
       const deletedId = deleteTarget.id;
       setDeleteTarget(null);
@@ -545,6 +590,7 @@ export default function DashboardTeamPage() {
         onSubmit={handleSubmit}
         submitting={submitting}
         error={modalError}
+        canAssignManagementRoles={canAssignManagementRoles}
       />
 
       <ConfirmDialog

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { getApiErrorMessage, parseApiResponse } from "@/components/lib/api-types";
 import { IconButton } from "@/components/ui/icon-button";
-import { IconPower, IconTrash } from "@/components/shared/icons";
+import { IconEdit, IconPower, IconTrash, IconX } from "@/components/shared/icons";
 import Skeleton from "@/components/ui/skeleton";
 
 interface Administration {
@@ -36,6 +36,7 @@ export default function AdministrationsManager() {
   }>(EMPTY);
   const [saving, setSaving] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [editing, setEditing] = useState<Administration | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -117,6 +118,43 @@ export default function AdministrationsManager() {
     await load();
   }
 
+  async function saveEdit() {
+    if (!editing) return false;
+    if (!editing.name.trim() || !editing.managerEmail.trim()) {
+      setError("الاسم وبريد المدير مطلوبان");
+      return false;
+    }
+    setSaving(true);
+    setError("");
+    setStatus("");
+    try {
+      const res = await fetch("/api/manager/settings/administrations", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: editing.id,
+          name: editing.name.trim(),
+          managerEmail: editing.managerEmail.trim(),
+          managerName: editing.managerName.trim(),
+          kind: editing.kind,
+        }),
+      });
+      const payload = await parseApiResponse<Administration>(res);
+      if (!res.ok || !payload.success) {
+        throw new Error(getApiErrorMessage(payload, "فشل التحديث"));
+      }
+      setStatus("تم تحديث الإدارة");
+      setEditing(null);
+      await load();
+      return true;
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "خطأ");
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <div className="card space-y-4 p-4">
       <div>
@@ -149,6 +187,85 @@ export default function AdministrationsManager() {
           إضافة إدارة
         </button>
       </div>
+
+      {editing && (
+        <div
+          className="modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="edit-admin-title"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setEditing(null);
+          }}
+        >
+          <div className="modal-panel card space-y-4">
+            <div className="flex items-start justify-between gap-2">
+              <h3 id="edit-admin-title" className="text-lg font-bold text-primary">
+                تعديل الإدارة
+              </h3>
+              <IconButton
+                label="إغلاق"
+                icon={<IconX size={18} />}
+                onClick={() => setEditing(null)}
+              />
+            </div>
+            <p className="text-sm text-brand-gray">
+              إعادة التسمية تحفظ الاسم الظاهر فقط دون كسر ربط الطلبات السابقة.
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <input
+                className="input-field"
+                placeholder="اسم الإدارة"
+                value={editing.name}
+                onChange={(e) => setEditing({ ...editing, name: e.target.value })}
+              />
+              <input
+                className="input-field"
+                placeholder="اسم المدير"
+                value={editing.managerName}
+                onChange={(e) => setEditing({ ...editing, managerName: e.target.value })}
+              />
+              <input
+                className="input-field"
+                dir="ltr"
+                placeholder="بريد المدير"
+                value={editing.managerEmail}
+                onChange={(e) => setEditing({ ...editing, managerEmail: e.target.value })}
+              />
+              <select
+                className="input-field"
+                value={editing.kind}
+                onChange={(e) =>
+                  setEditing({
+                    ...editing,
+                    kind: e.target.value as "INTERNAL" | "EXTERNAL",
+                  })
+                }
+              >
+                <option value="EXTERNAL">خارجية (مقدّمة للطلبات)</option>
+                <option value="INTERNAL">داخلية (اتصال مؤسسي)</option>
+              </select>
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <button
+                type="button"
+                className="btn-secondary flex-1"
+                onClick={() => setEditing(null)}
+              >
+                إلغاء
+              </button>
+              <button
+                type="button"
+                className="btn-primary flex-1"
+                disabled={saving}
+                onClick={() => void saveEdit()}
+              >
+                {saving ? "جاري الحفظ..." : "حفظ"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {creating && (
         <div
@@ -259,6 +376,11 @@ export default function AdministrationsManager() {
                   </td>
                   <td>
                     <div className="flex gap-1">
+                      <IconButton
+                        label="تعديل الإدارة"
+                        icon={<IconEdit size={18} />}
+                        onClick={() => setEditing({ ...item })}
+                      />
                       <IconButton
                         label={item.isActive ? "تعطيل" : "تفعيل"}
                         icon={<IconPower size={18} />}

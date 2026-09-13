@@ -4,6 +4,7 @@ import { formatMeetingDate, isSlaBreached, SLA_METRIC_HINTS } from "./sla-utils"
 import { IconArchive, IconCheck } from "@/components/shared/icons";
 import StatusBadge from "@/components/shared/status-badge";
 import { canCancelStatus } from "@/lib/request-stop";
+import { formatTime12h, formatTimeRange12h } from "@/lib/hospitality/format-time";
 
 export interface SlaMetrics {
   createdToApprovalMs: number | null;
@@ -143,7 +144,7 @@ export default function RequestCard({
           {formatMeetingDate(request.hospitalityBooking.meetingDate)}
           {" · "}
           <span dir="ltr">
-            {request.hospitalityBooking.startTime}–{request.hospitalityBooking.endTime}
+            {formatTimeRange12h(request.hospitalityBooking.startTime, request.hospitalityBooking.endTime)}
           </span>
         </p>
       )}
@@ -197,7 +198,7 @@ export default function RequestCard({
         <p className="text-[10px] text-[var(--zaad-danger)]">
           متأخر عن الموعد المطلوب
           {request.hospitalityBooking
-            ? ` (موعد الحجز: ${formatMeetingDate(request.hospitalityBooking.meetingDate)} ${request.hospitalityBooking.startTime})`
+            ? ` (موعد الحجز: ${formatMeetingDate(request.hospitalityBooking.meetingDate)} ${formatTime12h(request.hospitalityBooking.startTime)})`
             : ""}
         </p>
       )}

@@ -22,6 +22,7 @@ import {
   IconTrash,
   IconX,
 } from "@/components/shared/icons";
+import { useToast } from "@/components/ui/toast";
 
 interface Department {
   id: string;
@@ -40,14 +41,14 @@ interface RequestType {
 type EditorPanel = "main" | "content" | "fields";
 
 const FIELD_TITLES: Record<FormFieldKey, string> = {
+  contactName: "الاسم",
+  contactEmail: "البريد",
+  title: "العنوان",
+  description: "الوصف",
   department: "القسم",
   requestType: "نوع الطلب",
-  title: "عنوان الطلب",
-  contactName: "اسم مقدّم الطلب",
-  description: "الوصف",
   requiredDate: "التاريخ المطلوب",
   visitDate: "تاريخ الزيارة",
-  contactEmail: "البريد الإلكتروني",
   contactPhone: "رقم الجوال",
 };
 
@@ -58,6 +59,7 @@ export default function RequestFormsManager({
   departments: Department[];
   requestTypes: RequestType[];
 }) {
+  const { pushToast } = useToast();
   const [forms, setForms] = useState<RequestFormData[]>([]);
   const [draft, setDraft] = useState<RequestFormData | null>(null);
   const [editorPanel, setEditorPanel] = useState<EditorPanel | null>(null);
@@ -90,7 +92,9 @@ export default function RequestFormsManager({
         return fresh ? { ...fresh, fields: { ...fresh.fields } } : prev;
       });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "خطأ");
+      const __err = e instanceof Error ? e.message : "خطأ";
+      setError(__err);
+      pushToast(__err, "danger");
     } finally {
       if (!opts?.soft) setLoading(false);
     }
@@ -128,14 +132,16 @@ export default function RequestFormsManager({
     );
   }
 
-  function flash(message: string) {
+  function flash(message: string, tone: "success" | "danger" | "warning" | "info" = "success") {
     setStatus(message);
+    pushToast(message, tone);
     window.setTimeout(() => setStatus(""), 4000);
   }
 
   async function handleCreate() {
     if (!newName.trim()) {
       setError("اسم النموذج مطلوب");
+      pushToast("اسم النموذج مطلوب", "danger");
       return;
     }
     setSaving(true);
@@ -157,7 +163,9 @@ export default function RequestFormsManager({
       openEditor(payload.data.form);
       flash("تم إنشاء النموذج");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "خطأ");
+      const __err = e instanceof Error ? e.message : "خطأ";
+      setError(__err);
+      pushToast(__err, "danger");
     } finally {
       setSaving(false);
     }
@@ -182,7 +190,9 @@ export default function RequestFormsManager({
       setDraft({ ...saved, fields: { ...saved.fields } });
       flash("تم حفظ النموذج");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "خطأ");
+      const __err = e instanceof Error ? e.message : "خطأ";
+      setError(__err);
+      pushToast(__err, "danger");
     } finally {
       setSaving(false);
     }
@@ -201,7 +211,9 @@ export default function RequestFormsManager({
       await load();
       flash("تم حذف النموذج");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "خطأ");
+      const __err = e instanceof Error ? e.message : "خطأ";
+      setError(__err);
+      pushToast(__err, "danger");
     } finally {
       setSaving(false);
     }
@@ -683,21 +695,32 @@ export default function RequestFormsManager({
                     </p>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  className="btn-secondary text-sm"
-                  onClick={() => setEditorPanel("main")}
-                >
-                  رجوع لإعدادات النموذج
-                </button>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    className="btn-primary text-sm"
+                    disabled={saving}
+                    onClick={() => void handleSave()}
+                  >
+                    {saving ? "جاري الحفظ..." : "حفظ العناوين"}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-secondary text-sm"
+                    onClick={() => setEditorPanel("main")}
+                  >
+                    رجوع لإعدادات النموذج
+                  </button>
+                </div>
               </>
             )}
 
             {editorPanel === "fields" && (
               <>
                 <p className="text-sm text-brand-gray">
-                  الحقول الأساسية (مقفل) تظهر دائماً — يمكن تغيير تسميتها فقط. بقية الحقول
-                  يمكن إظهارها أو إخفاؤها لهذا النموذج.
+                  الحقول الأساسية (الاسم، البريد، العنوان، الوصف + القسم ونوع الطلب) مقفلة
+                  وتظهر دائماً في كل النماذج — يمكن تغيير تسميتها فقط. بقية الحقول تظهر حسب
+                  نوع الطلب ويمكن إظهارها أو إخفاؤها.
                 </p>
                 <div className="max-h-[50vh] space-y-3 overflow-y-auto pe-1">
                   {FORM_FIELD_KEYS.map((key) => {
@@ -710,7 +733,7 @@ export default function RequestFormsManager({
                       >
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <p className="font-semibold text-primary">
-                            {FIELD_TITLES[key]}
+                            {field.label.trim() || FIELD_TITLES[key]}
                             {locked && (
                               <span className="badge-warning ms-2">أساسي — تسمية فقط</span>
                             )}
@@ -772,13 +795,23 @@ export default function RequestFormsManager({
                     );
                   })}
                 </div>
-                <button
-                  type="button"
-                  className="btn-secondary text-sm"
-                  onClick={() => setEditorPanel("main")}
-                >
-                  رجوع لإعدادات النموذج
-                </button>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    className="btn-primary text-sm"
+                    disabled={saving}
+                    onClick={() => void handleSave()}
+                  >
+                    {saving ? "جاري الحفظ..." : "حفظ الحقول"}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-secondary text-sm"
+                    onClick={() => setEditorPanel("main")}
+                  >
+                    رجوع لإعدادات النموذج
+                  </button>
+                </div>
               </>
             )}
           </div>

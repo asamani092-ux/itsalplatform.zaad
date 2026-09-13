@@ -66,7 +66,24 @@ export async function POST(request: NextRequest) {
 
     // Section managers may only add employees inside their own section.
     const scopedDeptId = sectionScope(auth.session);
-    const role = scopedDeptId ? EmployeeRole.EMPLOYEE : body.role ?? EmployeeRole.EMPLOYEE;
+    const requestedRole = body.role ?? EmployeeRole.EMPLOYEE;
+    const allowedRoles: EmployeeRole[] = [
+      EmployeeRole.EMPLOYEE,
+      EmployeeRole.SECTION_MANAGER,
+      EmployeeRole.DIRECTOR,
+    ];
+    if (!allowedRoles.includes(requestedRole)) {
+      return jsonError("الدور غير صالح", "VALIDATION", 400);
+    }
+    // Only directors may create managers/directors — never silently downgrade.
+    if (scopedDeptId && requestedRole !== EmployeeRole.EMPLOYEE) {
+      return jsonError(
+        "مدير القسم يمكنه إضافة موظفين فقط. لإنشاء مدير إدارة أو مدير قسم سجّل الدخول بحساب مدير الإدارة.",
+        "FORBIDDEN",
+        403,
+      );
+    }
+    const role = requestedRole;
     const departmentId = scopedDeptId ?? body.departmentId ?? null;
 
     const employee = await createEmployee({
@@ -117,8 +134,24 @@ export async function PATCH(request: NextRequest) {
       if (!target || target.departmentId !== scopedDeptId) {
         return jsonError("لا يمكنك تعديل عضو خارج قسمك", "FORBIDDEN", 403);
       }
+      if (body.role && body.role !== EmployeeRole.EMPLOYEE) {
+        return jsonError(
+          "مدير القسم لا يمكنه ترقية الأعضاء إلى مدير قسم أو مدير إدارة.",
+          "FORBIDDEN",
+          403,
+        );
+      }
       delete body.role;
       delete body.departmentId;
+    } else if (body.role) {
+      const allowedRoles: EmployeeRole[] = [
+        EmployeeRole.EMPLOYEE,
+        EmployeeRole.SECTION_MANAGER,
+        EmployeeRole.DIRECTOR,
+      ];
+      if (!allowedRoles.includes(body.role)) {
+        return jsonError("الدور غير صالح", "VALIDATION", 400);
+      }
     }
 
     const employee = await updateEmployee(body.id, body);

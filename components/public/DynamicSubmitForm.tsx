@@ -493,6 +493,104 @@ export default function DynamicSubmitForm({
             </div>
           )}
 
+          <div className="space-y-1">
+            <label className="label-field" htmlFor="contactName">
+              {fields.contactName.label}
+            </label>
+            <input
+              id="contactName"
+              className="input-field w-full focus-visible:ring-2 focus-visible:ring-primary/20"
+              placeholder={fields.contactName.placeholder}
+              value={contactName}
+              onChange={(e) => {
+                setContactName(e.target.value);
+                setFieldErrors((prev) => ({ ...prev, contactName: undefined }));
+              }}
+              aria-invalid={Boolean(fieldErrors.contactName)}
+              aria-describedby={fieldErrors.contactName ? "contactName-error" : undefined}
+              required
+            />
+            {fieldErrors.contactName && (
+              <p id="contactName-error" className="text-xs text-[var(--zaad-danger)]" role="alert" data-field-error>
+                {fieldErrors.contactName}
+              </p>
+            )}
+          </div>
+
+          <div className="space-y-1">
+            <label className="label-field" htmlFor="contactEmail">
+              {fields.contactEmail.label}
+            </label>
+            <input
+              id="contactEmail"
+              className="input-field w-full focus-visible:ring-2 focus-visible:ring-primary/20"
+              type="email"
+              placeholder={fields.contactEmail.placeholder}
+              dir="ltr"
+              value={contactEmail}
+              onChange={(e) => {
+                setContactEmail(e.target.value);
+                setFieldErrors((prev) => ({ ...prev, contactEmail: undefined }));
+              }}
+              aria-invalid={Boolean(fieldErrors.contactEmail)}
+              aria-describedby={fieldErrors.contactEmail ? "contactEmail-error" : undefined}
+              required
+            />
+            {fieldErrors.contactEmail && (
+              <p id="contactEmail-error" className="text-xs text-[var(--zaad-danger)]" role="alert" data-field-error>
+                {fieldErrors.contactEmail}
+              </p>
+            )}
+          </div>
+
+          <div className="space-y-1">
+            <label className="label-field" htmlFor="title">
+              {fields.title.label}
+            </label>
+            <input
+              id="title"
+              className="input-field w-full focus-visible:ring-2 focus-visible:ring-primary/20"
+              placeholder={fields.title.placeholder}
+              value={title}
+              onChange={(e) => {
+                setTitle(e.target.value);
+                setFieldErrors((prev) => ({ ...prev, title: undefined }));
+              }}
+              aria-invalid={Boolean(fieldErrors.title)}
+              aria-describedby={fieldErrors.title ? "title-error" : undefined}
+              required
+            />
+            {fieldErrors.title && (
+              <p id="title-error" className="text-xs text-[var(--zaad-danger)]" role="alert" data-field-error>
+                {fieldErrors.title}
+              </p>
+            )}
+          </div>
+
+          <div className="space-y-1">
+            <label className="label-field" htmlFor="description">
+              {fields.description.label}
+            </label>
+            <textarea
+              id="description"
+              className="input-field min-h-24 w-full focus-visible:ring-2 focus-visible:ring-primary/20"
+              placeholder={fields.description.placeholder}
+              value={description}
+              onChange={(e) => {
+                setDescription(e.target.value);
+                setFieldErrors((prev) => ({ ...prev, description: undefined }));
+              }}
+              aria-invalid={Boolean(fieldErrors.description)}
+              aria-describedby={fieldErrors.description ? "description-error" : undefined}
+              required
+            />
+            {fieldErrors.description && (
+              <p id="description-error" className="text-xs text-[var(--zaad-danger)]" role="alert" data-field-error>
+                {fieldErrors.description}
+              </p>
+            )}
+          </div>
+
           {visibility.department && (
           <div className="space-y-1">
             <label className="label-field" htmlFor="department">
@@ -562,83 +660,6 @@ export default function DynamicSubmitForm({
               </p>
             )}
           </div>
-          )}
-
-          <div className="space-y-1">
-            <label className="label-field" htmlFor="title">
-              {fields.title.label}
-            </label>
-            <input
-              id="title"
-              className="input-field w-full focus-visible:ring-2 focus-visible:ring-primary/20"
-              placeholder={fields.title.placeholder}
-              value={title}
-              onChange={(e) => {
-                setTitle(e.target.value);
-                setFieldErrors((prev) => ({ ...prev, title: undefined }));
-              }}
-              aria-invalid={Boolean(fieldErrors.title)}
-              aria-describedby={fieldErrors.title ? "title-error" : undefined}
-              required
-            />
-            {fieldErrors.title && (
-              <p id="title-error" className="text-xs text-[var(--zaad-danger)]" role="alert" data-field-error>
-                {fieldErrors.title}
-              </p>
-            )}
-          </div>
-
-          <div className="space-y-1">
-            <label className="label-field" htmlFor="contactName">
-              {fields.contactName.label}
-            </label>
-            <input
-              id="contactName"
-              className="input-field w-full focus-visible:ring-2 focus-visible:ring-primary/20"
-              placeholder={fields.contactName.placeholder}
-              value={contactName}
-              onChange={(e) => {
-                setContactName(e.target.value);
-                setFieldErrors((prev) => ({ ...prev, contactName: undefined }));
-              }}
-              aria-invalid={Boolean(fieldErrors.contactName)}
-              aria-describedby={fieldErrors.contactName ? "contactName-error" : undefined}
-              required
-            />
-            {fieldErrors.contactName && (
-              <p id="contactName-error" className="text-xs text-[var(--zaad-danger)]" role="alert" data-field-error>
-                {fieldErrors.contactName}
-              </p>
-            )}
-          </div>
-
-          {visibility.description && (
-            <div className="space-y-1">
-              <label className="label-field" htmlFor="description">
-                {fields.description.label}
-                {!fields.description.required && (
-                  <span className="text-brand-gray"> (اختياري)</span>
-                )}
-              </label>
-              <textarea
-                id="description"
-                className="input-field min-h-24 w-full focus-visible:ring-2 focus-visible:ring-primary/20"
-                placeholder={fields.description.placeholder}
-                value={description}
-                onChange={(e) => {
-                  setDescription(e.target.value);
-                  setFieldErrors((prev) => ({ ...prev, description: undefined }));
-                }}
-                aria-invalid={Boolean(fieldErrors.description)}
-                aria-describedby={fieldErrors.description ? "description-error" : undefined}
-                required={fields.description.required}
-              />
-              {fieldErrors.description && (
-                <p id="description-error" className="text-xs text-[var(--zaad-danger)]" role="alert" data-field-error>
-                  {fieldErrors.description}
-                </p>
-              )}
-            </div>
           )}
 
           {visibility.requiredDate && (
@@ -713,32 +734,6 @@ export default function DynamicSubmitForm({
               )}
             </div>
           )}
-
-          <div className="space-y-1">
-            <label className="label-field" htmlFor="contactEmail">
-              {fields.contactEmail.label}
-            </label>
-            <input
-              id="contactEmail"
-              className="input-field w-full focus-visible:ring-2 focus-visible:ring-primary/20"
-              type="email"
-              placeholder={fields.contactEmail.placeholder}
-              dir="ltr"
-              value={contactEmail}
-              onChange={(e) => {
-                setContactEmail(e.target.value);
-                setFieldErrors((prev) => ({ ...prev, contactEmail: undefined }));
-              }}
-              aria-invalid={Boolean(fieldErrors.contactEmail)}
-              aria-describedby={fieldErrors.contactEmail ? "contactEmail-error" : undefined}
-              required
-            />
-            {fieldErrors.contactEmail && (
-              <p id="contactEmail-error" className="text-xs text-[var(--zaad-danger)]" role="alert" data-field-error>
-                {fieldErrors.contactEmail}
-              </p>
-            )}
-          </div>
 
           {visibility.contactPhone && (
             <div className="space-y-1">

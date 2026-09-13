@@ -8,6 +8,7 @@ import { IconButton } from "@/components/ui/icon-button";
 import { IconRefresh } from "@/components/shared/icons";
 import type { DashboardRequest } from "@/components/dashboard/kanban/RequestCard";
 import { canCancelStatus, canRejectStatus } from "@/lib/request-stop";
+import { useToast } from "@/components/ui/toast";
 
 const STATUS_OPTIONS: Array<{ value: string; label: string }> = [
   { value: "", label: "كل الحالات" },
@@ -35,6 +36,7 @@ function formatDate(value: string | null): string {
 }
 
 export default function AllRequestsPage() {
+  const { pushToast } = useToast();
   const [requests, setRequests] = useState<DashboardRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -86,15 +88,17 @@ export default function AllRequestsPage() {
         throw new Error(getApiErrorMessage(payload, failureMessage));
       }
       setNotice(successMessage);
+      pushToast(successMessage, "success");
       setRejectTargetId(null);
       setRejectReason("");
       setCancelTargetId(null);
       setCancelReason("");
       await loadData();
     } catch (actionError) {
-      setError(
-        actionError instanceof Error ? actionError.message : failureMessage,
-      );
+      const message =
+        actionError instanceof Error ? actionError.message : failureMessage;
+      setError(message);
+      pushToast(message, "danger");
     } finally {
       setActionId(null);
     }
@@ -121,7 +125,9 @@ export default function AllRequestsPage() {
 
   function handleRejectConfirm() {
     if (!rejectTargetId || rejectReason.trim().length < 3) {
-      setError("سبب الرفض مطلوب (3 أحرف على الأقل)");
+      const message = "سبب الرفض مطلوب (3 أحرف على الأقل)";
+      setError(message);
+      pushToast(message, "danger");
       return Promise.resolve();
     }
     const id = rejectTargetId;
@@ -141,7 +147,9 @@ export default function AllRequestsPage() {
 
   function handleCancelConfirm() {
     if (!cancelTargetId || cancelReason.trim().length < 3) {
-      setError("سبب الإلغاء مطلوب (3 أحرف على الأقل)");
+      const message = "سبب الإلغاء مطلوب (3 أحرف على الأقل)";
+      setError(message);
+      pushToast(message, "danger");
       return Promise.resolve();
     }
     const id = cancelTargetId;
