@@ -1,6 +1,6 @@
 import { prisma } from "./prisma";
 import { RequestStatus } from "../generated/prisma/client";
-import { combineVisitAt } from "./reception/constants";
+import { combineVisitAt, isOrganizationRequired } from "./reception/constants";
 
 const visitRequestSelect = {
   id: true,
@@ -139,8 +139,11 @@ export async function createVisitorLog(params: {
   const reason = params.reason?.trim() ?? "";
   const visitTimeSlot = params.visitTimeSlot.trim();
 
-  if (!visitorName || !visitorPhone || !organization || !visitType || !visitTarget || !visitTimeSlot) {
+  if (!visitorName || !visitorPhone || !visitType || !visitTarget || !visitTimeSlot) {
     throw new Error("VALIDATION: أكمل حقول الزائر المطلوبة");
+  }
+  if (isOrganizationRequired(visitType) && !organization) {
+    throw new Error("VALIDATION: الجهة / المؤسسة مطلوبة للزيارات التابعة لجهة");
   }
   if (visitTarget === "زائر" && !reason) {
     throw new Error("VALIDATION: سبب الزيارة مطلوب عند اختيار «زائر»");

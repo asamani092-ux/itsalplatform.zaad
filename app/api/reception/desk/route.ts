@@ -11,6 +11,7 @@ import {
   undoScheduledAttendance,
 } from "@/lib/reception-service";
 import {
+  isOrganizationRequired,
   VISIT_TARGETS,
   VISIT_TIME_SLOTS,
   VISIT_TYPES,
@@ -68,7 +69,6 @@ export async function POST(request: NextRequest) {
     if (
       !body.visitorName?.trim() ||
       !body.visitorPhone?.trim() ||
-      !body.organization?.trim() ||
       !body.visitType?.trim() ||
       !body.visitTarget?.trim() ||
       !body.visitDate ||
@@ -76,11 +76,14 @@ export async function POST(request: NextRequest) {
     ) {
       return jsonError("أكمل حقول تسجيل الزائر", "VALIDATION", 400);
     }
+    if (isOrganizationRequired(body.visitType) && !body.organization?.trim()) {
+      return jsonError("الجهة / المؤسسة مطلوبة للزيارات التابعة لجهة", "VALIDATION", 400);
+    }
 
     const log = await createVisitorLog({
       visitorName: body.visitorName,
       visitorPhone: body.visitorPhone,
-      organization: body.organization,
+      organization: body.organization ?? "",
       visitType: body.visitType,
       visitTarget: body.visitTarget,
       reason: body.reason,
@@ -125,7 +128,6 @@ export async function PATCH(request: NextRequest) {
     if (
       !body.visitorName?.trim() ||
       !body.visitorPhone?.trim() ||
-      !body.organization?.trim() ||
       !body.visitType?.trim() ||
       !body.visitTarget?.trim() ||
       !body.visitDate ||
@@ -133,12 +135,15 @@ export async function PATCH(request: NextRequest) {
     ) {
       return jsonError("أكمل بيانات تأكيد الحضور", "VALIDATION", 400);
     }
+    if (isOrganizationRequired(body.visitType) && !body.organization?.trim()) {
+      return jsonError("الجهة / المؤسسة مطلوبة للزيارات التابعة لجهة", "VALIDATION", 400);
+    }
 
     const result = await checkInScheduledVisit({
       requestId: body.requestId,
       visitorName: body.visitorName,
       visitorPhone: body.visitorPhone,
-      organization: body.organization,
+      organization: body.organization ?? "",
       visitType: body.visitType,
       visitTarget: body.visitTarget,
       reason: body.reason,
