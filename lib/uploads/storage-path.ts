@@ -13,10 +13,21 @@ export function getProofStorageDir(): string {
   return path.join(process.cwd(), "storage", "proofs");
 }
 
+export function getMediaStorageDir(): string {
+  const configured = process.env.MEDIA_STORAGE_DIR?.trim();
+  if (configured) return configured;
+  return path.join(process.cwd(), "storage", "media");
+}
+
 const PROOF_API_PREFIX = "/api/uploads/proofs/";
+const MEDIA_API_PREFIX = "/api/uploads/media/";
 
 export function buildProofPublicUrl(filename: string): string {
   return `${PROOF_API_PREFIX}${filename}`;
+}
+
+export function buildMediaPublicUrl(filename: string): string {
+  return `${MEDIA_API_PREFIX}${filename}`;
 }
 
 /**
