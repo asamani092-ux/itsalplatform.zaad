@@ -1,6 +1,9 @@
 import { NextRequest } from "next/server";
 import { handleApiError, jsonError, jsonOk } from "@/lib/api-utils";
-import { requireReceptionDeskSession } from "@/lib/auth/route-guard";
+import {
+  requireReceptionDeskSession,
+  requireReceptionManageSession,
+} from "@/lib/auth/route-guard";
 import {
   addAttendeesBulk,
   createAttendanceEvent,
@@ -41,7 +44,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const auth = await requireReceptionDeskSession();
+    const auth = await requireReceptionManageSession();
     if (auth.error) return auth.error;
 
     const body = (await request.json()) as {
@@ -90,6 +93,8 @@ export async function PATCH(request: NextRequest) {
     };
 
     if (body.action === "add_names" && body.eventId) {
+      const manage = await requireReceptionManageSession();
+      if (manage.error) return manage.error;
       const names = (body.namesText ?? "")
         .split(/[\n,;]+/)
         .map((n: string) => n.trim())

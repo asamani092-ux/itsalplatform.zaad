@@ -76,6 +76,7 @@ model Department {
   requestForms     RequestForm[]
   visitorLogs      ReceptionVisitorLog[]
   employees        CommEmployee[]         @relation("EmployeeDepartment")
+  ownedModules     PlatformModule[]       @relation("ModuleOwnerDepartment")
   grants           Grant[]
   createdAt        DateTime               @default(now())
   updatedAt        DateTime               @updatedAt
@@ -337,16 +338,20 @@ model PasswordResetToken {
 }
 
 model PlatformModule {
-  id        String   @id @default(cuid())
-  key       String   @unique
-  isEnabled Boolean  @default(true)
-  sortOrder Int      @default(0)
-  settings  Json     @default("{}")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                 String      @id @default(cuid())
+  key                String      @unique
+  isEnabled          Boolean     @default(true)
+  sortOrder          Int         @default(0)
+  settings           Json        @default("{}")
+  /** Department that owns this tool — drives section-manager visibility. */
+  ownerDepartmentId  String?
+  ownerDepartment    Department? @relation("ModuleOwnerDepartment", fields: [ownerDepartmentId], references: [id], onDelete: SetNull)
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
 
   @@index([isEnabled])
   @@index([sortOrder])
+  @@index([ownerDepartmentId])
 }
 
 model RequestForm {

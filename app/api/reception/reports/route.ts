@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { handleApiError, jsonError, jsonOk } from "@/lib/api-utils";
-import { requireReceptionDeskSession } from "@/lib/auth/route-guard";
+import { requireReceptionManageSession } from "@/lib/auth/route-guard";
 import { getReceptionReports } from "@/lib/reception-service";
 
 function parseDay(value: string | null, fallback: Date): Date {
@@ -12,7 +12,7 @@ function parseDay(value: string | null, fallback: Date): Date {
 
 export async function GET(request: NextRequest) {
   try {
-    const auth = await requireReceptionDeskSession();
+    const auth = await requireReceptionManageSession();
     if (auth.error) return auth.error;
 
     const sp = request.nextUrl.searchParams;

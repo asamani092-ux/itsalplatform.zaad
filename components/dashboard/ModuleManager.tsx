@@ -15,6 +15,7 @@ const CATEGORY_ORDER: ModuleCategory[] = ["operations", "services", "admin"];
 
 export default function ModuleManager() {
   const [modules, setModules] = useState<PlatformModuleState[]>([]);
+  const [departments, setDepartments] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyKey, setBusyKey] = useState("");
   const [error, setError] = useState("");
@@ -23,12 +24,25 @@ export default function ModuleManager() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/manager/settings/modules");
+      const [res, deptRes] = await Promise.all([
+        fetch("/api/manager/settings/modules"),
+        fetch("/api/manager/settings/departments"),
+      ]);
       const payload = await parseApiResponse<{ modules: PlatformModuleState[] }>(res);
       if (!res.ok || !payload.success) {
         throw new Error(getApiErrorMessage(payload, "تعذّر تحميل الأدوات"));
       }
       setModules(payload.data.modules);
+      if (deptRes.ok) {
+        const deptPayload = await parseApiResponse<{
+          departments: { id: string; name: string }[];
+        }>(deptRes);
+        if (deptPayload.success) {
+          setDepartments(
+            deptPayload.data.departments.map((d) => ({ id: d.id, name: d.name })),
+          );
+        }
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "خطأ");
     } finally {
@@ -40,7 +54,10 @@ export default function ModuleManager() {
     void load();
   }, [load]);
 
-  async function toggle(key: string, isEnabled: boolean) {
+  async function patchModule(
+    key: string,
+    body: { isEnabled?: boolean; ownerDepartmentId?: string | null },
+  ) {
     setBusyKey(key);
     setError("");
     setStatus("");
@@ -48,7 +65,7 @@ export default function ModuleManager() {
       const res = await fetch("/api/manager/settings/modules", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ key, isEnabled }),
+        body: JSON.stringify({ key, ...body }),
       });
       const payload = await parseApiResponse<{ modules: PlatformModuleState[] }>(res);
       if (!res.ok || !payload.success) {
@@ -139,6 +156,32 @@ export default function ModuleManager() {
 
                   <p className="flex-1 text-sm text-brand-gray">{item.description}</p>
 
+                  {!item.core && (
+                    <div className="space-y-1">
+                      <label className="label-field" htmlFor={`owner-${item.key}`}>
+                        القسم المسؤول
+                      </label>
+                      <select
+                        id={`owner-${item.key}`}
+                        className="input-field w-full"
+                        disabled={busyKey === item.key}
+                        value={item.ownerDepartmentId ?? ""}
+                        onChange={(e) =>
+                          void patchModule(item.key, {
+                            ownerDepartmentId: e.target.value || null,
+                          })
+                        }
+                      >
+                        <option value="">كل الأقسام (غير مربوط)</option>
+                        {departments.map((d) => (
+                          <option key={d.id} value={d.id}>
+                            {d.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
                   {item.publicHref && (
                     <p className="text-xs text-brand-gray">
                       الرابط العام:{" "}
@@ -171,7 +214,7 @@ export default function ModuleManager() {
                       icon={<IconPower size={18} />}
                       tone={item.isEnabled ? "danger" : "primary"}
                       disabled={item.core || busyKey === item.key}
-                      onClick={() => void toggle(item.key, !item.isEnabled)}
+                      onClick={() => void patchModule(item.key, { isEnabled: !item.isEnabled })}
                     />
                   </div>
                 </article>

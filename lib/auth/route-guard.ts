@@ -58,14 +58,64 @@ export async function requireEmployeeSession() {
   return { session };
 }
 
-/** Central reception desk: management roles or an employee with desk access. */
+/**
+ * Central reception desk — live ownership check (not JWT alone).
+ * DIRECTOR, owning/unowned SECTION_MANAGER, or isReceptionDesk employee.
+ */
 export async function requireReceptionDeskSession() {
   const session = await getRouteSession();
   if (!session) return { error: UNAUTHORIZED };
-  if (!MANAGEMENT_ROLES.includes(session.role) && !session.deskAccess) {
+
+  const { prisma } = await import("@/lib/prisma");
+  const { canAccessReception, canManageReception } = await import(
+    "@/lib/modules/server"
+  );
+
+  const employee = await prisma.commEmployee.findUnique({
+    where: { id: session.sub },
+    select: {
+      role: true,
+      departmentId: true,
+      isReceptionDesk: true,
+      isActive: true,
+    },
+  });
+  if (!employee || !employee.isActive) {
+    return { error: UNAUTHORIZED };
+  }
+
+  const viewer = {
+    role: employee.role,
+    departmentId: employee.departmentId,
+    isReceptionDesk: employee.isReceptionDesk,
+    deskAccess: employee.isReceptionDesk,
+  };
+
+  if (!(await canAccessReception(viewer))) {
     return { error: forbidden("صلاحيات الاستقبال مطلوبة") };
   }
-  return { session };
+
+  const deskManage = await canManageReception(viewer);
+  return {
+    session: {
+      ...session,
+      role: employee.role,
+      departmentId: employee.departmentId,
+      deskAccess: true,
+      deskManage,
+      isReceptionDesk: employee.isReceptionDesk,
+    },
+  };
+}
+
+/** Reception management: indicators, reports, create attendance lists. */
+export async function requireReceptionManageSession() {
+  const auth = await requireReceptionDeskSession();
+  if (auth.error) return auth;
+  if (!auth.session.deskManage) {
+    return { error: forbidden("صلاحيات إدارة الاستقبال مطلوبة") };
+  }
+  return auth;
 }
 
 /**

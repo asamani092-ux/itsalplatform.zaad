@@ -9,6 +9,7 @@ import {
   verifyPassword,
 } from "@/lib/auth-service";
 import { handleApiError, jsonError, jsonOk } from "@/lib/api-utils";
+import { canManageReception } from "@/lib/modules/server";
 import { prisma } from "@/lib/prisma";
 
 export async function GET() {
@@ -18,13 +19,40 @@ export async function GET() {
       return jsonError("غير مسجل الدخول", "UNAUTHORIZED", 401);
     }
 
+    const employee = await prisma.commEmployee.findUnique({
+      where: { id: session.sub },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phoneNumber: true,
+        role: true,
+        departmentId: true,
+        isReceptionDesk: true,
+      },
+    });
+    if (!employee) {
+      return jsonError("الحساب غير موجود", "NOT_FOUND", 404);
+    }
+
+    const deskManage = await canManageReception({
+      role: employee.role,
+      departmentId: employee.departmentId,
+      isReceptionDesk: employee.isReceptionDesk,
+      deskAccess: employee.isReceptionDesk || session.deskAccess,
+    });
+
     return jsonOk({
       user: {
-        id: session.sub,
-        name: session.name,
-        email: session.email,
-        phoneNumber: session.phoneNumber,
-        role: session.role,
+        id: employee.id,
+        name: employee.name,
+        email: employee.email,
+        phoneNumber: employee.phoneNumber,
+        role: employee.role,
+        departmentId: employee.departmentId,
+        deskAccess: session.deskAccess,
+        isReceptionDesk: employee.isReceptionDesk,
+        deskManage,
       },
     });
   } catch (error) {

@@ -173,6 +173,40 @@ export async function createVisitorLog(params: {
   });
 }
 
+/** Create multiple visitor logs with shared visit fields. O(n) time. */
+export async function createVisitorLogsBulk(params: {
+  visitors: { visitorName: string; visitorPhone: string }[];
+  organization: string;
+  visitType: string;
+  visitTarget: string;
+  reason?: string;
+  visitDate: string;
+  visitTimeSlot: string;
+  markedById?: string | null;
+}) {
+  if (!params.visitors.length) {
+    throw new Error("VALIDATION: أضف زائراً واحداً على الأقل");
+  }
+
+  const logs = [];
+  for (const visitor of params.visitors) {
+    logs.push(
+      await createVisitorLog({
+        visitorName: visitor.visitorName,
+        visitorPhone: visitor.visitorPhone,
+        organization: params.organization,
+        visitType: params.visitType,
+        visitTarget: params.visitTarget,
+        reason: params.reason,
+        visitDate: params.visitDate,
+        visitTimeSlot: params.visitTimeSlot,
+        markedById: params.markedById,
+      }),
+    );
+  }
+  return logs;
+}
+
 export async function checkInScheduledVisit(params: {
   requestId: string;
   visitorName: string;

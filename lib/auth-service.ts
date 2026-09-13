@@ -30,11 +30,12 @@ export async function verifyLogin(email: string, password: string) {
     return null;
   }
 
-  // Reception desk capability: management roles, or an employee flagged as desk staff.
-  const deskAccess =
-    employee.role === EmployeeRole.DIRECTOR ||
-    employee.role === EmployeeRole.SECTION_MANAGER ||
-    employee.isReceptionDesk === true;
+  const { resolveDeskAccess } = await import("@/lib/modules/server");
+  const deskAccess = await resolveDeskAccess({
+    role: employee.role,
+    departmentId: employee.departmentId ?? null,
+    isReceptionDesk: employee.isReceptionDesk === true,
+  });
 
   return {
     id: employee.id,
