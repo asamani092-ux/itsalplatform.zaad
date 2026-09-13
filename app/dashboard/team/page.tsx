@@ -69,6 +69,7 @@ function MemberModal({
   onSubmit,
   submitting,
   error,
+  canAssignManagementRoles,
 }: {
   open: boolean;
   mode: "create" | "edit";
@@ -78,6 +79,8 @@ function MemberModal({
   onSubmit: (form: MemberForm) => Promise<void>;
   submitting: boolean;
   error: string;
+  /** Only directors may assign SECTION_MANAGER / DIRECTOR. */
+  canAssignManagementRoles: boolean;
 }) {
   const [form, setForm] = useState<MemberForm>(initial);
 
@@ -172,13 +175,23 @@ function MemberModal({
             <select
               id="member-role"
               className="input-field w-full"
-              value={form.role}
+              value={canAssignManagementRoles ? form.role : "EMPLOYEE"}
               onChange={(e) => setForm({ ...form, role: e.target.value })}
+              disabled={!canAssignManagementRoles}
             >
               <option value="EMPLOYEE">موظف</option>
-              <option value="SECTION_MANAGER">مدير قسم</option>
-              <option value="DIRECTOR">مدير إدارة</option>
+              {canAssignManagementRoles && (
+                <>
+                  <option value="SECTION_MANAGER">مدير قسم</option>
+                  <option value="DIRECTOR">مدير إدارة</option>
+                </>
+              )}
             </select>
+            {!canAssignManagementRoles && (
+              <p className="text-xs text-brand-gray">
+                لإنشاء مدير إدارة أو مدير قسم سجّل الدخول بحساب مدير الإدارة.
+              </p>
+            )}
           </div>
           <div className="space-y-1">
             <label className="label-field" htmlFor="member-department">
@@ -248,6 +261,7 @@ export default function DashboardTeamPage() {
   const [modalError, setModalError] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<Employee | null>(null);
   const [resettingId, setResettingId] = useState("");
+  const [canAssignManagementRoles, setCanAssignManagementRoles] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -280,14 +294,29 @@ export default function DashboardTeamPage() {
     }
   }, []);
 
+  const loadViewerRole = useCallback(async () => {
+    try {
+      const res = await fetch("/api/auth/me");
+      const payload = await parseApiResponse<{ user: { role: string } }>(res);
+      if (!res.ok || !payload.success) return;
+      setCanAssignManagementRoles(payload.data.user.role === "DIRECTOR");
+    } catch {
+      setCanAssignManagementRoles(false);
+    }
+  }, []);
+
   useEffect(() => {
     void load();
     void loadDepartments();
-  }, [load, loadDepartments]);
+    void loadViewerRole();
+  }, [load, loadDepartments, loadViewerRole]);
 
   function openCreate() {
     setModalMode("create");
-    setModalInitial(EMPTY_FORM);
+    setModalInitial({
+      ...EMPTY_FORM,
+      role: canAssignManagementRoles ? EMPTY_FORM.role : "EMPLOYEE",
+    });
     setEditingId("");
     setModalError("");
     setModalOpen(true);
@@ -561,6 +590,7 @@ export default function DashboardTeamPage() {
         onSubmit={handleSubmit}
         submitting={submitting}
         error={modalError}
+        canAssignManagementRoles={canAssignManagementRoles}
       />
 
       <ConfirmDialog
