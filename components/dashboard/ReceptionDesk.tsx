@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getApiErrorMessage, parseApiResponse } from "@/components/lib/api-types";
 import { IconButton } from "@/components/ui/icon-button";
-import { IconPlus, IconX } from "@/components/shared/icons";
+import { IconChevron, IconPlus, IconX } from "@/components/shared/icons";
 import { useToast } from "@/components/ui/toast";
 import { isOrganizationRequired } from "@/lib/reception/constants";
 
@@ -87,15 +87,46 @@ interface VisitorLog {
 
 interface ScheduledVisit {
   id: string;
+  visitorName: string;
+  visitorPhone: string;
+  organization?: string;
+  visitType?: string;
+  visitTarget?: string;
+  reason?: string;
+  visitTimeSlot?: string;
+  scheduledAt?: string;
+  status?: string;
+  source?: string;
   title: string;
-  description: string;
+  description?: string;
   contactPhone: string;
-  contactEmail: string;
+  contactEmail?: string;
   visitDate: string | null;
   visitAttended: boolean | null;
   visitMarkedAt?: string | null;
+  checkedInAt?: string | null;
+  visitorLogId?: string | null;
+  rejectionReason?: string | null;
+  requestId?: string | null;
   department?: { id: string; name: string };
   requestType?: { id: string; name: string };
+}
+
+interface WeekAttendanceEvent {
+  id: string;
+  title: string;
+  kind: string;
+  scheduledAt: string;
+  notes?: string;
+  total: number;
+  attended: number;
+}
+
+interface WeekFeed {
+  weekStart: string;
+  weekEnd: string;
+  schedules: ScheduledVisit[];
+  attendanceEvents: WeekAttendanceEvent[];
 }
 
 interface AttendanceEventSummary {
@@ -181,10 +212,34 @@ interface VisitorFormState {
 const TABS: { id: TabId; label: string }[] = [
   { id: "dashboard", label: "لوحة التحكم" },
   { id: "logs", label: "سجل الزوار" },
-  { id: "scheduled", label: "مجدولة اليوم" },
+  { id: "scheduled", label: "الجدول الأسبوعي" },
   { id: "attendance", label: "قوائم الحضور" },
   { id: "reports", label: "التقارير" },
 ];
+
+const WEEKDAY_FULL = [
+  "الأحد",
+  "الإثنين",
+  "الثلاثاء",
+  "الأربعاء",
+  "الخميس",
+  "الجمعة",
+  "السبت",
+];
+const WEEKDAY_SHORT = ["أحد", "إثن", "ثلا", "أرب", "خمي", "جمع", "سبت"];
+
+function startOfWeekSunday(d: Date) {
+  const start = new Date(d);
+  start.setHours(0, 0, 0, 0);
+  start.setDate(start.getDate() - start.getDay());
+  return start;
+}
+
+function addDays(d: Date, n: number) {
+  const next = new Date(d);
+  next.setDate(next.getDate() + n);
+  return next;
+}
 
 const DEFAULT_TARGETS = [
   "الإدارة التنفيذية",
@@ -296,6 +351,15 @@ export default function ReceptionDesk() {
   const [logs, setLogs] = useState<VisitorLog[]>([]);
   const [stats, setStats] = useState<DeskStats | null>(null);
   const [meta, setMeta] = useState<DeskMeta | null>(null);
+  const [weekFeed, setWeekFeed] = useState<WeekFeed | null>(null);
+  const [pendingSchedules, setPendingSchedules] = useState<ScheduledVisit[]>([]);
+  const [rejectedSchedules, setRejectedSchedules] = useState<ScheduledVisit[]>([]);
+  const [weekStart, setWeekStart] = useState(() => startOfWeekSunday(new Date()));
+  const [selectedDay, setSelectedDay] = useState(() => toDateInput(new Date()));
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [scheduleForm, setScheduleForm] = useState<VisitorFormState>(() =>
+    emptyVisitorForm(),
+  );
 
   const [form, setForm] = useState<VisitorFormState>(() => emptyVisitorForm());
   const [suggestions, setSuggestions] = useState<VisitorSuggestion[]>([]);
@@ -337,16 +401,20 @@ export default function ReceptionDesk() {
     ? meta.visitTimeSlots
     : DEFAULT_SLOTS;
 
-  const loadDesk = useCallback(async () => {
+  const loadDesk = useCallback(async (week = weekStart) => {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch("/api/reception/desk");
+      const qs = new URLSearchParams({ weekStart: toDateInput(week) });
+      const res = await fetch(`/api/reception/desk?${qs}`);
       const payload = await parseApiResponse<{
         visits: ScheduledVisit[];
         attendanceLogs: VisitorLog[];
         stats: DeskStats;
         meta: DeskMeta;
+        week?: WeekFeed;
+        pendingSchedules?: ScheduledVisit[];
+        rejectedSchedules?: ScheduledVisit[];
       }>(res);
       if (!res.ok || !payload.success) {
         throw new Error(getApiErrorMessage(payload, "تعذّر تحميل بيانات الاستقبال"));
@@ -355,6 +423,9 @@ export default function ReceptionDesk() {
       setLogs(sortLogsNewestFirst(payload.data.attendanceLogs));
       setStats(payload.data.stats);
       setMeta(payload.data.meta);
+      setWeekFeed(payload.data.week ?? null);
+      setPendingSchedules(payload.data.pendingSchedules ?? []);
+      setRejectedSchedules(payload.data.rejectedSchedules ?? []);
       setForm((prev) => ({
         ...prev,
         visitType: prev.visitType || payload.data.meta.visitTypes[0] || DEFAULT_TYPES[0],
@@ -370,7 +441,7 @@ export default function ReceptionDesk() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [weekStart]);
 
   const loadAttendance = useCallback(async () => {
     setAttendanceLoading(true);
@@ -422,6 +493,18 @@ export default function ReceptionDesk() {
     }
   }, [reportFrom, reportTo]);
 
+  const refreshActiveTab = useCallback(async () => {
+    if (tab === "attendance") {
+      await loadAttendance();
+      return;
+    }
+    if (tab === "reports") {
+      await loadReports();
+      return;
+    }
+    await loadDesk();
+  }, [tab, loadAttendance, loadReports, loadDesk]);
+
   useEffect(() => {
     void (async () => {
       try {
@@ -467,6 +550,49 @@ export default function ReceptionDesk() {
   useEffect(() => {
     if (tab === "reports") void loadReports();
   }, [tab, loadReports]);
+
+  const weekDays = useMemo(() => {
+    const todayKey = toDateInput(new Date());
+    return Array.from({ length: 7 }, (_, i) => {
+      const date = addDays(weekStart, i);
+      const key = toDateInput(date);
+      return { key, date, isToday: key === todayKey };
+    });
+  }, [weekStart]);
+
+  const itemsByDay = useMemo(() => {
+    const map = new Map<
+      string,
+      { schedules: ScheduledVisit[]; attendance: WeekAttendanceEvent[] }
+    >();
+    for (const day of weekDays) {
+      map.set(day.key, { schedules: [], attendance: [] });
+    }
+    for (const s of weekFeed?.schedules ?? []) {
+      const key = toDateInput(new Date(s.scheduledAt || s.visitDate || ""));
+      const bucket = map.get(key);
+      if (bucket) bucket.schedules.push(s);
+    }
+    for (const e of weekFeed?.attendanceEvents ?? []) {
+      const key = toDateInput(new Date(e.scheduledAt));
+      const bucket = map.get(key);
+      if (bucket) bucket.attendance.push(e);
+    }
+    return map;
+  }, [weekFeed, weekDays]);
+
+  const selectedDayItems = itemsByDay.get(selectedDay) ?? {
+    schedules: [],
+    attendance: [],
+  };
+
+  const todayApproved = useMemo(
+    () =>
+      visits.filter(
+        (v) => !v.status || v.status === "APPROVED",
+      ),
+    [visits],
+  );
 
   useEffect(() => {
     return () => {
@@ -611,14 +737,16 @@ export default function ReceptionDesk() {
   function openCheckIn(visit: ScheduledVisit) {
     setCheckInFor(visit);
     setCheckInForm({
-      visitorName: visit.title,
-      visitorPhone: visit.contactPhone || "",
-      organization: "",
-      visitType: visitTypes[0],
-      visitTarget: visitTargets[0],
-      reason: "",
-      visitDate: visit.visitDate ? toDateInput(new Date(visit.visitDate)) : toDateInput(new Date()),
-      visitTimeSlot: visitTimeSlots[0],
+      visitorName: visit.visitorName || visit.title,
+      visitorPhone: visit.visitorPhone || visit.contactPhone || "",
+      organization: visit.organization || "",
+      visitType: visit.visitType || visitTypes[0],
+      visitTarget: (visit.visitTarget || "").replace(/^زائر\s*-\s*.+$/, "زائر") || visitTargets[0],
+      reason: visit.reason || "",
+      visitDate: visit.scheduledAt || visit.visitDate
+        ? toDateInput(new Date(visit.scheduledAt || visit.visitDate || ""))
+        : toDateInput(new Date()),
+      visitTimeSlot: visit.visitTimeSlot || visitTimeSlots[0],
     });
   }
 
@@ -638,7 +766,7 @@ export default function ReceptionDesk() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "check_in",
-          requestId: checkInFor.id,
+          scheduleId: checkInFor.id,
           visitorName: checkInForm.visitorName,
           visitorPhone: checkInForm.visitorPhone,
           organization: checkInForm.organization,
@@ -663,14 +791,14 @@ export default function ReceptionDesk() {
     }
   }
 
-  async function undoAttendance(requestId: string) {
-    setBusyId(requestId);
+  async function undoAttendance(scheduleId: string) {
+    setBusyId(scheduleId);
     setError("");
     try {
       const res = await fetch("/api/reception/desk", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "undo", requestId }),
+        body: JSON.stringify({ action: "undo", scheduleId }),
       });
       const payload = await parseApiResponse<unknown>(res);
       if (!res.ok || !payload.success) {
@@ -682,6 +810,120 @@ export default function ReceptionDesk() {
     } finally {
       setBusyId(null);
     }
+  }
+
+  function openScheduleModal() {
+    setError("");
+    setScheduleForm(emptyVisitorForm(meta));
+    setScheduleOpen(true);
+  }
+
+  async function submitManagerSchedule(e: React.FormEvent) {
+    e.preventDefault();
+    const validationError = validateVisitorForm(scheduleForm);
+    if (validationError) {
+      setError(validationError);
+      pushToast(validationError, "danger");
+      return;
+    }
+    setSubmitting(true);
+    setError("");
+    try {
+      const res = await fetch("/api/reception/schedules", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          visitorName: scheduleForm.visitorName,
+          visitorPhone: scheduleForm.visitorPhone,
+          organization: scheduleForm.organization,
+          visitType: scheduleForm.visitType,
+          visitTarget: scheduleForm.visitTarget,
+          reason: scheduleForm.visitTarget === "زائر" ? scheduleForm.reason : undefined,
+          visitDate: scheduleForm.visitDate,
+          visitTimeSlot: scheduleForm.visitTimeSlot,
+        }),
+      });
+      const payload = await parseApiResponse<unknown>(res);
+      if (!res.ok || !payload.success) {
+        throw new Error(getApiErrorMessage(payload, "فشل جدولة الزيارة"));
+      }
+      setScheduleOpen(false);
+      pushToast("تمت جدولة الزيارة وإشعار مكتب الاستقبال", "success");
+      setTab("scheduled");
+      await loadDesk();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "خطأ");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function approveSchedule(id: string) {
+    setBusyId(id);
+    setError("");
+    try {
+      const res = await fetch("/api/reception/schedules", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "approve", scheduleId: id }),
+      });
+      const payload = await parseApiResponse<unknown>(res);
+      if (!res.ok || !payload.success) {
+        throw new Error(getApiErrorMessage(payload, "فشل اعتماد الجدولة"));
+      }
+      pushToast("تم اعتماد الزيارة المجدولة", "success");
+      await loadDesk();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "خطأ");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function rejectSchedule(id: string) {
+    setBusyId(id);
+    setError("");
+    try {
+      const res = await fetch("/api/reception/schedules", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "reject", scheduleId: id }),
+      });
+      const payload = await parseApiResponse<unknown>(res);
+      if (!res.ok || !payload.success) {
+        throw new Error(getApiErrorMessage(payload, "فشل رفض الجدولة"));
+      }
+      pushToast("تم رفض جدولة الزيارة", "success");
+      await loadDesk();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "خطأ");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  function scheduleStatusBadge(status?: string) {
+    if (status === "PENDING_APPROVAL") {
+      return <span className="badge-warning">بانتظار الاعتماد</span>;
+    }
+    if (status === "REJECTED") {
+      return <span className="badge-danger">مرفوضة</span>;
+    }
+    if (status === "APPROVED") {
+      return <span className="badge-success">معتمدة</span>;
+    }
+    return null;
+  }
+
+  function visitPrimaryLabel(v: ScheduledVisit) {
+    return v.visitorName?.trim() || v.title || "زائر";
+  }
+
+  function visitSecondaryLabel(v: ScheduledVisit) {
+    const parts = [v.title, v.requestType?.name].filter(
+      (p) => p && p !== v.visitorName,
+    );
+    return parts.filter(Boolean).join(" · ");
   }
 
   async function createAttendanceList(e: React.FormEvent) {
@@ -808,7 +1050,7 @@ export default function ReceptionDesk() {
   }
 
   const totals = stats?.totals;
-  const pendingScheduled = visits.filter((v) => !v.visitAttended).length;
+  const pendingScheduled = todayApproved.filter((v) => !v.visitAttended).length;
 
   function renderVisitorFields(
     state: VisitorFormState,
@@ -1035,21 +1277,33 @@ export default function ReceptionDesk() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <button type="button" className="btn-secondary text-sm" onClick={() => void loadDesk()}>
-            تحديث
-          </button>
           <button
             type="button"
-            className={
-              isDeskStaff || !deskManage
-                ? "btn-primary inline-flex min-h-12 items-center gap-2 px-5 text-base font-bold sm:min-h-14 sm:px-7 sm:text-lg"
-                : "btn-secondary inline-flex min-h-12 items-center gap-2 px-4 text-sm font-semibold"
-            }
-            onClick={openRegister}
+            className="btn-secondary text-sm"
+            onClick={() => void refreshActiveTab()}
           >
-            <IconPlus size={22} />
-            تسجيل زائر
+            تحديث
           </button>
+          {deskManage && (
+            <button
+              type="button"
+              className="btn-secondary inline-flex min-h-11 items-center gap-2 px-4 text-sm font-semibold"
+              onClick={openScheduleModal}
+            >
+              <IconPlus size={18} />
+              جدولة زيارة
+            </button>
+          )}
+          {(isDeskStaff || !deskManage) && (
+            <button
+              type="button"
+              className="btn-primary inline-flex min-h-12 items-center gap-2 px-5 text-base font-bold sm:min-h-14 sm:px-7 sm:text-lg"
+              onClick={openRegister}
+            >
+              <IconPlus size={22} />
+              تسجيل زائر
+            </button>
+          )}
         </div>
       </div>
 
@@ -1127,7 +1381,7 @@ export default function ReceptionDesk() {
               <div className="flex flex-wrap gap-4 text-sm text-brand-gray">
                 <span>
                   مجدولة اليوم:{" "}
-                  <strong className="text-primary">{visits.length}</strong>
+                  <strong className="text-primary">{todayApproved.length}</strong>
                 </span>
                 <span>
                   بانتظار الحضور:{" "}
@@ -1137,6 +1391,12 @@ export default function ReceptionDesk() {
                   سجلات ظاهرة:{" "}
                   <strong className="text-primary">{logs.length}</strong>
                 </span>
+                {deskManage && (
+                  <span>
+                    بانتظار اعتماد الجدولة:{" "}
+                    <strong className="text-primary">{pendingSchedules.length}</strong>
+                  </span>
+                )}
               </div>
             </>
           )}
@@ -1258,99 +1518,272 @@ export default function ReceptionDesk() {
       )}
 
       {tab === "logs" && (
-        <div className="card overflow-x-auto p-0">
-          <table className="tmkeen-table">
-            <thead>
-              <tr>
-                <th>الاسم</th>
-                <th>الجوال</th>
-                <th>الجهة</th>
-                <th>النوع</th>
-                <th>الوجهة</th>
-                <th>التاريخ</th>
-                <th>الفترة</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
+        <div className="space-y-3">
+          <div className="space-y-2 md:hidden">
+            {loading ? (
+              <p className="text-sm text-brand-gray">جاري التحميل…</p>
+            ) : logs.length === 0 ? (
+              <p className="text-sm text-brand-gray">لا توجد سجلات زوار بعد</p>
+            ) : (
+              logs.map((log) => (
+                <article key={log.id} className="card space-y-1 p-3">
+                  <p className="font-semibold text-primary">{log.visitorName}</p>
+                  <p className="text-xs text-brand-gray" dir="ltr">
+                    {log.visitorPhone}
+                  </p>
+                  <p className="text-sm">
+                    <span className="badge-primary">{log.visitType}</span>{" "}
+                    {log.visitTarget}
+                  </p>
+                  <p className="text-xs text-brand-gray">
+                    {formatDate(log.visitAt)} · {log.visitTimeSlot}
+                    {log.organization ? ` · ${log.organization}` : ""}
+                  </p>
+                </article>
+              ))
+            )}
+          </div>
+          <div className="card hidden overflow-x-auto p-0 md:block">
+            <table className="tmkeen-table w-full min-w-0">
+              <thead>
                 <tr>
-                  <td colSpan={7} className="py-8 text-center text-sm text-brand-gray">
-                    جاري التحميل…
-                  </td>
+                  <th>الاسم</th>
+                  <th>الجوال</th>
+                  <th>الجهة</th>
+                  <th>النوع</th>
+                  <th>الوجهة</th>
+                  <th>التاريخ</th>
+                  <th>الفترة</th>
                 </tr>
-              ) : logs.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="py-8 text-center text-sm text-brand-gray">
-                    لا توجد سجلات زوار بعد
-                  </td>
-                </tr>
-              ) : (
-                logs.map((log) => (
-                  <tr key={log.id}>
-                    <td className="font-semibold">{log.visitorName}</td>
-                    <td dir="ltr" className="text-xs">
-                      {log.visitorPhone}
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td colSpan={7} className="py-8 text-center text-sm text-brand-gray">
+                      جاري التحميل…
                     </td>
-                    <td>{log.organization || "—"}</td>
-                    <td>
-                      <span className="badge-primary">{log.visitType}</span>
-                    </td>
-                    <td>{log.visitTarget}</td>
-                    <td className="whitespace-nowrap text-xs">
-                      {formatDate(log.visitAt)}
-                    </td>
-                    <td>{log.visitTimeSlot}</td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                ) : logs.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="py-8 text-center text-sm text-brand-gray">
+                      لا توجد سجلات زوار بعد
+                    </td>
+                  </tr>
+                ) : (
+                  logs.map((log) => (
+                    <tr key={log.id}>
+                      <td className="font-semibold">{log.visitorName}</td>
+                      <td dir="ltr" className="text-xs">
+                        {log.visitorPhone}
+                      </td>
+                      <td>{log.organization || "—"}</td>
+                      <td>
+                        <span className="badge-primary">{log.visitType}</span>
+                      </td>
+                      <td>{log.visitTarget}</td>
+                      <td className="whitespace-nowrap text-xs">
+                        {formatDate(log.visitAt)}
+                      </td>
+                      <td>{log.visitTimeSlot}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
       {tab === "scheduled" && (
-        <div className="card overflow-x-auto p-0">
-          <table className="tmkeen-table">
-            <thead>
-              <tr>
-                <th>الوقت</th>
-                <th>الزيارة</th>
-                <th>القسم</th>
-                <th>الجوال</th>
-                <th>الحضور</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr>
-                  <td colSpan={5} className="py-8 text-center text-sm text-brand-gray">
-                    جاري التحميل…
-                  </td>
-                </tr>
-              ) : visits.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="py-8 text-center text-sm text-brand-gray">
-                    لا توجد زيارات مجدولة اليوم
-                  </td>
-                </tr>
-              ) : (
-                visits.map((v) => (
-                  <tr key={v.id}>
-                    <td className="whitespace-nowrap text-xs">
-                      {formatDateTime(v.visitDate)}
-                    </td>
-                    <td className="font-semibold">{v.title}</td>
-                    <td>{v.department?.name ?? "—"}</td>
-                    <td dir="ltr" className="text-xs">
-                      {v.contactPhone || "—"}
-                    </td>
-                    <td>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span
-                          className={v.visitAttended ? "badge-success" : "badge-warning"}
+        <div className="space-y-4">
+          {deskManage && pendingSchedules.length > 0 && (
+            <section className="card space-y-3 p-4">
+              <h3 className="text-sm font-bold text-primary">
+                بانتظار اعتماد الجدولة ({pendingSchedules.length})
+              </h3>
+              <ul className="space-y-2">
+                {pendingSchedules.map((v) => (
+                  <li
+                    key={v.id}
+                    className="flex flex-wrap items-center justify-between gap-2 rounded border border-[color-mix(in_srgb,#8B1538_15%,white)] p-3"
+                  >
+                    <div>
+                      <p className="font-semibold text-primary">{visitPrimaryLabel(v)}</p>
+                      <p className="text-xs text-brand-gray">
+                        {visitSecondaryLabel(v) || "طلب زيارة"} ·{" "}
+                        {formatDateTime(v.scheduledAt || v.visitDate)}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {scheduleStatusBadge(v.status)}
+                      <button
+                        type="button"
+                        className="btn-primary text-xs"
+                        disabled={busyId === v.id}
+                        onClick={() => void approveSchedule(v.id)}
+                      >
+                        اعتماد
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-secondary text-xs"
+                        disabled={busyId === v.id}
+                        onClick={() => void rejectSchedule(v.id)}
+                      >
+                        رفض
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          <div className="card overflow-hidden p-3 sm:p-4">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-1">
+                <IconButton
+                  label="الأسبوع السابق"
+                  icon={<IconChevron size={18} />}
+                  onClick={() => setWeekStart((w) => addDays(w, -7))}
+                />
+                <IconButton
+                  label="الأسبوع التالي"
+                  icon={<IconChevron size={18} className="rotate-180" />}
+                  onClick={() => setWeekStart((w) => addDays(w, 7))}
+                />
+                <button
+                  type="button"
+                  className="btn-secondary text-xs sm:text-sm"
+                  onClick={() => {
+                    const now = startOfWeekSunday(new Date());
+                    setWeekStart(now);
+                    setSelectedDay(toDateInput(new Date()));
+                  }}
+                >
+                  هذا الأسبوع
+                </button>
+              </div>
+              <p className="text-sm font-bold text-primary">
+                {formatDate(weekDays[0]?.key)} — {formatDate(weekDays[6]?.key)}
+              </p>
+            </div>
+
+            {loading && !weekFeed ? (
+              <p className="text-sm text-brand-gray">جاري التحميل…</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <div className="min-w-[36rem] sm:min-w-0">
+                  <div className="mb-1 grid grid-cols-7 gap-px">
+                    {WEEKDAY_SHORT.map((label, i) => (
+                      <div
+                        key={label}
+                        className="px-1 py-1 text-center text-[0.65rem] font-semibold text-brand-gray sm:text-xs"
+                      >
+                        <span className="sm:hidden">{label}</span>
+                        <span className="hidden sm:inline">{WEEKDAY_FULL[i]}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div
+                    className="grid grid-cols-7 gap-px rounded-[var(--radius-md)] bg-[color-mix(in_srgb,var(--zaad-primary)_12%,transparent)]"
+                    role="grid"
+                    aria-label="تقويم زيارات الأسبوع"
+                  >
+                    {weekDays.map((day) => {
+                      const bucket = itemsByDay.get(day.key) ?? {
+                        schedules: [],
+                        attendance: [],
+                      };
+                      const count =
+                        bucket.schedules.length + bucket.attendance.length;
+                      const selected = selectedDay === day.key;
+                      const hasPending = bucket.schedules.some(
+                        (s) => s.status === "PENDING_APPROVAL",
+                      );
+                      return (
+                        <button
+                          key={day.key}
+                          type="button"
+                          role="gridcell"
+                          aria-selected={selected}
+                          onClick={() => setSelectedDay(day.key)}
+                          className={`min-h-[4.5rem] space-y-1 p-1.5 text-start transition-colors sm:min-h-[5.5rem] sm:p-2 ${
+                            selected
+                              ? "bg-[var(--zaad-surface)] ring-2 ring-inset ring-[var(--zaad-primary)]"
+                              : "bg-[var(--zaad-surface)] hover:bg-[color-mix(in_srgb,var(--zaad-primary)_8%,transparent)]"
+                          } ${day.isToday ? "font-bold" : ""}`}
                         >
-                          {v.visitAttended ? "حاضر" : "بانتظار"}
-                        </span>
+                          <span
+                            className={`text-sm ${
+                              day.isToday ? "text-primary" : "text-brand-gray"
+                            }`}
+                          >
+                            {day.date.getDate()}
+                          </span>
+                          {count > 0 && (
+                            <div className="flex flex-wrap items-center gap-1">
+                              <span
+                                className={
+                                  hasPending
+                                    ? "badge-warning text-[0.65rem]"
+                                    : "badge-primary text-[0.65rem]"
+                                }
+                              >
+                                {count}
+                              </span>
+                            </div>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <section className="space-y-2">
+            <h3 className="text-sm font-bold text-primary">
+              تفاصيل {formatDate(selectedDay)}
+            </h3>
+            {selectedDayItems.schedules.length === 0 &&
+            selectedDayItems.attendance.length === 0 ? (
+              <p className="text-sm text-brand-gray">لا توجد عناصر لهذا اليوم</p>
+            ) : (
+              <ul className="space-y-2">
+                {selectedDayItems.schedules.map((v) => (
+                  <li key={v.id} className="card space-y-2 p-3">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div>
+                        <p className="font-semibold text-primary">
+                          {visitPrimaryLabel(v)}
+                        </p>
+                        {visitSecondaryLabel(v) && (
+                          <p className="text-xs text-brand-gray">
+                            {visitSecondaryLabel(v)}
+                          </p>
+                        )}
+                        <p className="mt-1 text-xs text-brand-gray">
+                          {v.visitTimeSlot || "—"} ·{" "}
+                          {v.visitorPhone || v.contactPhone || "—"}
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        {scheduleStatusBadge(v.status)}
+                        {v.status === "APPROVED" && (
+                          <span
+                            className={
+                              v.visitAttended ? "badge-success" : "badge-warning"
+                            }
+                          >
+                            {v.visitAttended ? "حاضر" : "بانتظار الحضور"}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    {v.status === "APPROVED" && (
+                      <div className="flex flex-wrap gap-2">
                         {v.visitAttended ? (
                           <button
                             type="button"
@@ -1370,12 +1803,251 @@ export default function ReceptionDesk() {
                           </button>
                         )}
                       </div>
-                    </td>
-                  </tr>
+                    )}
+                    {deskManage && v.status === "PENDING_APPROVAL" && (
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          className="btn-primary text-xs"
+                          disabled={busyId === v.id}
+                          onClick={() => void approveSchedule(v.id)}
+                        >
+                          اعتماد
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-secondary text-xs"
+                          disabled={busyId === v.id}
+                          onClick={() => void rejectSchedule(v.id)}
+                        >
+                          رفض
+                        </button>
+                      </div>
+                    )}
+                  </li>
+                ))}
+                {selectedDayItems.attendance.map((ev) => (
+                  <li key={`att-${ev.id}`} className="card space-y-2 p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <p className="font-semibold text-primary">{ev.title}</p>
+                        <p className="text-xs text-brand-gray">
+                          {ev.kind === "JOB_INTERVIEW"
+                            ? "مقابلة وظيفية"
+                            : "اجتماع"}{" "}
+                          · حضور {ev.attended}/{ev.total}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        className="btn-secondary text-xs"
+                        onClick={() => {
+                          setTab("attendance");
+                          void openAttendanceEvent(ev.id);
+                        }}
+                      >
+                        فتح القائمة
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
+          <section className="space-y-2">
+            <h3 className="text-sm font-bold text-primary">
+              معتمدة اليوم ({todayApproved.length})
+            </h3>
+            <div className="space-y-2 md:hidden">
+              {todayApproved.length === 0 ? (
+                <p className="text-sm text-brand-gray">لا توجد زيارات معتمدة اليوم</p>
+              ) : (
+                todayApproved.map((v) => (
+                  <article key={v.id} className="card space-y-2 p-3">
+                    <p className="font-semibold text-primary">{visitPrimaryLabel(v)}</p>
+                    <p className="text-xs text-brand-gray">
+                      {visitSecondaryLabel(v)}
+                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span
+                        className={v.visitAttended ? "badge-success" : "badge-warning"}
+                      >
+                        {v.visitAttended ? "حاضر" : "بانتظار"}
+                      </span>
+                      {v.visitAttended ? (
+                        <button
+                          type="button"
+                          className="btn-secondary text-xs"
+                          disabled={busyId === v.id}
+                          onClick={() => void undoAttendance(v.id)}
+                        >
+                          إلغاء الحضور
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          className="btn-primary text-xs"
+                          onClick={() => openCheckIn(v)}
+                        >
+                          تسجيل حضور
+                        </button>
+                      )}
+                    </div>
+                  </article>
                 ))
               )}
-            </tbody>
-          </table>
+            </div>
+            <div className="card hidden overflow-x-auto p-0 md:block">
+              <table className="tmkeen-table w-full min-w-0">
+                <thead>
+                  <tr>
+                    <th>الوقت</th>
+                    <th>الزائر</th>
+                    <th>القسم</th>
+                    <th>الجوال</th>
+                    <th>الحضور</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    <tr>
+                      <td colSpan={5} className="py-8 text-center text-sm text-brand-gray">
+                        جاري التحميل…
+                      </td>
+                    </tr>
+                  ) : todayApproved.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="py-8 text-center text-sm text-brand-gray">
+                        لا توجد زيارات مجدولة اليوم
+                      </td>
+                    </tr>
+                  ) : (
+                    todayApproved.map((v) => (
+                      <tr key={v.id}>
+                        <td className="whitespace-nowrap text-xs">
+                          {formatDateTime(v.scheduledAt || v.visitDate)}
+                        </td>
+                        <td>
+                          <span className="font-semibold">{visitPrimaryLabel(v)}</span>
+                          {visitSecondaryLabel(v) && (
+                            <span className="mt-0.5 block text-xs text-brand-gray">
+                              {visitSecondaryLabel(v)}
+                            </span>
+                          )}
+                        </td>
+                        <td>{v.department?.name ?? "—"}</td>
+                        <td dir="ltr" className="text-xs">
+                          {v.visitorPhone || v.contactPhone || "—"}
+                        </td>
+                        <td>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span
+                              className={
+                                v.visitAttended ? "badge-success" : "badge-warning"
+                              }
+                            >
+                              {v.visitAttended ? "حاضر" : "بانتظار"}
+                            </span>
+                            {v.visitAttended ? (
+                              <button
+                                type="button"
+                                className="btn-secondary text-xs"
+                                disabled={busyId === v.id}
+                                onClick={() => void undoAttendance(v.id)}
+                              >
+                                إلغاء الحضور
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                className="btn-primary text-xs"
+                                onClick={() => openCheckIn(v)}
+                              >
+                                تسجيل حضور
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          {deskManage && rejectedSchedules.length > 0 && (
+            <section className="card space-y-3 p-4">
+              <h3 className="text-sm font-bold text-primary">
+                مرفوضات الجدولة ({rejectedSchedules.length})
+              </h3>
+              <ul className="space-y-2">
+                {rejectedSchedules.map((v) => (
+                  <li key={v.id} className="text-sm">
+                    <span className="font-semibold text-primary">
+                      {visitPrimaryLabel(v)}
+                    </span>
+                    <span className="text-brand-gray">
+                      {" "}
+                      · {formatDateTime(v.scheduledAt || v.visitDate)}
+                      {v.rejectionReason ? ` — ${v.rejectionReason}` : ""}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+        </div>
+      )}
+
+      {scheduleOpen && (
+        <div
+          className="modal-overlay no-print"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="schedule-visit-title"
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !submitting) setScheduleOpen(false);
+          }}
+        >
+          <form
+            onSubmit={(e) => void submitManagerSchedule(e)}
+            className="modal-panel card max-w-lg space-y-4 p-4"
+          >
+            <div className="flex items-start justify-between gap-2">
+              <h3 id="schedule-visit-title" className="text-lg font-bold text-primary">
+                جدولة زيارة
+              </h3>
+              <IconButton
+                label="إغلاق"
+                icon={<IconX size={18} />}
+                onClick={() => {
+                  if (!submitting) setScheduleOpen(false);
+                }}
+              />
+            </div>
+            <p className="text-xs text-brand-gray">
+              تُنشأ معتمدة مباشرة وتظهر لموظفي الاستقبال في يوم الموعد.
+            </p>
+            {renderVisitorFields(scheduleForm, (key, value) =>
+              setScheduleForm((prev) => ({ ...prev, [key]: value })),
+              { idPrefix: "sch" },
+            )}
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <button
+                type="button"
+                className="btn-secondary flex-1"
+                disabled={submitting}
+                onClick={() => setScheduleOpen(false)}
+              >
+                إلغاء
+              </button>
+              <button type="submit" className="btn-primary flex-1" disabled={submitting}>
+                {submitting ? "جاري الحفظ…" : "حفظ الجدولة"}
+              </button>
+            </div>
+          </form>
         </div>
       )}
 
@@ -1741,7 +2413,12 @@ export default function ReceptionDesk() {
         <div className="modal-overlay no-print" role="dialog" aria-modal="true">
           <div className="card mx-auto max-h-[90vh] w-full max-w-md space-y-3 overflow-y-auto p-4">
             <h3 className="font-bold text-primary">تأكيد تسجيل الحضور</h3>
-            <p className="text-sm text-brand-gray">{checkInFor.title}</p>
+            <p className="text-sm text-brand-gray">
+              {visitPrimaryLabel(checkInFor)}
+              {visitSecondaryLabel(checkInFor)
+                ? ` — ${visitSecondaryLabel(checkInFor)}`
+                : ""}
+            </p>
             {renderVisitorFields(checkInForm, updateCheckIn, { idPrefix: "cin" })}
             <div className="flex gap-2">
               <button

@@ -52,7 +52,8 @@ export type EmailTemplateKind =
   | "pending_review"
   | "returned"
   | "requester_manager_info"
-  | "reassignment_request";
+  | "reassignment_request"
+  | "reception_schedule_approved";
 
 export function buildEmailTemplate(
   kind: EmailTemplateKind,
@@ -210,6 +211,20 @@ export function buildEmailTemplate(
     };
   }
 
+  if (kind === "reception_schedule_approved") {
+    return {
+      subject: "زيارة مجدولة معتمدة",
+      html: wrapArabicEmail(
+        "زيارة مجدولة معتمدة",
+        `<p>تمت جدولة زيارة معتمدة: <strong style="color:#8B1538">${data.title}</strong>.</p>
+         ${data.note ? `<p>${data.note}</p>` : ""}
+         <p>يرجى متابعتها في مكتب الاستقبال في اليوم المحدد.</p>`,
+        "فتح مكتب الاستقبال",
+        data.link,
+      ),
+    };
+  }
+
   return {
     subject: "تم إكمال طلبك",
     html: wrapArabicEmail(
@@ -238,6 +253,8 @@ export async function sendEmail(params: {
     return;
   }
 
+  const SMTP_TIMEOUT_MS = Number(process.env.SMTP_TIMEOUT_MS || 12_000);
+
   const transporter = nodemailer.createTransport({
     host: process.env.SMTP_HOST,
     port: Number(process.env.SMTP_PORT),
@@ -246,12 +263,23 @@ export async function sendEmail(params: {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS,
     },
+    connectionTimeout: SMTP_TIMEOUT_MS,
+    greetingTimeout: SMTP_TIMEOUT_MS,
+    socketTimeout: SMTP_TIMEOUT_MS,
   });
 
-  await transporter.sendMail({
-    from: process.env.SMTP_FROM,
-    to: params.to,
-    subject: params.subject,
-    html: params.html,
-  });
+  await Promise.race([
+    transporter.sendMail({
+      from: process.env.SMTP_FROM,
+      to: params.to,
+      subject: params.subject,
+      html: params.html,
+    }),
+    new Promise<never>((_, reject) => {
+      setTimeout(
+        () => reject(new Error(`SMTP timeout after ${SMTP_TIMEOUT_MS}ms`)),
+        SMTP_TIMEOUT_MS + 1000,
+      );
+    }),
+  ]);
 }

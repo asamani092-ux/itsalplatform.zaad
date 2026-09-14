@@ -25,6 +25,13 @@ enum EmployeeRole {
   DIRECTOR
 }
 
+enum VisitScheduleStatus {
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
 enum AdministrationKind {
   INTERNAL
   EXTERNAL
@@ -138,6 +145,8 @@ model CommEmployee {
   visitorLogs       ReceptionVisitorLog[] @relation("MarkedByReception")
   attendanceEvents  AttendanceEvent[]     @relation("AttendanceEventCreator")
   grantsCreated     Grant[]               @relation("GrantCreator")
+  scheduledVisitsCreated  ReceptionScheduledVisit[] @relation("ScheduledVisitCreator")
+  scheduledVisitsApproved ReceptionScheduledVisit[] @relation("ScheduledVisitApprover")
   createdAt         DateTime              @default(now())
   updatedAt         DateTime              @updatedAt
 
@@ -201,6 +210,7 @@ model CommunicationRequest {
   statusHistory      StatusHistory[]
   hospitalityBooking HospitalityBooking?
   visitorLogs        ReceptionVisitorLog[]
+  scheduledVisit     ReceptionScheduledVisit?
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
 
@@ -231,6 +241,8 @@ model ReceptionVisitorLog {
   request        CommunicationRequest? @relation(fields: [requestId], references: [id], onDelete: SetNull)
   markedById     String?
   markedBy       CommEmployee?         @relation("MarkedByReception", fields: [markedById], references: [id], onDelete: SetNull)
+  scheduledVisit ReceptionScheduledVisit?
+  attendanceLinks AttendanceAttendee[]
   createdAt      DateTime              @default(now())
 
   @@index([visitAt])
@@ -240,6 +252,46 @@ model ReceptionVisitorLog {
   @@index([visitType])
   @@index([visitTimeSlot])
   @@index([createdAt])
+}
+
+/**
+ * Reception calendar schedule — independent of request Pending_Manager workflow.
+ * Path 1 (REQUEST): PENDING_APPROVAL until a reception manager approves.
+ * Path 2 (MANAGER): created already APPROVED.
+ */
+model ReceptionScheduledVisit {
+  id               String              @id @default(cuid())
+  visitorName      String
+  visitorPhone     String              @default("")
+  organization     String              @default("")
+  visitType        String              @default("")
+  visitTarget      String              @default("")
+  reason           String              @default("")
+  visitTimeSlot    String              @default("")
+  scheduledAt      DateTime
+  status           VisitScheduleStatus @default(PENDING_APPROVAL)
+  source           String
+  title            String              @default("")
+  requestId        String?             @unique
+  request          CommunicationRequest? @relation(fields: [requestId], references: [id], onDelete: SetNull)
+  createdById      String?
+  createdBy        CommEmployee?       @relation("ScheduledVisitCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  approvedById     String?
+  approvedBy       CommEmployee?       @relation("ScheduledVisitApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvedAt       DateTime?
+  rejectedAt       DateTime?
+  rejectionReason  String?
+  checkedInAt      DateTime?
+  visitorLogId     String?             @unique
+  visitorLog       ReceptionVisitorLog? @relation(fields: [visitorLogId], references: [id], onDelete: SetNull)
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  @@index([scheduledAt])
+  @@index([status])
+  @@index([source])
+  @@index([createdById])
+  @@index([approvedById])
 }
 
 /** Meeting / job-interview attendance lists for high headcount check-in. */
@@ -260,17 +312,20 @@ model AttendanceEvent {
 }
 
 model AttendanceAttendee {
-  id          String          @id @default(cuid())
-  eventId     String
-  event       AttendanceEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  name        String
-  phone       String          @default("")
-  attended    Boolean         @default(false)
-  checkedInAt DateTime?
-  createdAt   DateTime        @default(now())
+  id           String               @id @default(cuid())
+  eventId      String
+  event        AttendanceEvent      @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name         String
+  phone        String               @default("")
+  attended     Boolean              @default(false)
+  checkedInAt  DateTime?
+  visitorLogId String?
+  visitorLog   ReceptionVisitorLog? @relation(fields: [visitorLogId], references: [id], onDelete: SetNull)
+  createdAt    DateTime             @default(now())
 
   @@index([eventId])
   @@index([attended])
+  @@index([visitorLogId])
 }
 
 model AssignmentHistory {

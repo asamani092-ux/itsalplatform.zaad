@@ -6,9 +6,13 @@ import {
   createVisitorLog,
   createVisitorLogsBulk,
   getVisitorDashboardStats,
+  listPendingScheduledVisits,
+  listRejectedScheduledVisits,
   listTodayScheduledVisits,
   listVisitorLogs,
+  listWeekReceptionFeed,
   searchVisitorSuggestions,
+  startOfWeekSunday,
   undoScheduledAttendance,
 } from "@/lib/reception-service";
 import {
@@ -17,6 +21,13 @@ import {
   VISIT_TIME_SLOTS,
   VISIT_TYPES,
 } from "@/lib/reception/constants";
+
+function parseLocalDate(iso: string): Date | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso.trim());
+  if (!m) return null;
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  return Number.isNaN(d.getTime()) ? null : d;
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -29,21 +40,38 @@ export async function GET(request: NextRequest) {
       return jsonOk({ suggestions });
     }
 
-    const [scheduled, logs, stats] = await Promise.all([
-      listTodayScheduledVisits(),
-      listVisitorLogs({ limit: 300 }),
-      getVisitorDashboardStats(),
-    ]);
+    const weekParam = request.nextUrl.searchParams.get("weekStart");
+    const weekStart = weekParam
+      ? parseLocalDate(weekParam) ?? startOfWeekSunday(new Date())
+      : startOfWeekSunday(new Date());
+    const includePending = auth.session.deskManage === true;
+
+    const [scheduled, logs, stats, weekFeed, pending, rejected] =
+      await Promise.all([
+        listTodayScheduledVisits(),
+        listVisitorLogs({ limit: 300 }),
+        getVisitorDashboardStats(),
+        listWeekReceptionFeed({ weekStart, includePending }),
+        includePending ? listPendingScheduledVisits() : Promise.resolve([]),
+        includePending ? listRejectedScheduledVisits() : Promise.resolve([]),
+      ]);
 
     return jsonOk({
       day: scheduled.day,
       visits: scheduled.visits,
       attendanceLogs: logs.logs,
       stats,
+      week: weekFeed,
+      pendingSchedules: pending,
+      rejectedSchedules: rejected,
       meta: {
         visitTargets: VISIT_TARGETS,
         visitTypes: VISIT_TYPES,
         visitTimeSlots: VISIT_TIME_SLOTS,
+      },
+      caps: {
+        deskManage: includePending,
+        isReceptionDesk: auth.session.isReceptionDesk === true,
       },
     });
   } catch (error) {
@@ -55,6 +83,15 @@ export async function POST(request: NextRequest) {
   try {
     const auth = await requireReceptionDeskSession();
     if (auth.error) return auth.error;
+
+    // Managers without desk staff flag should not use walk-in register as primary path
+    if (auth.session.deskManage && !auth.session.isReceptionDesk) {
+      return jsonError(
+        "تسجيل الزائر متاح لموظفي مكتب الاستقبال",
+        "FORBIDDEN",
+        403,
+      );
+    }
 
     const body = (await request.json()) as {
       visitorName?: string;
@@ -133,6 +170,8 @@ export async function PATCH(request: NextRequest) {
 
     const body = (await request.json()) as {
       action?: "check_in" | "undo";
+      scheduleId?: string;
+      /** @deprecated use scheduleId — kept for transitional clients */
       requestId?: string;
       visitorName?: string;
       visitorPhone?: string;
@@ -144,12 +183,13 @@ export async function PATCH(request: NextRequest) {
       visitTimeSlot?: string;
     };
 
-    if (!body.requestId) {
-      return jsonError("معرّف الطلب مطلوب", "VALIDATION", 400);
+    const scheduleId = body.scheduleId || body.requestId;
+    if (!scheduleId) {
+      return jsonError("معرّف الجدولة مطلوب", "VALIDATION", 400);
     }
 
     if (body.action === "undo") {
-      const result = await undoScheduledAttendance(body.requestId);
+      const result = await undoScheduledAttendance(scheduleId);
       return jsonOk(result);
     }
 
@@ -168,7 +208,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     const result = await checkInScheduledVisit({
-      requestId: body.requestId,
+      scheduleId,
       visitorName: body.visitorName,
       visitorPhone: body.visitorPhone,
       organization: body.organization ?? "",

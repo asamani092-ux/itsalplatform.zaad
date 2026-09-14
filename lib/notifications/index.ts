@@ -166,3 +166,48 @@ export async function notifySubmitter(params: {
     console.error("[notifications] notifySubmitter failed", error);
   }
 }
+
+/** Notify all active reception desk staff that an approved schedule exists. */
+export async function notifyReceptionDeskApprovedSchedule(params: {
+  visitorName: string;
+  scheduledAt: Date;
+  scheduleId: string;
+}): Promise<void> {
+  try {
+    const deskStaff = await prisma.commEmployee.findMany({
+      where: { isReceptionDesk: true, isActive: true },
+      select: { id: true, email: true },
+    });
+    if (deskStaff.length === 0) return;
+
+    const when = new Intl.DateTimeFormat("ar-SA", {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(params.scheduledAt);
+    const title = `زيارة مجدولة: ${params.visitorName}`;
+    const body = `تمت جدولة زيارة لـ «${params.visitorName}» بتاريخ ${when}`;
+    const link = "/dashboard/reception";
+
+    await Promise.all(
+      deskStaff.map((staff) =>
+        notify({
+          recipientId: staff.id,
+          recipientEmail: staff.email,
+          type: "reception_schedule_approved",
+          title,
+          body,
+          link,
+          channel: "both",
+          emailKind: "reception_schedule_approved",
+          reference: params.scheduleId.slice(-8),
+          note: body,
+        }),
+      ),
+    );
+  } catch (error) {
+    console.error(
+      "[notifications] notifyReceptionDeskApprovedSchedule failed",
+      error,
+    );
+  }
+}
