@@ -1,23 +1,32 @@
 import { prisma } from "./prisma";
-import { RequestStatus } from "../generated/prisma/client";
-import { combineVisitAt, isOrganizationRequired } from "./reception/constants";
-
-const visitRequestSelect = {
-  id: true,
-  title: true,
-  description: true,
-  contactPhone: true,
-  contactEmail: true,
-  visitDate: true,
-  visitAttended: true,
-  visitMarkedAt: true,
-  department: { select: { id: true, name: true } },
-  requestType: { select: { id: true, name: true } },
-} as const;
+import { VisitScheduleStatus } from "../generated/prisma/client";
+import {
+  combineVisitAt,
+  isOrganizationRequired,
+  VISIT_TIME_SLOTS,
+} from "./reception/constants";
 
 const logInclude = {
   department: { select: { id: true, name: true } },
   markedBy: { select: { id: true, name: true } },
+} as const;
+
+const scheduleInclude = {
+  request: {
+    select: {
+      id: true,
+      title: true,
+      contactName: true,
+      contactPhone: true,
+      contactEmail: true,
+      department: { select: { id: true, name: true } },
+      requestType: { select: { id: true, name: true } },
+      visitAttended: true,
+      visitMarkedAt: true,
+    },
+  },
+  createdBy: { select: { id: true, name: true } },
+  approvedBy: { select: { id: true, name: true } },
 } as const;
 
 function dayBounds(day: Date) {
@@ -28,25 +37,350 @@ function dayBounds(day: Date) {
   return { start, end };
 }
 
+export function startOfWeekSunday(day = new Date()) {
+  const start = new Date(day);
+  start.setHours(0, 0, 0, 0);
+  start.setDate(start.getDate() - start.getDay());
+  return start;
+}
+
+function weekBounds(weekStart: Date) {
+  const start = new Date(weekStart);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 7);
+  return { start, end };
+}
+
+function inferTimeSlotFromDate(d: Date): string {
+  const hour = d.getHours();
+  if (hour >= 15) return "المساء";
+  if (hour >= 11) return "الظهر";
+  return "الصباح";
+}
+
+function mapScheduleRow(row: {
+  id: string;
+  visitorName: string;
+  visitorPhone: string;
+  organization: string;
+  visitType: string;
+  visitTarget: string;
+  reason: string;
+  visitTimeSlot: string;
+  scheduledAt: Date;
+  status: VisitScheduleStatus;
+  source: string;
+  title: string;
+  requestId: string | null;
+  checkedInAt: Date | null;
+  visitorLogId: string | null;
+  rejectionReason: string | null;
+  request?: {
+    id: string;
+    title: string;
+    contactName: string;
+    contactPhone: string;
+    contactEmail: string;
+    department: { id: string; name: string } | null;
+    requestType: { id: string; name: string } | null;
+    visitAttended: boolean | null;
+    visitMarkedAt: Date | null;
+  } | null;
+}) {
+  const secondaryTitle =
+    row.title ||
+    row.request?.title ||
+    row.request?.requestType?.name ||
+    "";
+  return {
+    id: row.id,
+    visitorName: row.visitorName,
+    visitorPhone: row.visitorPhone,
+    organization: row.organization,
+    visitType: row.visitType,
+    visitTarget: row.visitTarget,
+    reason: row.reason,
+    visitTimeSlot: row.visitTimeSlot,
+    scheduledAt: row.scheduledAt,
+    status: row.status,
+    source: row.source,
+    title: secondaryTitle,
+    requestId: row.requestId,
+    checkedInAt: row.checkedInAt,
+    visitorLogId: row.visitorLogId,
+    rejectionReason: row.rejectionReason,
+    visitAttended: Boolean(row.checkedInAt),
+    department: row.request?.department ?? undefined,
+    requestType: row.request?.requestType ?? undefined,
+    contactPhone: row.visitorPhone || row.request?.contactPhone || "",
+    contactEmail: row.request?.contactEmail || "",
+    // Legacy aliases used by older desk UI paths
+    visitDate: row.scheduledAt.toISOString(),
+    description: row.reason || row.request?.title || "",
+  };
+}
+
+/** Desk "today" list: APPROVED schedules only. */
 export async function listTodayScheduledVisits(day = new Date()) {
   const { start, end } = dayBounds(day);
-  const requests = await prisma.communicationRequest.findMany({
+  const rows = await prisma.receptionScheduledVisit.findMany({
     where: {
-      approvedAt: { not: null },
-      requestType: { requiresVisitDate: true },
-      visitDate: { gte: start, lt: end },
-      status: {
-        in: [
-          RequestStatus.Approved_Pending_Assignment,
-          RequestStatus.In_Progress,
-          RequestStatus.Completed,
-        ],
-      },
+      status: VisitScheduleStatus.APPROVED,
+      scheduledAt: { gte: start, lt: end },
     },
-    select: visitRequestSelect,
-    orderBy: [{ visitDate: "asc" }, { title: "asc" }],
+    include: scheduleInclude,
+    orderBy: [{ scheduledAt: "asc" }, { visitorName: "asc" }],
   });
-  return { day: start.toISOString(), visits: requests };
+  return {
+    day: start.toISOString(),
+    visits: rows.map(mapScheduleRow),
+  };
+}
+
+export async function listPendingScheduledVisits() {
+  const rows = await prisma.receptionScheduledVisit.findMany({
+    where: { status: VisitScheduleStatus.PENDING_APPROVAL },
+    include: scheduleInclude,
+    orderBy: [{ scheduledAt: "asc" }, { createdAt: "asc" }],
+  });
+  return rows.map(mapScheduleRow);
+}
+
+export async function listRejectedScheduledVisits(limit = 100) {
+  const rows = await prisma.receptionScheduledVisit.findMany({
+    where: { status: VisitScheduleStatus.REJECTED },
+    include: scheduleInclude,
+    orderBy: [{ rejectedAt: "desc" }, { scheduledAt: "desc" }],
+    take: limit,
+  });
+  return rows.map(mapScheduleRow);
+}
+
+/** Week feed for calendar: schedules (+ optional pending/rejected for managers) + attendance. */
+export async function listWeekReceptionFeed(params: {
+  weekStart: Date;
+  includePending?: boolean;
+}) {
+  const { start, end } = weekBounds(params.weekStart);
+  const statusFilter: VisitScheduleStatus[] = [VisitScheduleStatus.APPROVED];
+  if (params.includePending) {
+    statusFilter.push(
+      VisitScheduleStatus.PENDING_APPROVAL,
+      VisitScheduleStatus.REJECTED,
+    );
+  }
+
+  const [schedules, attendanceEvents] = await Promise.all([
+    prisma.receptionScheduledVisit.findMany({
+      where: {
+        status: { in: statusFilter },
+        scheduledAt: { gte: start, lt: end },
+      },
+      include: scheduleInclude,
+      orderBy: [{ scheduledAt: "asc" }, { visitorName: "asc" }],
+    }),
+    prisma.attendanceEvent.findMany({
+      where: { scheduledAt: { gte: start, lt: end } },
+      include: {
+        _count: { select: { attendees: true } },
+        attendees: { select: { attended: true } },
+      },
+      orderBy: { scheduledAt: "asc" },
+    }),
+  ]);
+
+  return {
+    weekStart: start.toISOString(),
+    weekEnd: new Date(end.getTime() - 1).toISOString(),
+    schedules: schedules.map(mapScheduleRow),
+    attendanceEvents: attendanceEvents.map((e) => ({
+      id: e.id,
+      title: e.title,
+      kind: e.kind,
+      scheduledAt: e.scheduledAt,
+      notes: e.notes,
+      total: e._count.attendees,
+      attended: e.attendees.filter((a) => a.attended).length,
+    })),
+  };
+}
+
+export async function createPendingScheduledVisitFromRequest(params: {
+  requestId: string;
+  title: string;
+  contactName?: string | null;
+  contactPhone?: string | null;
+  visitDate: Date;
+  requestTypeName?: string | null;
+}) {
+  const existing = await prisma.receptionScheduledVisit.findUnique({
+    where: { requestId: params.requestId },
+  });
+  if (existing) return existing;
+
+  const visitorName =
+    (params.contactName ?? "").trim() ||
+    params.title.trim() ||
+    "زائر";
+  const scheduledAt = new Date(params.visitDate);
+  const visitTimeSlot = inferTimeSlotFromDate(scheduledAt);
+
+  return prisma.receptionScheduledVisit.create({
+    data: {
+      visitorName,
+      visitorPhone: (params.contactPhone ?? "").trim(),
+      organization: "",
+      visitType: "",
+      visitTarget: "",
+      reason: "",
+      visitTimeSlot,
+      scheduledAt,
+      status: VisitScheduleStatus.PENDING_APPROVAL,
+      source: "REQUEST",
+      title: params.title.trim() || params.requestTypeName?.trim() || "",
+      requestId: params.requestId,
+    },
+    include: scheduleInclude,
+  });
+}
+
+export async function createManagerScheduledVisit(params: {
+  visitorName: string;
+  visitorPhone: string;
+  organization: string;
+  visitType: string;
+  visitTarget: string;
+  reason?: string;
+  visitDate: string;
+  visitTimeSlot: string;
+  title?: string;
+  createdById?: string | null;
+}) {
+  const visitorName = params.visitorName.trim();
+  const visitorPhone = params.visitorPhone.trim();
+  const organization = params.organization.trim();
+  const visitType = params.visitType.trim();
+  let visitTarget = params.visitTarget.trim();
+  const reason = params.reason?.trim() ?? "";
+  const visitTimeSlot = params.visitTimeSlot.trim();
+
+  if (!visitorName || !visitorPhone || !visitType || !visitTarget || !visitTimeSlot) {
+    throw new Error("VALIDATION: أكمل حقول جدولة الزيارة المطلوبة");
+  }
+  if (isOrganizationRequired(visitType) && !organization) {
+    throw new Error("VALIDATION: الجهة / المؤسسة مطلوبة للزيارات التابعة لجهة");
+  }
+  if (visitTarget === "زائر" && !reason) {
+    throw new Error("VALIDATION: سبب الزيارة مطلوب عند اختيار «زائر»");
+  }
+  if (visitTarget === "زائر" && reason) {
+    visitTarget = `زائر - ${reason}`;
+  }
+  if (
+    visitTimeSlot &&
+    !VISIT_TIME_SLOTS.includes(visitTimeSlot as (typeof VISIT_TIME_SLOTS)[number])
+  ) {
+    // allow custom slots already persisted historically
+  }
+
+  const scheduledAt = combineVisitAt(params.visitDate, visitTimeSlot);
+  const now = new Date();
+
+  const created = await prisma.receptionScheduledVisit.create({
+    data: {
+      visitorName,
+      visitorPhone,
+      organization,
+      visitType,
+      visitTarget,
+      reason,
+      visitTimeSlot,
+      scheduledAt,
+      status: VisitScheduleStatus.APPROVED,
+      source: "MANAGER",
+      title: (params.title ?? "").trim(),
+      createdById: params.createdById || null,
+      approvedById: params.createdById || null,
+      approvedAt: now,
+    },
+    include: scheduleInclude,
+  });
+
+  const { notifyReceptionDeskApprovedSchedule } = await import("./notifications");
+  await notifyReceptionDeskApprovedSchedule({
+    visitorName: created.visitorName,
+    scheduledAt: created.scheduledAt,
+    scheduleId: created.id,
+  });
+
+  return mapScheduleRow(created);
+}
+
+export async function approveScheduledVisit(params: {
+  scheduleId: string;
+  approvedById: string;
+}) {
+  const existing = await prisma.receptionScheduledVisit.findUnique({
+    where: { id: params.scheduleId },
+  });
+  if (!existing) {
+    throw new Error("NOT_FOUND: الزيارة المجدولة غير موجودة");
+  }
+  if (existing.status !== VisitScheduleStatus.PENDING_APPROVAL) {
+    throw new Error("CONFLICT: لا يمكن اعتماد زيارة ليست بانتظار الموافقة");
+  }
+
+  const updated = await prisma.receptionScheduledVisit.update({
+    where: { id: existing.id },
+    data: {
+      status: VisitScheduleStatus.APPROVED,
+      approvedById: params.approvedById,
+      approvedAt: new Date(),
+      rejectedAt: null,
+      rejectionReason: null,
+    },
+    include: scheduleInclude,
+  });
+
+  const { notifyReceptionDeskApprovedSchedule } = await import("./notifications");
+  await notifyReceptionDeskApprovedSchedule({
+    visitorName: updated.visitorName,
+    scheduledAt: updated.scheduledAt,
+    scheduleId: updated.id,
+  });
+
+  return mapScheduleRow(updated);
+}
+
+export async function rejectScheduledVisit(params: {
+  scheduleId: string;
+  approvedById: string;
+  reason?: string;
+}) {
+  const existing = await prisma.receptionScheduledVisit.findUnique({
+    where: { id: params.scheduleId },
+  });
+  if (!existing) {
+    throw new Error("NOT_FOUND: الزيارة المجدولة غير موجودة");
+  }
+  if (existing.status !== VisitScheduleStatus.PENDING_APPROVAL) {
+    throw new Error("CONFLICT: لا يمكن رفض زيارة ليست بانتظار الموافقة");
+  }
+
+  const updated = await prisma.receptionScheduledVisit.update({
+    where: { id: existing.id },
+    data: {
+      status: VisitScheduleStatus.REJECTED,
+      approvedById: params.approvedById,
+      rejectedAt: new Date(),
+      rejectionReason: params.reason?.trim() || null,
+      approvedAt: null,
+    },
+    include: scheduleInclude,
+  });
+
+  return mapScheduleRow(updated);
 }
 
 export async function listVisitorLogs(params?: {
@@ -208,7 +542,7 @@ export async function createVisitorLogsBulk(params: {
 }
 
 export async function checkInScheduledVisit(params: {
-  requestId: string;
+  scheduleId: string;
   visitorName: string;
   visitorPhone: string;
   organization: string;
@@ -219,65 +553,120 @@ export async function checkInScheduledVisit(params: {
   visitTimeSlot: string;
   markedById?: string | null;
 }) {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  const request = await prisma.communicationRequest.findFirst({
+  const schedule = await prisma.receptionScheduledVisit.findFirst({
     where: {
-      id: params.requestId,
-      approvedAt: { not: null },
-      requestType: { requiresVisitDate: true },
-      visitDate: { gte: today },
-      status: {
-        in: [
-          RequestStatus.Approved_Pending_Assignment,
-          RequestStatus.In_Progress,
-          RequestStatus.Completed,
-        ],
-      },
+      id: params.scheduleId,
+      status: VisitScheduleStatus.APPROVED,
     },
-    select: { id: true, departmentId: true },
+    include: scheduleInclude,
   });
 
-  if (!request) {
-    throw new Error("NOT_FOUND: الطلب غير موجود في قائمة الاستقبال");
+  if (!schedule) {
+    throw new Error("NOT_FOUND: الزيارة غير موجودة في قائمة الاستقبال");
+  }
+
+  const departmentId = schedule.request?.department?.id ?? null;
+
+  if (schedule.visitorLogId && schedule.checkedInAt) {
+    const existingLog = await prisma.receptionVisitorLog.findUnique({
+      where: { id: schedule.visitorLogId },
+      include: logInclude,
+    });
+    return {
+      schedule: mapScheduleRow(schedule),
+      log: existingLog,
+    };
+  }
+
+  if (schedule.visitorLogId && !schedule.checkedInAt) {
+    const existingLog = await prisma.receptionVisitorLog.findUnique({
+      where: { id: schedule.visitorLogId },
+      include: logInclude,
+    });
+    const updated = await prisma.receptionScheduledVisit.update({
+      where: { id: schedule.id },
+      data: { checkedInAt: new Date() },
+      include: scheduleInclude,
+    });
+    if (schedule.requestId) {
+      await prisma.communicationRequest.update({
+        where: { id: schedule.requestId },
+        data: { visitAttended: true, visitMarkedAt: new Date() },
+      });
+    }
+    return { schedule: mapScheduleRow(updated), log: existingLog };
   }
 
   const log = await createVisitorLog({
-    ...params,
-    departmentId: request.departmentId,
-    requestId: request.id,
+    visitorName: params.visitorName,
+    visitorPhone: params.visitorPhone,
+    organization: params.organization,
+    visitType: params.visitType,
+    visitTarget: params.visitTarget,
+    reason: params.reason,
+    visitDate: params.visitDate,
+    visitTimeSlot: params.visitTimeSlot,
+    departmentId,
+    requestId: schedule.requestId,
+    markedById: params.markedById,
   });
 
-  const updated = await prisma.communicationRequest.update({
-    where: { id: request.id },
-    data: { visitAttended: true, visitMarkedAt: new Date() },
-    select: visitRequestSelect,
+  const updated = await prisma.receptionScheduledVisit.update({
+    where: { id: schedule.id },
+    data: {
+      checkedInAt: new Date(),
+      visitorLogId: log.id,
+      visitorName: params.visitorName.trim() || schedule.visitorName,
+      visitorPhone: params.visitorPhone.trim() || schedule.visitorPhone,
+      organization: params.organization.trim() || schedule.organization,
+      visitType: params.visitType.trim() || schedule.visitType,
+      visitTarget: params.visitTarget.trim() || schedule.visitTarget,
+      visitTimeSlot: params.visitTimeSlot.trim() || schedule.visitTimeSlot,
+    },
+    include: scheduleInclude,
   });
 
-  return { request: updated, log };
+  if (schedule.requestId) {
+    await prisma.communicationRequest.update({
+      where: { id: schedule.requestId },
+      data: { visitAttended: true, visitMarkedAt: new Date() },
+    });
+  }
+
+  return { schedule: mapScheduleRow(updated), log };
 }
 
-export async function undoScheduledAttendance(requestId: string) {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const existing = await prisma.communicationRequest.findFirst({
+export async function undoScheduledAttendance(scheduleId: string) {
+  const existing = await prisma.receptionScheduledVisit.findFirst({
     where: {
-      id: requestId,
-      visitDate: { gte: today },
-      requestType: { requiresVisitDate: true },
+      id: scheduleId,
+      status: VisitScheduleStatus.APPROVED,
     },
-    select: { id: true },
+    select: { id: true, requestId: true, visitorLogId: true },
   });
   if (!existing) {
-    throw new Error("NOT_FOUND: الطلب غير موجود في قائمة الاستقبال");
+    throw new Error("NOT_FOUND: الزيارة غير موجودة في قائمة الاستقبال");
   }
-  const updated = await prisma.communicationRequest.update({
-    where: { id: requestId },
-    data: { visitAttended: false, visitMarkedAt: null },
-    select: visitRequestSelect,
+
+  const updated = await prisma.receptionScheduledVisit.update({
+    where: { id: existing.id },
+    data: {
+      checkedInAt: null,
+      // Keep visitorLogId — cumulative; only clear check-in flag for desk UX.
+    },
+    include: scheduleInclude,
   });
-  return { request: updated };
+
+  // Soft-undo: keep the visitor log (cumulative) but mark schedule unchecked.
+  // Clear visitAttended on linked request so UI stays consistent.
+  if (existing.requestId) {
+    await prisma.communicationRequest.update({
+      where: { id: existing.requestId },
+      data: { visitAttended: false, visitMarkedAt: null },
+    });
+  }
+
+  return { schedule: mapScheduleRow(updated) };
 }
 
 export async function getVisitorDashboardStats() {
@@ -347,21 +736,20 @@ export async function getReceptionReports(params: {
       select: { id: true, name: true },
       orderBy: { name: "asc" },
     }),
-    prisma.communicationRequest.findMany({
+    prisma.receptionScheduledVisit.findMany({
       where: {
-        approvedAt: { not: null },
-        requestType: { requiresVisitDate: true },
-        visitDate: { gte: from, lt: toExclusive },
-        ...(params.departmentId ? { departmentId: params.departmentId } : {}),
-        status: {
-          in: [
-            RequestStatus.Approved_Pending_Assignment,
-            RequestStatus.In_Progress,
-            RequestStatus.Completed,
-          ],
-        },
+        status: VisitScheduleStatus.APPROVED,
+        scheduledAt: { gte: from, lt: toExclusive },
+        ...(params.departmentId
+          ? { request: { departmentId: params.departmentId } }
+          : {}),
       },
-      select: { id: true, departmentId: true, visitAttended: true },
+      select: {
+        id: true,
+        checkedInAt: true,
+        visitorLogId: true,
+        request: { select: { departmentId: true } },
+      },
     }),
   ]);
 
@@ -403,10 +791,11 @@ export async function getReceptionReports(params: {
     if (row) row.loggedVisits += 1;
   }
   for (const s of scheduledInRange) {
-    const row = kpiMap.get(s.departmentId);
+    const deptId = s.request?.departmentId ?? null;
+    const row = deptId ? kpiMap.get(deptId) : unassigned;
     if (!row) continue;
     row.scheduledVisits += 1;
-    if (s.visitAttended) row.attendedScheduled += 1;
+    if (s.checkedInAt || s.visitorLogId) row.attendedScheduled += 1;
   }
 
   const departmentKpis = [...kpiMap.values(), unassigned].map((k: DeptKpi) => ({
@@ -433,8 +822,8 @@ export async function getReceptionReports(params: {
 
   interface ScheduledVisitAttendanceRow {
     id: string;
-    departmentId: string;
-    visitAttended: boolean | null;
+    checkedInAt: Date | null;
+    visitorLogId: string | null;
   }
 
   const visits = (logs as ReceptionVisitorLogRow[]).map(
@@ -460,7 +849,7 @@ export async function getReceptionReports(params: {
       loggedVisits: logs.length,
       scheduledVisits: scheduledInRange.length,
       attendedScheduled: (scheduledInRange as ScheduledVisitAttendanceRow[]).filter(
-        (s: ScheduledVisitAttendanceRow) => s.visitAttended,
+        (s: ScheduledVisitAttendanceRow) => Boolean(s.checkedInAt || s.visitorLogId),
       ).length,
       departmentsWithVisits: departmentKpis.filter(
         (k: DeptKpi) => k.loggedVisits > 0,
@@ -525,12 +914,66 @@ export async function createAttendanceEvent(params: {
 export async function setAttendeeAttendance(params: {
   attendeeId: string;
   attended: boolean;
+  markedById?: string | null;
 }) {
+  const attendee = await prisma.attendanceAttendee.findUnique({
+    where: { id: params.attendeeId },
+    include: {
+      event: { select: { id: true, title: true, kind: true, scheduledAt: true } },
+    },
+  });
+  if (!attendee) {
+    throw new Error("NOT_FOUND: المشارك غير موجود");
+  }
+
+  if (!params.attended) {
+    return prisma.attendanceAttendee.update({
+      where: { id: params.attendeeId },
+      data: {
+        attended: false,
+        checkedInAt: null,
+        // Keep visitorLogId — cumulative linkage
+      },
+    });
+  }
+
+  if (attendee.visitorLogId) {
+    return prisma.attendanceAttendee.update({
+      where: { id: params.attendeeId },
+      data: {
+        attended: true,
+        checkedInAt: attendee.checkedInAt ?? new Date(),
+      },
+    });
+  }
+
+  const scheduledAt = new Date(attendee.event.scheduledAt);
+  const visitDate = `${scheduledAt.getFullYear()}-${String(scheduledAt.getMonth() + 1).padStart(2, "0")}-${String(scheduledAt.getDate()).padStart(2, "0")}`;
+  const visitTimeSlot = inferTimeSlotFromDate(scheduledAt);
+  const visitType = "شخصي";
+  const visitTarget =
+    attendee.event.kind === "JOB_INTERVIEW"
+      ? "زائر - مقابلة وظيفية"
+      : "زائر - اجتماع";
+
+  const log = await createVisitorLog({
+    visitorName: attendee.name,
+    visitorPhone: attendee.phone?.trim() || "0500000000",
+    organization: "",
+    visitType,
+    visitTarget,
+    reason: attendee.event.title,
+    visitDate,
+    visitTimeSlot,
+    markedById: params.markedById,
+  });
+
   return prisma.attendanceAttendee.update({
     where: { id: params.attendeeId },
     data: {
-      attended: params.attended,
-      checkedInAt: params.attended ? new Date() : null,
+      attended: true,
+      checkedInAt: new Date(),
+      visitorLogId: log.id,
     },
   });
 }

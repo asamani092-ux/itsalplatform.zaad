@@ -12,7 +12,7 @@ import { useToast } from "@/components/ui/toast";
 
 const STATUS_OPTIONS: Array<{ value: string; label: string }> = [
   { value: "", label: "كل الحالات" },
-  { value: "Pending_Manager", label: "بانتظار المدير" },
+  { value: "Pending_Manager", label: "بانتظار مدير مقدّم الطلب" },
   { value: "Approved_Pending_Assignment", label: "معتمد — بانتظار الإسناد" },
   { value: "In_Progress", label: "قيد التنفيذ" },
   { value: "Pending_Review", label: "بانتظار المراجعة" },

@@ -42,7 +42,7 @@ interface DepartmentOption {
 }
 
 const STATUS_LABELS: Record<string, string> = {
-  Pending_Manager: "بانتظار المدير",
+  Pending_Manager: "بانتظار مدير مقدّم الطلب",
   Approved_Pending_Assignment: "جديد",
   In_Progress: "قيد التنفيذ",
   Pending_Review: "بانتظار المراجعة",

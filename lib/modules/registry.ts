@@ -104,7 +104,7 @@ export const PLATFORM_MODULES: PlatformModuleDef[] = [
   {
     key: "all-requests",
     label: "كل الطلبات",
-    description: "عرض جميع الطلبات بما فيها بانتظار المدير",
+    description: "عرض جميع الطلبات بما فيها بانتظار مدير مقدّم الطلب",
     href: "/dashboard/requests",
     category: "operations",
     icon: "list",

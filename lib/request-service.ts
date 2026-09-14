@@ -277,6 +277,34 @@ export async function submitRequest(params: {
       : "تم تقديم الطلب",
   });
 
+  // Path 1: independent reception schedule gate (PENDING_APPROVAL).
+  // Does NOT notify desk staff — managers approve visibility separately.
+  // Skip hospitality bookings (managed on HospitalityBoard, not reception calendar).
+  if (
+    requestType.requiresVisitDate &&
+    params.visitDate &&
+    requestType.slug !== "hospitality-booking"
+  ) {
+    try {
+      const { createPendingScheduledVisitFromRequest } = await import(
+        "./reception-service"
+      );
+      await createPendingScheduledVisitFromRequest({
+        requestId: created.id,
+        title: created.title,
+        contactName: created.contactName,
+        contactPhone: created.contactPhone,
+        visitDate: params.visitDate,
+        requestTypeName: requestType.name,
+      });
+    } catch (error) {
+      console.error(
+        "[request-service] createPendingScheduledVisitFromRequest failed",
+        error,
+      );
+    }
+  }
+
   // Acknowledge receipt to the requester.
   await notifySubmitter({
     contactEmail: created.contactEmail,

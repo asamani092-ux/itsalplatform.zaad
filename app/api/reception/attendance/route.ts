@@ -110,6 +110,7 @@ export async function PATCH(request: NextRequest) {
     const attendee = await setAttendeeAttendance({
       attendeeId: body.attendeeId,
       attended: body.attended,
+      markedById: auth.session.sub,
     });
     return jsonOk({ attendee });
   } catch (error) {

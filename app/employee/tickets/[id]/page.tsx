@@ -71,16 +71,71 @@ export default function EmployeeTicketDetailPage() {
         formData.append(key, value);
       }
     }
-    const res = await fetch(url, { method: "POST", body: formData });
-    const payload = await parseApiResponse<{ ticket: TicketDetail }>(res);
-    if (!res.ok || !payload.success) {
-      throw new Error(getApiErrorMessage(payload, "فشلت العملية"));
+    const controller = new AbortController();
+    const timeoutMs = 45_000;
+    const timer = window.setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        body: formData,
+        signal: controller.signal,
+      });
+      const payload = await parseApiResponse<{ ticket: TicketDetail }>(res);
+      if (!res.ok || !payload.success) {
+        throw new Error(getApiErrorMessage(payload, "فشلت العملية"));
+      }
+      setTicket(payload.data.ticket);
+      setProof(null);
+    } catch (e) {
+      if (e instanceof DOMException && e.name === "AbortError") {
+        throw new Error("انتهت مهلة الاتصال — حاول مرة أخرى");
+      }
+      throw e;
+    } finally {
+      window.clearTimeout(timer);
     }
-    setTicket(payload.data.ticket);
-    setProof(null);
+  }
+
+  const PROOF_MAX_BYTES = 5 * 1024 * 1024;
+  const PROOF_TYPES = new Set([
+    "application/pdf",
+    "image/png",
+    "image/jpeg",
+    "image/jpg",
+  ]);
+  const PROOF_EXTS = /\.(pdf|png|jpe?g)$/i;
+
+  function validateProofFile(file: File | null): string | null {
+    if (!file) return null;
+    if (file.size > PROOF_MAX_BYTES) {
+      return "حجم الملف يتجاوز 5 ميغابايت. اختر ملفاً أصغر.";
+    }
+    const typeOk =
+      PROOF_TYPES.has(file.type) || PROOF_EXTS.test(file.name);
+    if (!typeOk) {
+      return "نوع الملف غير مدعوم. يُقبل PDF أو PNG أو JPG فقط.";
+    }
+    return null;
+  }
+
+  function onProofSelected(files: FileList) {
+    const file = files[0] ?? null;
+    const err = validateProofFile(file);
+    if (err) {
+      setProof(null);
+      setError(err);
+      return;
+    }
+    setError("");
+    setProof(file);
   }
 
   async function handleDeclare() {
+    const proofErr = validateProofFile(proof);
+    if (proofErr) {
+      setError(proofErr);
+      return;
+    }
     setBusy(true);
     setError("");
     try {
@@ -95,6 +150,11 @@ export default function EmployeeTicketDetailPage() {
   async function handleRedeclare() {
     if (!redeclareNote.trim()) {
       setError("ملاحظة الموظف مطلوبة بعد الإرجاع");
+      return;
+    }
+    const proofErr = validateProofFile(proof);
+    if (proofErr) {
+      setError(proofErr);
       return;
     }
     setBusy(true);
@@ -223,9 +283,9 @@ export default function EmployeeTicketDetailPage() {
           <Dropzone
             accept=".pdf,.png,.jpg,.jpeg,image/png,image/jpeg,application/pdf"
             label={proof ? proof.name : "اسحب الشاهد هنا أو اختر من الجهاز"}
-            hint="PDF أو صورة بحد أقصى المسموح"
+            hint="PDF أو صورة بحد أقصى 5 ميغابايت"
             disabled={busy}
-            onFiles={(files) => setProof(files[0] ?? null)}
+            onFiles={onProofSelected}
           />
           {error && (
             <p className="text-sm text-[var(--zaad-danger)]" role="alert">
