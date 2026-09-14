@@ -78,10 +78,19 @@ const REMEMBERED_MAX_AGE = 60 * 60 * 24 * 365;
 
 export async function setSessionCookie(token: string, remember = false) {
   const cookieStore = await cookies();
+  // Standalone sets NODE_ENV=production even on local HTTP; allow override so
+  // browsers accept the session cookie without HTTPS (COOKIE_SECURE=false).
+  const secureCookie =
+    process.env.COOKIE_SECURE === "true"
+      ? true
+      : process.env.COOKIE_SECURE === "false"
+        ? false
+        : process.env.NODE_ENV === "production";
+
   cookieStore.set(SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: secureCookie,
     path: "/",
     maxAge: remember ? REMEMBERED_MAX_AGE : SESSION_MAX_AGE,
   });
