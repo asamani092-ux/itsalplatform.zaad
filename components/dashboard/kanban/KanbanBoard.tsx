@@ -67,6 +67,8 @@ export default function KanbanBoard() {
   const [returnNote, setReturnNote] = useState("");
   const [cancelModalId, setCancelModalId] = useState<string | null>(null);
   const [cancelReason, setCancelReason] = useState("");
+  const [mobileColumnId, setMobileColumnId] =
+    useState<(typeof COLUMNS)[number]["id"]>(COLUMNS[0].id);
 
   const loadData = useCallback(async (opts?: { soft?: boolean }) => {
     if (!opts?.soft) setLoading(true);
@@ -314,6 +316,55 @@ export default function KanbanBoard() {
     });
   }
 
+  const mobileColumn =
+    COLUMNS.find((c) => c.id === mobileColumnId) ?? COLUMNS[0];
+  const mobileStatuses = columnStatuses(mobileColumn.status);
+  const mobileColumnRequests = boardRequests.filter((r) =>
+    mobileStatuses.includes(r.status),
+  );
+  const mobileColumnReturned =
+    mobileColumn.status === "In_Progress"
+      ? mobileColumnRequests.filter((r) => r.status === "Returned").length
+      : 0;
+
+  function renderRequestCards(columnRequests: DashboardRequest[]) {
+    if (columnRequests.length === 0) {
+      return (
+        <p className="py-12 text-center text-xs text-brand-gray">
+          لا توجد بطاقات
+        </p>
+      );
+    }
+    return columnRequests.map((request) => (
+      <div key={request.id} className="space-y-1">
+        <RequestCard
+          request={request}
+          employees={employees}
+          onAssign={handleAssign}
+          onReassign={handleReassign}
+          onApproveCompletion={handleApproveCompletion}
+          onReturn={(id) => {
+            setReturnModalId(id);
+            setReturnNote("");
+          }}
+          onCancel={(id) => {
+            setCancelModalId(id);
+            setCancelReason("");
+          }}
+          onArchive={handleArchive}
+          busy={busy}
+        />
+        <button
+          type="button"
+          className="btn-secondary w-full text-xs"
+          onClick={() => void openDetail(request.id)}
+        >
+          التفاصيل
+        </button>
+      </div>
+    ));
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -414,82 +465,119 @@ export default function KanbanBoard() {
           <p className="text-sm text-brand-gray">جاري تحميل اللوحة...</p>
         </div>
       ) : tab === "board" ? (
-        <div className="-mx-1 flex gap-4 overflow-x-auto px-1 pb-2 lg:grid lg:grid-cols-2 lg:overflow-visible xl:grid-cols-4">
-          {COLUMNS.map((column) => {
-            const statuses = columnStatuses(column.status);
-            const columnRequests = boardRequests.filter((r) =>
-              statuses.includes(r.status),
-            );
-            const columnReturned =
-              column.status === "In_Progress"
-                ? columnRequests.filter((r) => r.status === "Returned").length
-                : 0;
+        <>
+          {/* Mobile / tablet: stacked status buttons + selected column */}
+          <div className="space-y-4 lg:hidden">
+            <div
+              className="flex flex-col gap-2"
+              role="tablist"
+              aria-label="أعمدة الحالات"
+            >
+              {COLUMNS.map((column) => {
+                const statuses = columnStatuses(column.status);
+                const count = boardRequests.filter((r) =>
+                  statuses.includes(r.status),
+                ).length;
+                const isActive = mobileColumnId === column.id;
+                return (
+                  <button
+                    key={column.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={isActive}
+                    aria-pressed={isActive}
+                    className={`flex w-full items-center justify-between rounded-lg border-2 px-4 py-3 text-start text-sm font-bold transition ${
+                      isActive
+                        ? "btn-primary ring-2 ring-primary ring-offset-2"
+                        : `bg-surface text-primary ${column.headerClass}`
+                    }`}
+                    onClick={() => setMobileColumnId(column.id)}
+                  >
+                    <span>{column.title}</span>
+                    <span className="badge-primary min-w-[2rem] text-center">
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
 
-            return (
-              <section
-                key={column.id}
-                className="flex max-h-[70vh] min-h-[360px] w-[85vw] max-w-sm shrink-0 flex-col rounded-xl border-2 border-surface-border bg-surface sm:w-72 lg:w-auto lg:max-w-none"
-                aria-label={`${column.title} — ${columnRequests.length} بطاقة`}
+            <section
+              className="flex max-h-[70vh] min-h-[280px] flex-col rounded-xl border-2 border-surface-border bg-surface"
+              aria-label={`${mobileColumn.title} — ${mobileColumnRequests.length} بطاقة`}
+            >
+              <header
+                className={`flex items-center justify-between border-b-2 px-4 py-3 ${mobileColumn.headerClass}`}
               >
-                <header
-                  className={`flex items-center justify-between border-b-2 px-4 py-3 ${column.headerClass}`}
-                >
-                  <div className="flex items-center gap-2">
-                    <h2 className="text-sm font-bold text-primary">{column.title}</h2>
-                    {columnReturned > 0 && (
-                      <span
-                        className="badge-warning text-[10px]"
-                        title="طلبات معادة للموظف"
-                      >
-                        معاد: {columnReturned}
-                      </span>
-                    )}
-                  </div>
-                  <span className="badge-primary min-w-[2rem] text-center">
-                    {columnRequests.length}
-                  </span>
-                </header>
-
-                <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-2">
-                  {columnRequests.length === 0 ? (
-                    <p className="py-12 text-center text-xs text-brand-gray">
-                      لا توجد بطاقات
-                    </p>
-                  ) : (
-                    columnRequests.map((request) => (
-                      <div key={request.id} className="space-y-1">
-                        <RequestCard
-                          request={request}
-                          employees={employees}
-                          onAssign={handleAssign}
-                          onReassign={handleReassign}
-                          onApproveCompletion={handleApproveCompletion}
-                          onReturn={(id) => {
-                            setReturnModalId(id);
-                            setReturnNote("");
-                          }}
-                          onCancel={(id) => {
-                            setCancelModalId(id);
-                            setCancelReason("");
-                          }}
-                          onArchive={handleArchive}
-                          busy={busy}
-                        />
-                        <button
-                          type="button"
-                          className="btn-secondary w-full text-xs"
-                          onClick={() => void openDetail(request.id)}
-                        >
-                          التفاصيل
-                        </button>
-                      </div>
-                    ))
+                <div className="flex items-center gap-2">
+                  <h2 className="text-sm font-bold text-primary">
+                    {mobileColumn.title}
+                  </h2>
+                  {mobileColumnReturned > 0 && (
+                    <span
+                      className="badge-warning text-[10px]"
+                      title="طلبات معادة للموظف"
+                    >
+                      معاد: {mobileColumnReturned}
+                    </span>
                   )}
                 </div>
-              </section>
-            );
-          })}
-        </div>
+                <span className="badge-primary min-w-[2rem] text-center">
+                  {mobileColumnRequests.length}
+                </span>
+              </header>
+              <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-2">
+                {renderRequestCards(mobileColumnRequests)}
+              </div>
+            </section>
+          </div>
+
+          {/* Desktop: unchanged 4-column grid */}
+          <div className="hidden gap-4 lg:grid lg:grid-cols-2 xl:grid-cols-4">
+            {COLUMNS.map((column) => {
+              const statuses = columnStatuses(column.status);
+              const columnRequests = boardRequests.filter((r) =>
+                statuses.includes(r.status),
+              );
+              const columnReturned =
+                column.status === "In_Progress"
+                  ? columnRequests.filter((r) => r.status === "Returned").length
+                  : 0;
+
+              return (
+                <section
+                  key={column.id}
+                  className="flex max-h-[70vh] min-h-[360px] flex-col rounded-xl border-2 border-surface-border bg-surface"
+                  aria-label={`${column.title} — ${columnRequests.length} بطاقة`}
+                >
+                  <header
+                    className={`flex items-center justify-between border-b-2 px-4 py-3 ${column.headerClass}`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-sm font-bold text-primary">
+                        {column.title}
+                      </h2>
+                      {columnReturned > 0 && (
+                        <span
+                          className="badge-warning text-[10px]"
+                          title="طلبات معادة للموظف"
+                        >
+                          معاد: {columnReturned}
+                        </span>
+                      )}
+                    </div>
+                    <span className="badge-primary min-w-[2rem] text-center">
+                      {columnRequests.length}
+                    </span>
+                  </header>
+                  <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-2">
+                    {renderRequestCards(columnRequests)}
+                  </div>
+                </section>
+              );
+            })}
+          </div>
+        </>
       ) : tab === "rejected" ? (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {rejectedRequests.filter(matchesQuery).length === 0 ? (
