@@ -371,6 +371,17 @@ export async function submitRequest(params: {
         reference: assigned.id.slice(-8),
         emailKind: "in_progress",
       });
+      try {
+        const { approvePendingScheduleForRequest } = await import(
+          "./reception-service"
+        );
+        await approvePendingScheduleForRequest({ requestId: created.id });
+      } catch (error) {
+        console.error(
+          "[request-service] auto-approve schedule after routing failed",
+          error,
+        );
+      }
       return { request: withSla(assigned), approvalUrl: null as string | null };
     }
     return { request: withSla(created), approvalUrl: null as string | null };
@@ -471,6 +482,18 @@ export async function approveRequest(token: string) {
       reference: updated.id.slice(-8),
       emailKind: "in_progress",
     });
+
+    try {
+      const { approvePendingScheduleForRequest } = await import(
+        "./reception-service"
+      );
+      await approvePendingScheduleForRequest({ requestId: request.id });
+    } catch (error) {
+      console.error(
+        "[request-service] auto-approve schedule after approve+assign failed",
+        error,
+      );
+    }
 
     return withSla(updated);
   }
@@ -734,6 +757,22 @@ export async function assignRequest(params: {
     reference: updated.id.slice(-8),
     emailKind: "in_progress",
   });
+
+  // Decision 8.11: workboard assign auto-approves reception schedule.
+  try {
+    const { approvePendingScheduleForRequest } = await import(
+      "./reception-service"
+    );
+    await approvePendingScheduleForRequest({
+      requestId: params.requestId,
+      approvedById: params.assignedBy ?? null,
+    });
+  } catch (error) {
+    console.error(
+      "[request-service] approvePendingScheduleForRequest failed",
+      error,
+    );
+  }
 
   return withSla(updated);
 }

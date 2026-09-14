@@ -319,7 +319,7 @@ export async function createManagerScheduledVisit(params: {
 
 export async function approveScheduledVisit(params: {
   scheduleId: string;
-  approvedById: string;
+  approvedById?: string | null;
 }) {
   const existing = await prisma.receptionScheduledVisit.findUnique({
     where: { id: params.scheduleId },
@@ -335,7 +335,7 @@ export async function approveScheduledVisit(params: {
     where: { id: existing.id },
     data: {
       status: VisitScheduleStatus.APPROVED,
-      approvedById: params.approvedById,
+      approvedById: params.approvedById || null,
       approvedAt: new Date(),
       rejectedAt: null,
       rejectionReason: null,
@@ -351,6 +351,24 @@ export async function approveScheduledVisit(params: {
   });
 
   return mapScheduleRow(updated);
+}
+
+/** Workboard assign → auto-approve linked pending reception schedule. */
+export async function approvePendingScheduleForRequest(params: {
+  requestId: string;
+  approvedById?: string | null;
+}) {
+  const existing = await prisma.receptionScheduledVisit.findFirst({
+    where: {
+      requestId: params.requestId,
+      status: VisitScheduleStatus.PENDING_APPROVAL,
+    },
+  });
+  if (!existing) return null;
+  return approveScheduledVisit({
+    scheduleId: existing.id,
+    approvedById: params.approvedById || null,
+  });
 }
 
 export async function rejectScheduledVisit(params: {
@@ -947,22 +965,26 @@ export async function setAttendeeAttendance(params: {
     });
   }
 
-  const scheduledAt = new Date(attendee.event.scheduledAt);
-  const visitDate = `${scheduledAt.getFullYear()}-${String(scheduledAt.getMonth() + 1).padStart(2, "0")}-${String(scheduledAt.getDate()).padStart(2, "0")}`;
-  const visitTimeSlot = inferTimeSlotFromDate(scheduledAt);
-  const visitType = "شخصي";
-  const visitTarget =
+  // Check-in timestamp = now so the visitor log sorts to the top immediately.
+  const checkedInAt = new Date();
+  const visitDate = `${checkedInAt.getFullYear()}-${String(checkedInAt.getMonth() + 1).padStart(2, "0")}-${String(checkedInAt.getDate()).padStart(2, "0")}`;
+  const visitTimeSlot = inferTimeSlotFromDate(checkedInAt);
+  const reason =
     attendee.event.kind === "JOB_INTERVIEW"
-      ? "زائر - مقابلة وظيفية"
-      : "زائر - اجتماع";
+      ? `مقابلة وظيفية — ${attendee.event.title}`
+      : `اجتماع — ${attendee.event.title}`;
+  const phone =
+    attendee.phone?.trim() && /^05\d{8}$/.test(attendee.phone.trim())
+      ? attendee.phone.trim()
+      : "0500000000";
 
   const log = await createVisitorLog({
-    visitorName: attendee.name,
-    visitorPhone: attendee.phone?.trim() || "0500000000",
+    visitorName: attendee.name.trim() || "مشارك",
+    visitorPhone: phone,
     organization: "",
-    visitType,
-    visitTarget,
-    reason: attendee.event.title,
+    visitType: "شخصي",
+    visitTarget: "زائر",
+    reason,
     visitDate,
     visitTimeSlot,
     markedById: params.markedById,
@@ -972,7 +994,7 @@ export async function setAttendeeAttendance(params: {
     where: { id: params.attendeeId },
     data: {
       attended: true,
-      checkedInAt: new Date(),
+      checkedInAt,
       visitorLogId: log.id,
     },
   });

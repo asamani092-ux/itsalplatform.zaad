@@ -985,7 +985,6 @@ export default function ReceptionDesk() {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          action: "toggle",
           attendeeId: attendee.id,
           attended: !attendee.attended,
         }),
@@ -994,6 +993,7 @@ export default function ReceptionDesk() {
       if (!res.ok || !payload.success) {
         throw new Error(getApiErrorMessage(payload, "فشل تحديث الحضور"));
       }
+      const nextAttended = !attendee.attended;
       setActiveEvent((prev) =>
         prev
           ? {
@@ -1005,6 +1005,9 @@ export default function ReceptionDesk() {
           : prev,
       );
       void loadAttendance();
+      if (nextAttended) {
+        await loadDesk();
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "خطأ");
     } finally {
