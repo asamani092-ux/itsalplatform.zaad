@@ -1294,7 +1294,7 @@ export default function ReceptionDesk() {
               جدولة زيارة
             </button>
           )}
-          {(isDeskStaff || !deskManage) && (
+          {capsReady && (isDeskStaff || !deskManage) && (
             <button
               type="button"
               className="btn-primary inline-flex min-h-12 items-center gap-2 px-5 text-base font-bold sm:min-h-14 sm:px-7 sm:text-lg"
@@ -1645,12 +1645,22 @@ export default function ReceptionDesk() {
                 <IconButton
                   label="الأسبوع السابق"
                   icon={<IconChevron size={18} />}
-                  onClick={() => setWeekStart((w) => addDays(w, -7))}
+                  onClick={() => {
+                    setWeekStart((w) => addDays(w, -7));
+                    setSelectedDay((d) =>
+                      toDateInput(addDays(new Date(`${d}T12:00:00`), -7)),
+                    );
+                  }}
                 />
                 <IconButton
                   label="الأسبوع التالي"
                   icon={<IconChevron size={18} className="rotate-180" />}
-                  onClick={() => setWeekStart((w) => addDays(w, 7))}
+                  onClick={() => {
+                    setWeekStart((w) => addDays(w, 7));
+                    setSelectedDay((d) =>
+                      toDateInput(addDays(new Date(`${d}T12:00:00`), 7)),
+                    );
+                  }}
                 />
                 <button
                   type="button"
