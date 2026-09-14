@@ -75,7 +75,8 @@ export async function listVisitorLogs(params?: {
   const logs = await prisma.receptionVisitorLog.findMany({
     where,
     include: logInclude,
-    orderBy: { visitAt: "desc" },
+    // Newest registration first; secondary key breaks ties within the same time slot.
+    orderBy: [{ visitAt: "desc" }, { createdAt: "desc" }],
     take: params?.limit ?? 500,
   });
   return { logs };
@@ -170,6 +171,40 @@ export async function createVisitorLog(params: {
     },
     include: logInclude,
   });
+}
+
+/** Create multiple visitor logs with shared visit fields. O(n) time. */
+export async function createVisitorLogsBulk(params: {
+  visitors: { visitorName: string; visitorPhone: string }[];
+  organization: string;
+  visitType: string;
+  visitTarget: string;
+  reason?: string;
+  visitDate: string;
+  visitTimeSlot: string;
+  markedById?: string | null;
+}) {
+  if (!params.visitors.length) {
+    throw new Error("VALIDATION: أضف زائراً واحداً على الأقل");
+  }
+
+  const logs = [];
+  for (const visitor of params.visitors) {
+    logs.push(
+      await createVisitorLog({
+        visitorName: visitor.visitorName,
+        visitorPhone: visitor.visitorPhone,
+        organization: params.organization,
+        visitType: params.visitType,
+        visitTarget: params.visitTarget,
+        reason: params.reason,
+        visitDate: params.visitDate,
+        visitTimeSlot: params.visitTimeSlot,
+        markedById: params.markedById,
+      }),
+    );
+  }
+  return logs;
 }
 
 export async function checkInScheduledVisit(params: {
@@ -305,7 +340,7 @@ export async function getReceptionReports(params: {
     prisma.receptionVisitorLog.findMany({
       where,
       include: logInclude,
-      orderBy: { visitAt: "asc" },
+      orderBy: [{ visitAt: "desc" }, { createdAt: "desc" }],
     }),
     prisma.department.findMany({
       where: { isActive: true },

@@ -4,6 +4,7 @@ import { requireReceptionDeskSession } from "@/lib/auth/route-guard";
 import {
   checkInScheduledVisit,
   createVisitorLog,
+  createVisitorLogsBulk,
   getVisitorDashboardStats,
   listTodayScheduledVisits,
   listVisitorLogs,
@@ -58,6 +59,7 @@ export async function POST(request: NextRequest) {
     const body = (await request.json()) as {
       visitorName?: string;
       visitorPhone?: string;
+      visitors?: { visitorName?: string; visitorPhone?: string }[];
       organization?: string;
       visitType?: string;
       visitTarget?: string;
@@ -67,8 +69,6 @@ export async function POST(request: NextRequest) {
     };
 
     if (
-      !body.visitorName?.trim() ||
-      !body.visitorPhone?.trim() ||
       !body.visitType?.trim() ||
       !body.visitTarget?.trim() ||
       !body.visitDate ||
@@ -80,9 +80,37 @@ export async function POST(request: NextRequest) {
       return jsonError("الجهة / المؤسسة مطلوبة للزيارات التابعة لجهة", "VALIDATION", 400);
     }
 
-    const log = await createVisitorLog({
-      visitorName: body.visitorName,
-      visitorPhone: body.visitorPhone,
+    const visitors =
+      Array.isArray(body.visitors) && body.visitors.length > 0
+        ? body.visitors
+        : [{ visitorName: body.visitorName, visitorPhone: body.visitorPhone }];
+
+    const normalized = visitors.map((v) => ({
+      visitorName: (v.visitorName ?? "").trim(),
+      visitorPhone: (v.visitorPhone ?? "").trim(),
+    }));
+
+    if (normalized.some((v) => !v.visitorName || !v.visitorPhone)) {
+      return jsonError("اسم الزائر والجوال مطلوبان لكل صف", "VALIDATION", 400);
+    }
+
+    if (normalized.length === 1) {
+      const log = await createVisitorLog({
+        visitorName: normalized[0].visitorName,
+        visitorPhone: normalized[0].visitorPhone,
+        organization: body.organization ?? "",
+        visitType: body.visitType,
+        visitTarget: body.visitTarget,
+        reason: body.reason,
+        visitDate: body.visitDate,
+        visitTimeSlot: body.visitTimeSlot,
+        markedById: auth.session.sub,
+      });
+      return jsonOk({ log, logs: [log] }, 201);
+    }
+
+    const logs = await createVisitorLogsBulk({
+      visitors: normalized,
       organization: body.organization ?? "",
       visitType: body.visitType,
       visitTarget: body.visitTarget,
@@ -92,7 +120,7 @@ export async function POST(request: NextRequest) {
       markedById: auth.session.sub,
     });
 
-    return jsonOk({ log }, 201);
+    return jsonOk({ log: logs[0], logs }, 201);
   } catch (error) {
     return handleApiError(error);
   }

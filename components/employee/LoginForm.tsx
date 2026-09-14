@@ -134,7 +134,7 @@ export default function LoginForm({
               checked={rememberMe}
               onChange={(e) => setRememberMe(e.target.checked)}
             />
-            تذكرني (حتى تسجيل الخروج)
+            تذكرني
           </label>
           <Link href="/forgot-password" className="zad-touch inline-flex items-center text-sm text-primary underline">
             نسيت كلمة المرور؟

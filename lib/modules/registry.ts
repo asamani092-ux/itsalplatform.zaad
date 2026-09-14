@@ -200,6 +200,8 @@ export const CATEGORY_LABELS: Record<ModuleCategory, string> = {
 
 export interface PlatformModuleState extends PlatformModuleDef {
   isEnabled: boolean;
+  /** Null = visible to all section managers; set = only that department (+ director). */
+  ownerDepartmentId: string | null;
 }
 
 export function findModule(key: string): PlatformModuleDef | undefined {

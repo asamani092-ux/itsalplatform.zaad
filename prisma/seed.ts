@@ -402,6 +402,38 @@ async function main() {
     });
   }
 
+  // Reception owned by communications — other section managers do not see it.
+  if (commSection?.id) {
+    await prisma.platformModule.update({
+      where: { key: "reception" },
+      data: { ownerDepartmentId: commSection.id },
+    });
+  }
+
+  const financeDeptForManager = await prisma.department.findUnique({
+    where: { slug: "financial-resources" },
+  });
+  await prisma.commEmployee.upsert({
+    where: { email: "finance.mgr@zaad.org" },
+    update: {
+      phoneNumber: "0500000006",
+      passwordHash,
+      role: EmployeeRole.SECTION_MANAGER,
+      isActive: true,
+      isReceptionDesk: false,
+      departmentId: financeDeptForManager?.id ?? null,
+    },
+    create: {
+      name: "مدير الموارد المالية",
+      email: "finance.mgr@zaad.org",
+      phoneNumber: "0500000006",
+      passwordHash,
+      role: EmployeeRole.SECTION_MANAGER,
+      isReceptionDesk: false,
+      departmentId: financeDeptForManager?.id ?? null,
+    },
+  });
+
   // Wipe prior demo-tagged requests/logs so re-seed stays deterministic (cumulative history
   // for real use; demo seed replaces its own markers only).
   await prisma.receptionVisitorLog.deleteMany({

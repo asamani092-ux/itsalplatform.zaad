@@ -80,6 +80,7 @@ interface VisitorLog {
   reason: string;
   visitTimeSlot: string;
   visitAt: string;
+  createdAt: string;
   department?: { id: string; name: string } | null;
   markedBy?: { id: string; name: string } | null;
 }
@@ -148,8 +149,22 @@ interface ReportVisit {
   reason: string;
   visitTimeSlot: string;
   visitAt: string;
+  createdAt?: string;
   departmentName: string | null;
   markedByName: string | null;
+}
+
+/** Newest first — matches platform-wide log ordering. */
+function sortLogsNewestFirst<T extends { visitAt: string; createdAt?: string }>(
+  rows: T[],
+): T[] {
+  return [...rows].sort((a, b) => {
+    const byVisit = new Date(b.visitAt).getTime() - new Date(a.visitAt).getTime();
+    if (byVisit !== 0) return byVisit;
+    const aCreated = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+    const bCreated = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+    return bCreated - aCreated;
+  });
 }
 
 interface VisitorFormState {
@@ -264,12 +279,18 @@ function SimpleBars({
 
 export default function ReceptionDesk() {
   const { pushToast } = useToast();
-  const [tab, setTab] = useState<TabId>("dashboard");
+  const [tab, setTab] = useState<TabId>("logs");
   const [registerOpen, setRegisterOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [deskManage, setDeskManage] = useState(false);
+  const [isDeskStaff, setIsDeskStaff] = useState(false);
+  const [visitorRows, setVisitorRows] = useState<{ visitorName: string; visitorPhone: string }[]>([
+    { visitorName: "", visitorPhone: "" },
+  ]);
+  const [capsReady, setCapsReady] = useState(false);
 
   const [visits, setVisits] = useState<ScheduledVisit[]>([]);
   const [logs, setLogs] = useState<VisitorLog[]>([]);
@@ -331,7 +352,7 @@ export default function ReceptionDesk() {
         throw new Error(getApiErrorMessage(payload, "تعذّر تحميل بيانات الاستقبال"));
       }
       setVisits(payload.data.visits);
-      setLogs(payload.data.attendanceLogs);
+      setLogs(sortLogsNewestFirst(payload.data.attendanceLogs));
       setStats(payload.data.stats);
       setMeta(payload.data.meta);
       setForm((prev) => ({
@@ -389,7 +410,7 @@ export default function ReceptionDesk() {
         throw new Error(getApiErrorMessage(payload, "تعذّر تحميل التقارير"));
       }
       setKpis(payload.data.departmentKpis);
-      setReportVisits(payload.data.visits);
+      setReportVisits(sortLogsNewestFirst(payload.data.visits));
       setReportTotals(payload.data.totals);
       if (payload.data.departments?.length) {
         setDepartments(payload.data.departments);
@@ -400,6 +421,40 @@ export default function ReceptionDesk() {
       setReportLoading(false);
     }
   }, [reportFrom, reportTo]);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const res = await fetch("/api/auth/me");
+        const payload = await parseApiResponse<{
+          user: {
+            deskManage?: boolean;
+            isReceptionDesk?: boolean;
+            role?: string;
+          };
+        }>(res);
+        if (res.ok && payload.success) {
+          const manage = payload.data.user.deskManage === true;
+          const deskStaff = payload.data.user.isReceptionDesk === true;
+          setDeskManage(manage);
+          setIsDeskStaff(deskStaff);
+          setTab(manage && !deskStaff ? "dashboard" : "logs");
+        }
+      } catch {
+        /* ignore */
+      } finally {
+        setCapsReady(true);
+      }
+    })();
+  }, []);
+
+  const visibleTabs = useMemo(() => {
+    if (deskManage && !isDeskStaff) {
+      return TABS;
+    }
+    // Desk ops: register/logs/scheduled/attendance (mark only) — no dashboard/reports
+    return TABS.filter((t) => t.id === "logs" || t.id === "scheduled" || t.id === "attendance");
+  }, [deskManage, isDeskStaff]);
 
   useEffect(() => {
     void loadDesk();
@@ -474,11 +529,38 @@ export default function ReceptionDesk() {
 
   async function submitRegister(e: React.FormEvent) {
     e.preventDefault();
-    const validationError = validateVisitorForm(form);
-    if (validationError) {
-      setError(validationError);
-      pushToast(validationError, "danger");
+    const sharedError = validateVisitorForm({
+      ...form,
+      visitorName: visitorRows[0]?.visitorName ?? "",
+      visitorPhone: visitorRows[0]?.visitorPhone ?? "",
+    });
+    // Shared fields only — name/phone validated per row below
+    const sharedOnly = validateVisitorForm({
+      visitorName: "x",
+      visitorPhone: "0500000000",
+      organization: form.organization,
+      visitType: form.visitType,
+      visitTarget: form.visitTarget,
+      reason: form.reason,
+      visitDate: form.visitDate,
+      visitTimeSlot: form.visitTimeSlot,
+    });
+    if (sharedOnly) {
+      setError(sharedOnly);
+      pushToast(sharedOnly, "danger");
       return;
+    }
+    for (const row of visitorRows) {
+      if (!row.visitorName.trim()) {
+        setError("اسم الزائر مطلوب لكل صف");
+        pushToast("اسم الزائر مطلوب لكل صف", "danger");
+        return;
+      }
+      if (!PHONE_RE.test(row.visitorPhone.trim())) {
+        setError("رقم الجوال يجب أن يكون بصيغة 05xxxxxxxx لكل صف");
+        pushToast("رقم الجوال يجب أن يكون بصيغة 05xxxxxxxx لكل صف", "danger");
+        return;
+      }
     }
     setSubmitting(true);
     setError("");
@@ -487,8 +569,10 @@ export default function ReceptionDesk() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          visitorName: form.visitorName,
-          visitorPhone: form.visitorPhone,
+          visitors: visitorRows.map((r) => ({
+            visitorName: r.visitorName,
+            visitorPhone: r.visitorPhone,
+          })),
           organization: form.organization,
           visitType: form.visitType,
           visitTarget: form.visitTarget,
@@ -502,6 +586,7 @@ export default function ReceptionDesk() {
         throw new Error(getApiErrorMessage(payload, "فشل تسجيل الزائر"));
       }
       setForm(emptyVisitorForm(meta));
+      setVisitorRows([{ visitorName: "", visitorPhone: "" }]);
       setSuggestions([]);
       setRegisterOpen(false);
       setTab("logs");
@@ -517,6 +602,7 @@ export default function ReceptionDesk() {
   function openRegister() {
     setError("");
     setForm(emptyVisitorForm(meta));
+    setVisitorRows([{ visitorName: "", visitorPhone: "" }]);
     setSuggestions([]);
     setShowSuggestions(false);
     setRegisterOpen(true);
@@ -727,65 +813,69 @@ export default function ReceptionDesk() {
   function renderVisitorFields(
     state: VisitorFormState,
     onChange: <K extends keyof VisitorFormState>(key: K, value: VisitorFormState[K]) => void,
-    opts?: { nameAutocomplete?: boolean; idPrefix?: string },
+    opts?: { nameAutocomplete?: boolean; idPrefix?: string; skipIdentity?: boolean },
   ) {
     const prefix = opts?.idPrefix ?? "v";
     return (
       <>
-        <div className="relative space-y-1">
-          <label className="label-field" htmlFor={`${prefix}-name`}>
-            اسم الزائر
-          </label>
-          <input
-            id={`${prefix}-name`}
-            className="input-field w-full"
-            required
-            autoComplete="off"
-            value={state.visitorName}
-            onChange={(e) => {
-              if (opts?.nameAutocomplete) scheduleNameSuggest(e.target.value);
-              else onChange("visitorName", e.target.value);
-            }}
-            onFocus={() => opts?.nameAutocomplete && setShowSuggestions(true)}
-            onBlur={() => {
-              window.setTimeout(() => setShowSuggestions(false), 160);
-            }}
-          />
-          {opts?.nameAutocomplete && showSuggestions && suggestions.length > 0 && (
-            <ul className="absolute z-20 mt-1 max-h-48 w-full overflow-auto rounded border border-[color-mix(in_srgb,#8B1538_25%,white)] bg-white shadow-md">
-              {suggestions.map((s) => (
-                <li key={`${s.visitorName}-${s.visitorPhone}`}>
-                  <button
-                    type="button"
-                    className="block w-full px-3 py-2 text-right text-sm hover:bg-[color-mix(in_srgb,#8B1538_8%,white)]"
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => applySuggestion(s)}
-                  >
-                    <span className="font-semibold text-primary">{s.visitorName}</span>
-                    <span className="mt-0.5 block text-xs text-brand-gray">
-                      {s.organization} · {s.visitorPhone}
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+        {!opts?.skipIdentity && (
+          <>
+            <div className="relative space-y-1">
+              <label className="label-field" htmlFor={`${prefix}-name`}>
+                اسم الزائر
+              </label>
+              <input
+                id={`${prefix}-name`}
+                className="input-field w-full"
+                required
+                autoComplete="off"
+                value={state.visitorName}
+                onChange={(e) => {
+                  if (opts?.nameAutocomplete) scheduleNameSuggest(e.target.value);
+                  else onChange("visitorName", e.target.value);
+                }}
+                onFocus={() => opts?.nameAutocomplete && setShowSuggestions(true)}
+                onBlur={() => {
+                  window.setTimeout(() => setShowSuggestions(false), 160);
+                }}
+              />
+              {opts?.nameAutocomplete && showSuggestions && suggestions.length > 0 && (
+                <ul className="absolute z-20 mt-1 max-h-48 w-full overflow-auto rounded border border-[color-mix(in_srgb,#8B1538_25%,white)] bg-white shadow-md">
+                  {suggestions.map((s) => (
+                    <li key={`${s.visitorName}-${s.visitorPhone}`}>
+                      <button
+                        type="button"
+                        className="block w-full px-3 py-2 text-right text-sm hover:bg-[color-mix(in_srgb,#8B1538_8%,white)]"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => applySuggestion(s)}
+                      >
+                        <span className="font-semibold text-primary">{s.visitorName}</span>
+                        <span className="mt-0.5 block text-xs text-brand-gray">
+                          {s.organization} · {s.visitorPhone}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
 
-        <div className="space-y-1">
-          <label className="label-field" htmlFor={`${prefix}-phone`}>
-            رقم الجوال
-          </label>
-          <input
-            id={`${prefix}-phone`}
-            className="input-field w-full"
-            dir="ltr"
-            required
-            value={state.visitorPhone}
-            onChange={(e) => onChange("visitorPhone", e.target.value)}
-            placeholder="05xxxxxxxx"
-          />
-        </div>
+            <div className="space-y-1">
+              <label className="label-field" htmlFor={`${prefix}-phone`}>
+                رقم الجوال
+              </label>
+              <input
+                id={`${prefix}-phone`}
+                className="input-field w-full"
+                dir="ltr"
+                required
+                value={state.visitorPhone}
+                onChange={(e) => onChange("visitorPhone", e.target.value)}
+                placeholder="05xxxxxxxx"
+              />
+            </div>
+          </>
+        )}
 
         <div className="space-y-1">
           <label className="label-field" htmlFor={`${prefix}-org`}>
@@ -950,7 +1040,11 @@ export default function ReceptionDesk() {
           </button>
           <button
             type="button"
-            className="btn-primary inline-flex min-h-12 items-center gap-2 px-5 text-base font-bold sm:min-h-14 sm:px-7 sm:text-lg"
+            className={
+              isDeskStaff || !deskManage
+                ? "btn-primary inline-flex min-h-12 items-center gap-2 px-5 text-base font-bold sm:min-h-14 sm:px-7 sm:text-lg"
+                : "btn-secondary inline-flex min-h-12 items-center gap-2 px-4 text-sm font-semibold"
+            }
             onClick={openRegister}
           >
             <IconPlus size={22} />
@@ -960,7 +1054,7 @@ export default function ReceptionDesk() {
       </div>
 
       <div className="tab-bar no-print" role="tablist" aria-label="أقسام الاستقبال">
-        {TABS.map(({ id, label }) => (
+        {visibleTabs.map(({ id, label }) => (
           <button
             key={id}
             type="button"
@@ -1065,7 +1159,7 @@ export default function ReceptionDesk() {
           >
             <div className="flex items-start justify-between gap-2">
               <h3 id="register-visitor-title" className="text-lg font-bold text-primary">
-                تسجيل زائر جديد
+                تسجيل زائر / زوار
               </h3>
               <IconButton
                 label="إغلاق"
@@ -1075,10 +1169,73 @@ export default function ReceptionDesk() {
                 }}
               />
             </div>
-            {renderVisitorFields(form, updateForm, {
-              nameAutocomplete: true,
-              idPrefix: "reg",
-            })}
+            <div className="space-y-3">
+              <div className="space-y-2">
+                <p className="text-sm font-semibold text-primary">الزوار</p>
+                {visitorRows.map((row, index) => (
+                  <div
+                    key={`visitor-row-${index}`}
+                    className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]"
+                  >
+                    <input
+                      className="input-field"
+                      placeholder="اسم الزائر"
+                      value={row.visitorName}
+                      onChange={(e) =>
+                        setVisitorRows((prev) =>
+                          prev.map((r, i) =>
+                            i === index ? { ...r, visitorName: e.target.value } : r,
+                          ),
+                        )
+                      }
+                      required
+                    />
+                    <input
+                      className="input-field"
+                      placeholder="05xxxxxxxx"
+                      dir="ltr"
+                      value={row.visitorPhone}
+                      onChange={(e) =>
+                        setVisitorRows((prev) =>
+                          prev.map((r, i) =>
+                            i === index ? { ...r, visitorPhone: e.target.value } : r,
+                          ),
+                        )
+                      }
+                      required
+                    />
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      disabled={visitorRows.length === 1 || submitting}
+                      onClick={() =>
+                        setVisitorRows((prev) => prev.filter((_, i) => i !== index))
+                      }
+                    >
+                      حذف
+                    </button>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  className="btn-secondary text-sm"
+                  disabled={submitting}
+                  onClick={() =>
+                    setVisitorRows((prev) => [
+                      ...prev,
+                      { visitorName: "", visitorPhone: "" },
+                    ])
+                  }
+                >
+                  إضافة زائر
+                </button>
+              </div>
+              {renderVisitorFields(form, updateForm, {
+                nameAutocomplete: false,
+                idPrefix: "reg",
+                skipIdentity: true,
+              })}
+            </div>
             <div className="flex flex-col gap-2 sm:flex-row">
               <button
                 type="button"
@@ -1089,7 +1246,11 @@ export default function ReceptionDesk() {
                 إلغاء
               </button>
               <button type="submit" className="btn-primary flex-1" disabled={submitting}>
-                {submitting ? "جاري الحفظ…" : "حفظ الزيارة"}
+                {submitting
+                  ? "جاري الحفظ…"
+                  : visitorRows.length > 1
+                    ? `حفظ ${visitorRows.length} زيارات`
+                    : "حفظ الزيارة"}
               </button>
             </div>
           </form>
@@ -1220,6 +1381,7 @@ export default function ReceptionDesk() {
 
       {tab === "attendance" && (
         <div className="space-y-4">
+          {deskManage && (
           <form
             onSubmit={(e) => void createAttendanceList(e)}
             className="card max-w-2xl space-y-3 p-4"
@@ -1288,6 +1450,7 @@ export default function ReceptionDesk() {
               {submitting ? "جاري الإنشاء…" : "إنشاء القائمة"}
             </button>
           </form>
+          )}
 
           <section className="space-y-2">
             <h3 className="text-sm font-bold text-primary">القوائم السابقة</h3>
@@ -1409,6 +1572,7 @@ export default function ReceptionDesk() {
                 onChange={(e) => setReportFrom(e.target.value)}
               />
             </div>
+
             <div className="space-y-1">
               <label className="label-field" htmlFor="r-to">
                 إلى
