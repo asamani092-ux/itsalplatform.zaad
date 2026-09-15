@@ -29,35 +29,61 @@ function getPool(): Pool {
   return globalStore.__zaadAuthLockPool;
 }
 
+function isMissingPlatformModule(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /relation ["']?PlatformModule["']? does not exist/i.test(message);
+}
+
 async function readLocks(): Promise<LockMap> {
-  const result = await getPool().query<{ settings: unknown }>(
-    `SELECT settings FROM "PlatformModule" WHERE key = $1 LIMIT 1`,
-    [AUTH_LOCKS_KEY],
-  );
-  let raw: unknown = result.rows[0]?.settings;
-  if (typeof raw === "string") {
-    try {
-      raw = JSON.parse(raw);
-    } catch {
+  try {
+    const result = await getPool().query<{ settings: unknown }>(
+      `SELECT settings FROM "PlatformModule" WHERE key = $1 LIMIT 1`,
+      [AUTH_LOCKS_KEY],
+    );
+    let raw: unknown = result.rows[0]?.settings;
+    if (typeof raw === "string") {
+      try {
+        raw = JSON.parse(raw);
+      } catch {
+        return {};
+      }
+    }
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+    return { ...(raw as LockMap) };
+  } catch (error) {
+    if (isMissingPlatformModule(error)) {
+      // Migrations not applied yet — do not block login with a raw PG error.
+      console.error(
+        "[login-lock] PlatformModule missing — run prisma migrate deploy",
+      );
       return {};
     }
+    throw error;
   }
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
-  return { ...(raw as LockMap) };
 }
 
 async function writeLocks(locks: LockMap): Promise<void> {
   const payload = JSON.stringify(locks);
-  await getPool().query(
-    `
-    INSERT INTO "PlatformModule" (id, key, "isEnabled", "sortOrder", settings, "createdAt", "updatedAt")
-    VALUES ($1, $2, true, 999, $3::jsonb, NOW(), NOW())
-    ON CONFLICT (key) DO UPDATE SET
-      settings = EXCLUDED.settings,
-      "updatedAt" = NOW()
-    `,
-    [`pm_${AUTH_LOCKS_KEY}`, AUTH_LOCKS_KEY, payload],
-  );
+  try {
+    await getPool().query(
+      `
+      INSERT INTO "PlatformModule" (id, key, "isEnabled", "sortOrder", settings, "createdAt", "updatedAt")
+      VALUES ($1, $2, true, 999, $3::jsonb, NOW(), NOW())
+      ON CONFLICT (key) DO UPDATE SET
+        settings = EXCLUDED.settings,
+        "updatedAt" = NOW()
+      `,
+      [`pm_${AUTH_LOCKS_KEY}`, AUTH_LOCKS_KEY, payload],
+    );
+  } catch (error) {
+    if (isMissingPlatformModule(error)) {
+      console.error(
+        "[login-lock] PlatformModule missing — skipping lock write until migrate",
+      );
+      return;
+    }
+    throw error;
+  }
 }
 
 export async function getLockRemainingMs(key: string): Promise<number> {
