@@ -985,7 +985,6 @@ export default function ReceptionDesk() {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          action: "toggle",
           attendeeId: attendee.id,
           attended: !attendee.attended,
         }),
@@ -994,6 +993,7 @@ export default function ReceptionDesk() {
       if (!res.ok || !payload.success) {
         throw new Error(getApiErrorMessage(payload, "فشل تحديث الحضور"));
       }
+      const nextAttended = !attendee.attended;
       setActiveEvent((prev) =>
         prev
           ? {
@@ -1005,6 +1005,9 @@ export default function ReceptionDesk() {
           : prev,
       );
       void loadAttendance();
+      if (nextAttended) {
+        await loadDesk();
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "خطأ");
     } finally {
@@ -1755,232 +1758,144 @@ export default function ReceptionDesk() {
 
           <section className="space-y-2">
             <h3 className="text-sm font-bold text-primary">
-              تفاصيل {formatDate(selectedDay)}
+              جدول {formatDate(selectedDay)}
             </h3>
-            {selectedDayItems.schedules.length === 0 &&
-            selectedDayItems.attendance.length === 0 ? (
-              <p className="text-sm text-brand-gray">لا توجد عناصر لهذا اليوم</p>
-            ) : (
-              <ul className="space-y-2">
-                {selectedDayItems.schedules.map((v) => (
-                  <li key={v.id} className="card space-y-2 p-3">
-                    <div className="flex flex-wrap items-start justify-between gap-2">
-                      <div>
-                        <p className="font-semibold text-primary">
-                          {visitPrimaryLabel(v)}
-                        </p>
-                        {visitSecondaryLabel(v) && (
-                          <p className="text-xs text-brand-gray">
-                            {visitSecondaryLabel(v)}
-                          </p>
-                        )}
-                        <p className="mt-1 text-xs text-brand-gray">
-                          {v.visitTimeSlot || "—"} ·{" "}
-                          {v.visitorPhone || v.contactPhone || "—"}
-                        </p>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        {scheduleStatusBadge(v.status)}
-                        {v.status === "APPROVED" && (
-                          <span
-                            className={
-                              v.visitAttended ? "badge-success" : "badge-warning"
-                            }
-                          >
-                            {v.visitAttended ? "حاضر" : "بانتظار الحضور"}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    {v.status === "APPROVED" && (
-                      <div className="flex flex-wrap gap-2">
-                        {v.visitAttended ? (
-                          <button
-                            type="button"
-                            className="btn-secondary text-xs"
-                            disabled={busyId === v.id}
-                            onClick={() => void undoAttendance(v.id)}
-                          >
-                            إلغاء الحضور
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            className="btn-primary text-xs"
-                            onClick={() => openCheckIn(v)}
-                          >
-                            تسجيل حضور
-                          </button>
-                        )}
-                      </div>
-                    )}
-                    {deskManage && v.status === "PENDING_APPROVAL" && (
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          className="btn-primary text-xs"
-                          disabled={busyId === v.id}
-                          onClick={() => void approveSchedule(v.id)}
-                        >
-                          اعتماد
-                        </button>
-                        <button
-                          type="button"
-                          className="btn-secondary text-xs"
-                          disabled={busyId === v.id}
-                          onClick={() => void rejectSchedule(v.id)}
-                        >
-                          رفض
-                        </button>
-                      </div>
-                    )}
-                  </li>
-                ))}
-                {selectedDayItems.attendance.map((ev) => (
-                  <li key={`att-${ev.id}`} className="card space-y-2 p-3">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div>
-                        <p className="font-semibold text-primary">{ev.title}</p>
-                        <p className="text-xs text-brand-gray">
-                          {ev.kind === "JOB_INTERVIEW"
-                            ? "مقابلة وظيفية"
-                            : "اجتماع"}{" "}
-                          · حضور {ev.attended}/{ev.total}
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        className="btn-secondary text-xs"
-                        onClick={() => {
-                          setTab("attendance");
-                          void openAttendanceEvent(ev.id);
-                        }}
-                      >
-                        فتح القائمة
-                      </button>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-
-          <section className="space-y-2">
-            <h3 className="text-sm font-bold text-primary">
-              معتمدة اليوم ({todayApproved.length})
-            </h3>
-            <div className="space-y-2 md:hidden">
-              {todayApproved.length === 0 ? (
-                <p className="text-sm text-brand-gray">لا توجد زيارات معتمدة اليوم</p>
-              ) : (
-                todayApproved.map((v) => (
-                  <article key={v.id} className="card space-y-2 p-3">
-                    <p className="font-semibold text-primary">{visitPrimaryLabel(v)}</p>
-                    <p className="text-xs text-brand-gray">
-                      {visitSecondaryLabel(v)}
-                    </p>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span
-                        className={v.visitAttended ? "badge-success" : "badge-warning"}
-                      >
-                        {v.visitAttended ? "حاضر" : "بانتظار"}
-                      </span>
-                      {v.visitAttended ? (
-                        <button
-                          type="button"
-                          className="btn-secondary text-xs"
-                          disabled={busyId === v.id}
-                          onClick={() => void undoAttendance(v.id)}
-                        >
-                          إلغاء الحضور
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          className="btn-primary text-xs"
-                          onClick={() => openCheckIn(v)}
-                        >
-                          تسجيل حضور
-                        </button>
-                      )}
-                    </div>
-                  </article>
-                ))
-              )}
-            </div>
-            <div className="card hidden overflow-x-auto p-0 md:block">
+            <div className="card overflow-x-auto p-0">
               <table className="tmkeen-table w-full min-w-0">
                 <thead>
                   <tr>
+                    <th>النوع</th>
+                    <th>الاسم/العنوان</th>
                     <th>الوقت</th>
-                    <th>الزائر</th>
-                    <th>القسم</th>
-                    <th>الجوال</th>
-                    <th>الحضور</th>
+                    <th>الحالة</th>
+                    <th>إجراء</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {loading ? (
+                  {loading && !weekFeed ? (
                     <tr>
                       <td colSpan={5} className="py-8 text-center text-sm text-brand-gray">
                         جاري التحميل…
                       </td>
                     </tr>
-                  ) : todayApproved.length === 0 ? (
+                  ) : selectedDayItems.schedules.length === 0 &&
+                    selectedDayItems.attendance.length === 0 ? (
                     <tr>
                       <td colSpan={5} className="py-8 text-center text-sm text-brand-gray">
-                        لا توجد زيارات مجدولة اليوم
+                        لا توجد عناصر لهذا اليوم
                       </td>
                     </tr>
                   ) : (
-                    todayApproved.map((v) => (
-                      <tr key={v.id}>
-                        <td className="whitespace-nowrap text-xs">
-                          {formatDateTime(v.scheduledAt || v.visitDate)}
-                        </td>
-                        <td>
-                          <span className="font-semibold">{visitPrimaryLabel(v)}</span>
-                          {visitSecondaryLabel(v) && (
-                            <span className="mt-0.5 block text-xs text-brand-gray">
-                              {visitSecondaryLabel(v)}
-                            </span>
-                          )}
-                        </td>
-                        <td>{v.department?.name ?? "—"}</td>
-                        <td dir="ltr" className="text-xs">
-                          {v.visitorPhone || v.contactPhone || "—"}
-                        </td>
-                        <td>
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span
-                              className={
-                                v.visitAttended ? "badge-success" : "badge-warning"
-                              }
-                            >
-                              {v.visitAttended ? "حاضر" : "بانتظار"}
-                            </span>
-                            {v.visitAttended ? (
-                              <button
-                                type="button"
-                                className="btn-secondary text-xs"
-                                disabled={busyId === v.id}
-                                onClick={() => void undoAttendance(v.id)}
-                              >
-                                إلغاء الحضور
-                              </button>
-                            ) : (
-                              <button
-                                type="button"
-                                className="btn-primary text-xs"
-                                onClick={() => openCheckIn(v)}
-                              >
-                                تسجيل حضور
-                              </button>
+                    <>
+                      {selectedDayItems.schedules.map((v) => (
+                        <tr key={v.id}>
+                          <td>
+                            <span className="badge-primary">زيارة</span>
+                          </td>
+                          <td>
+                            <span className="font-semibold">{visitPrimaryLabel(v)}</span>
+                            {visitSecondaryLabel(v) && (
+                              <span className="mt-0.5 block text-xs text-brand-gray">
+                                {visitSecondaryLabel(v)}
+                              </span>
                             )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))
+                          </td>
+                          <td className="whitespace-nowrap text-xs">
+                            {v.visitTimeSlot ||
+                              formatDateTime(v.scheduledAt || v.visitDate)}
+                          </td>
+                          <td>
+                            <div className="flex flex-wrap items-center gap-2">
+                              {scheduleStatusBadge(v.status)}
+                              {v.status === "APPROVED" && (
+                                <span
+                                  className={
+                                    v.visitAttended
+                                      ? "badge-success"
+                                      : "badge-warning"
+                                  }
+                                >
+                                  {v.visitAttended ? "حاضر" : "بانتظار الحضور"}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td>
+                            <div className="flex flex-wrap gap-2">
+                              {deskManage && v.status === "PENDING_APPROVAL" && (
+                                <>
+                                  <button
+                                    type="button"
+                                    className="btn-primary text-xs"
+                                    disabled={busyId === v.id}
+                                    onClick={() => void approveSchedule(v.id)}
+                                  >
+                                    اعتماد
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="btn-secondary text-xs"
+                                    disabled={busyId === v.id}
+                                    onClick={() => void rejectSchedule(v.id)}
+                                  >
+                                    رفض
+                                  </button>
+                                </>
+                              )}
+                              {v.status === "APPROVED" &&
+                                (v.visitAttended ? (
+                                  <button
+                                    type="button"
+                                    className="btn-secondary text-xs"
+                                    disabled={busyId === v.id}
+                                    onClick={() => void undoAttendance(v.id)}
+                                  >
+                                    إلغاء الحضور
+                                  </button>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    className="btn-primary text-xs"
+                                    onClick={() => openCheckIn(v)}
+                                  >
+                                    تسجيل حضور
+                                  </button>
+                                ))}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                      {selectedDayItems.attendance.map((ev) => (
+                        <tr key={`att-${ev.id}`}>
+                          <td>
+                            <span className="badge-primary">قائمة حضور</span>
+                          </td>
+                          <td className="font-semibold">{ev.title}</td>
+                          <td className="whitespace-nowrap text-xs">
+                            {formatDateTime(ev.scheduledAt)}
+                          </td>
+                          <td className="text-xs text-brand-gray">
+                            {ev.kind === "JOB_INTERVIEW"
+                              ? "مقابلة وظيفية"
+                              : "اجتماع"}{" "}
+                            · حضور {ev.attended}/{ev.total}
+                          </td>
+                          <td>
+                            <button
+                              type="button"
+                              className="btn-secondary text-xs"
+                              disabled={busyId === ev.id}
+                              onClick={() => {
+                                setTab("attendance");
+                                void openAttendanceEvent(ev.id);
+                              }}
+                            >
+                              تحضير
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </>
                   )}
                 </tbody>
               </table>

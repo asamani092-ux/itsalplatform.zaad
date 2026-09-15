@@ -1,5 +1,8 @@
 import { prisma } from "./prisma";
-import { VisitScheduleStatus } from "../generated/prisma/client";
+import {
+  RequestStatus,
+  VisitScheduleStatus,
+} from "../generated/prisma/client";
 import {
   combineVisitAt,
   isOrganizationRequired,
@@ -16,6 +19,7 @@ const scheduleInclude = {
     select: {
       id: true,
       title: true,
+      status: true,
       contactName: true,
       contactPhone: true,
       contactEmail: true,
@@ -144,7 +148,16 @@ export async function listPendingScheduledVisits() {
     include: scheduleInclude,
     orderBy: [{ scheduledAt: "asc" }, { createdAt: "asc" }],
   });
-  return rows.map(mapScheduleRow);
+  // Safety (8.14): hide orphans still PENDING while request is closed.
+  return rows
+    .filter((row) => {
+      const reqStatus = row.request?.status;
+      return (
+        reqStatus !== RequestStatus.Rejected &&
+        reqStatus !== RequestStatus.Cancelled
+      );
+    })
+    .map(mapScheduleRow);
 }
 
 export async function listRejectedScheduledVisits(limit = 100) {
@@ -190,10 +203,25 @@ export async function listWeekReceptionFeed(params: {
     }),
   ]);
 
+  // Safety filter (8.14): never show pending/approved for a rejected/cancelled request.
+  const visibleSchedules = schedules.filter((row) => {
+    const reqStatus = row.request?.status;
+    if (
+      reqStatus === RequestStatus.Rejected ||
+      reqStatus === RequestStatus.Cancelled
+    ) {
+      return (
+        row.status === VisitScheduleStatus.REJECTED ||
+        row.status === VisitScheduleStatus.CANCELLED
+      );
+    }
+    return true;
+  });
+
   return {
     weekStart: start.toISOString(),
     weekEnd: new Date(end.getTime() - 1).toISOString(),
-    schedules: schedules.map(mapScheduleRow),
+    schedules: visibleSchedules.map(mapScheduleRow),
     attendanceEvents: attendanceEvents.map((e) => ({
       id: e.id,
       title: e.title,
@@ -319,7 +347,7 @@ export async function createManagerScheduledVisit(params: {
 
 export async function approveScheduledVisit(params: {
   scheduleId: string;
-  approvedById: string;
+  approvedById?: string | null;
 }) {
   const existing = await prisma.receptionScheduledVisit.findUnique({
     where: { id: params.scheduleId },
@@ -335,7 +363,7 @@ export async function approveScheduledVisit(params: {
     where: { id: existing.id },
     data: {
       status: VisitScheduleStatus.APPROVED,
-      approvedById: params.approvedById,
+      approvedById: params.approvedById || null,
       approvedAt: new Date(),
       rejectedAt: null,
       rejectionReason: null,
@@ -351,6 +379,108 @@ export async function approveScheduledVisit(params: {
   });
 
   return mapScheduleRow(updated);
+}
+
+/** Workboard assign → auto-approve linked pending reception schedule. */
+export async function approvePendingScheduleForRequest(params: {
+  requestId: string;
+  approvedById?: string | null;
+}) {
+  const existing = await prisma.receptionScheduledVisit.findFirst({
+    where: {
+      requestId: params.requestId,
+      status: VisitScheduleStatus.PENDING_APPROVAL,
+    },
+  });
+  if (!existing) return null;
+  return approveScheduledVisit({
+    scheduleId: existing.id,
+    approvedById: params.approvedById || null,
+  });
+}
+
+/**
+ * Decision 8.14: request status is the source of truth for linked schedules.
+ * Keeps weekly calendar / desk views aligned with request reject/cancel/assign.
+ */
+export async function syncScheduleFromRequest(params: {
+  requestId: string;
+  requestStatus: RequestStatus;
+  reason?: string | null;
+  actorId?: string | null;
+}) {
+  const existing = await prisma.receptionScheduledVisit.findFirst({
+    where: { requestId: params.requestId },
+  });
+  if (!existing) return null;
+
+  const reason = params.reason?.trim() || null;
+
+  if (
+    params.requestStatus === RequestStatus.Rejected ||
+    params.requestStatus === RequestStatus.Cancelled
+  ) {
+    if (
+      existing.status === VisitScheduleStatus.REJECTED ||
+      existing.status === VisitScheduleStatus.CANCELLED
+    ) {
+      return mapScheduleRow(
+        await prisma.receptionScheduledVisit.findUniqueOrThrow({
+          where: { id: existing.id },
+          include: scheduleInclude,
+        }),
+      );
+    }
+
+    const targetStatus =
+      params.requestStatus === RequestStatus.Cancelled
+        ? VisitScheduleStatus.CANCELLED
+        : VisitScheduleStatus.REJECTED;
+
+    const updated = await prisma.receptionScheduledVisit.update({
+      where: { id: existing.id },
+      data: {
+        status: targetStatus,
+        approvedById: params.actorId || null,
+        rejectedAt: new Date(),
+        rejectionReason:
+          reason ||
+          (params.requestStatus === RequestStatus.Cancelled
+            ? "أُلغي مع الطلب"
+            : "رُفض مع الطلب"),
+        approvedAt: null,
+      },
+      include: scheduleInclude,
+    });
+    return mapScheduleRow(updated);
+  }
+
+  if (
+    params.requestStatus === RequestStatus.Approved_Pending_Assignment ||
+    params.requestStatus === RequestStatus.In_Progress ||
+    params.requestStatus === RequestStatus.Pending_Review ||
+    params.requestStatus === RequestStatus.Completed
+  ) {
+    if (existing.status === VisitScheduleStatus.PENDING_APPROVAL) {
+      return approvePendingScheduleForRequest({
+        requestId: params.requestId,
+        approvedById: params.actorId || null,
+      });
+    }
+    return mapScheduleRow(
+      await prisma.receptionScheduledVisit.findUniqueOrThrow({
+        where: { id: existing.id },
+        include: scheduleInclude,
+      }),
+    );
+  }
+
+  return mapScheduleRow(
+    await prisma.receptionScheduledVisit.findUniqueOrThrow({
+      where: { id: existing.id },
+      include: scheduleInclude,
+    }),
+  );
 }
 
 export async function rejectScheduledVisit(params: {
@@ -947,22 +1077,26 @@ export async function setAttendeeAttendance(params: {
     });
   }
 
-  const scheduledAt = new Date(attendee.event.scheduledAt);
-  const visitDate = `${scheduledAt.getFullYear()}-${String(scheduledAt.getMonth() + 1).padStart(2, "0")}-${String(scheduledAt.getDate()).padStart(2, "0")}`;
-  const visitTimeSlot = inferTimeSlotFromDate(scheduledAt);
-  const visitType = "شخصي";
-  const visitTarget =
+  // Check-in timestamp = now so the visitor log sorts to the top immediately.
+  const checkedInAt = new Date();
+  const visitDate = `${checkedInAt.getFullYear()}-${String(checkedInAt.getMonth() + 1).padStart(2, "0")}-${String(checkedInAt.getDate()).padStart(2, "0")}`;
+  const visitTimeSlot = inferTimeSlotFromDate(checkedInAt);
+  const reason =
     attendee.event.kind === "JOB_INTERVIEW"
-      ? "زائر - مقابلة وظيفية"
-      : "زائر - اجتماع";
+      ? `مقابلة وظيفية — ${attendee.event.title}`
+      : `اجتماع — ${attendee.event.title}`;
+  const phone =
+    attendee.phone?.trim() && /^05\d{8}$/.test(attendee.phone.trim())
+      ? attendee.phone.trim()
+      : "0500000000";
 
   const log = await createVisitorLog({
-    visitorName: attendee.name,
-    visitorPhone: attendee.phone?.trim() || "0500000000",
+    visitorName: attendee.name.trim() || "مشارك",
+    visitorPhone: phone,
     organization: "",
-    visitType,
-    visitTarget,
-    reason: attendee.event.title,
+    visitType: "شخصي",
+    visitTarget: "زائر",
+    reason,
     visitDate,
     visitTimeSlot,
     markedById: params.markedById,
@@ -972,7 +1106,7 @@ export async function setAttendeeAttendance(params: {
     where: { id: params.attendeeId },
     data: {
       attended: true,
-      checkedInAt: new Date(),
+      checkedInAt,
       visitorLogId: log.id,
     },
   });
