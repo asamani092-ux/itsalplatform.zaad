@@ -1,8 +1,11 @@
 # Stage 1 — dependencies
+# Install ALL deps (including dev) so Next/TypeScript/Prisma can build even when
+# Coolify injects NODE_ENV=production at build time.
 FROM node:20-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci
+# Skip postinstall here — prisma schema is not in the context yet.
+RUN npm ci --include=dev --ignore-scripts
 
 # Stage 2 — build
 FROM node:20-alpine AS builder
@@ -10,6 +13,10 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
+# prisma.config.ts requires DATABASE_URL; build does not need a live DB.
+ENV DATABASE_URL="postgresql://build:build@127.0.0.1:5432/build?schema=public"
+ARG NEXT_PUBLIC_APP_URL=http://localhost:3001
+ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
 RUN npx prisma generate
 RUN npm run build
 
@@ -29,6 +36,9 @@ COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+# Bootstrap admin account (Coolify Execute Command)
+COPY --from=builder /app/scripts/create-director.mjs ./scripts/create-director.mjs
+COPY --from=builder /app/node_modules/bcryptjs ./node_modules/bcryptjs
 
 USER nextjs
 EXPOSE 3001
