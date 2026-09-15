@@ -104,6 +104,24 @@ function isActiveBooking(booking: Booking): boolean {
   return !status || !RELEASED_STATUSES.has(status);
 }
 
+/** Single slot badge: released request wins over «مؤكد»; conflict only for active slots. */
+function slotBadge(booking: Booking, conflict: boolean): {
+  label: string;
+  className: string;
+} {
+  const status = booking.request?.status;
+  if (status === "Rejected") {
+    return { label: "مرفوض", className: "badge-danger" };
+  }
+  if (status === "Cancelled") {
+    return { label: "ملغى", className: "badge-warning" };
+  }
+  if (conflict) {
+    return { label: "تعارض", className: "badge-danger" };
+  }
+  return { label: "مؤكد", className: "badge-success" };
+}
+
 function hasConflict(booking: Booking, all: Booking[]): boolean {
   if (!isActiveBooking(booking)) return false;
   return all.some(
@@ -352,9 +370,15 @@ export default function HospitalityBoard() {
               >
                 {calendarDays.map((day) => {
                   const dayBookings = bookingsByDay.get(day.key) ?? [];
-                  const count = dayBookings.length;
+                  const activeDayBookings = dayBookings.filter(isActiveBooking);
+                  const activeCount = activeDayBookings.length;
+                  const releasedOnly =
+                    dayBookings.length > 0 && activeCount === 0;
                   const selected = selectedDay === day.key;
-                  const conflictDay = dayBookings.some((b) => hasConflict(b, bookings));
+                  const conflictDay = activeDayBookings.some((b) =>
+                    hasConflict(b, bookings),
+                  );
+                  const preview = activeDayBookings[0] ?? dayBookings[0];
                   return (
                     <button
                       key={day.key}
@@ -384,18 +408,38 @@ export default function HospitalityBoard() {
                           {islamicDayFmt.format(day.date)}
                         </span>
                       </div>
-                      {count > 0 && (
+                      {dayBookings.length > 0 && (
                         <div className="flex flex-wrap items-center gap-1">
                           <span
                             className={
-                              conflictDay ? "badge-danger text-[0.65rem]" : "badge-primary text-[0.65rem]"
+                              conflictDay
+                                ? "badge-danger text-[0.65rem]"
+                                : releasedOnly
+                                  ? "badge-warning text-[0.65rem]"
+                                  : "badge-primary text-[0.65rem]"
                             }
                           >
-                            {count}
+                            {releasedOnly
+                              ? dayBookings.length
+                              : activeCount}
                           </span>
-                          <span className="hidden truncate text-[0.65rem] text-brand-gray sm:inline">
-                            {dayBookings[0]?.roomName}
-                            {count > 1 ? ` +${count - 1}` : ""}
+                          <span
+                            className={`hidden truncate text-[0.65rem] sm:inline ${
+                              releasedOnly
+                                ? "text-brand-gray/70 line-through"
+                                : "text-brand-gray"
+                            }`}
+                          >
+                            {preview?.roomName}
+                            {(releasedOnly
+                              ? dayBookings.length
+                              : activeCount) > 1
+                              ? ` +${
+                                  (releasedOnly
+                                    ? dayBookings.length
+                                    : activeCount) - 1
+                                }`
+                              : ""}
                           </span>
                         </div>
                       )}
@@ -431,21 +475,23 @@ export default function HospitalityBoard() {
             ) : (
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {selectedBookings.map((booking) => {
+                  const active = isActiveBooking(booking);
                   const conflict = hasConflict(booking, bookings);
+                  const badge = slotBadge(booking, conflict);
                   return (
                     <article
                       key={booking.id}
                       className={`card space-y-2 p-4 ${
-                        conflict ? "border-[var(--zaad-danger)]" : ""
+                        conflict
+                          ? "border-[var(--zaad-danger)]"
+                          : !active
+                            ? "opacity-70"
+                            : ""
                       }`}
                     >
                       <div className="flex items-start justify-between gap-2">
                         <h3 className="text-base font-bold text-primary">{booking.roomName}</h3>
-                        {conflict ? (
-                          <span className="badge-danger">تعارض</span>
-                        ) : (
-                          <span className="badge-success">مؤكد</span>
-                        )}
+                        <span className={badge.className}>{badge.label}</span>
                       </div>
                       <p
                         className="text-sm font-bold text-primary"
@@ -463,7 +509,7 @@ export default function HospitalityBoard() {
                       <p className="text-xs text-brand-gray">
                         الحضور: {booking.attendeesCount}
                       </p>
-                      {booking.request && (
+                      {booking.request && active && (
                         <div className="flex flex-wrap items-center gap-2 text-xs">
                           <span className="badge-primary">
                             {STATUS_LABELS[booking.request.status] ?? booking.request.status}
@@ -474,6 +520,11 @@ export default function HospitalityBoard() {
                               : "بدون موظف مسؤول بعد"}
                           </span>
                         </div>
+                      )}
+                      {!active && (
+                        <p className="text-xs text-brand-gray">
+                          الموعد محرَّر — لا يحجز القاعة
+                        </p>
                       )}
                       {conflict && (
                         <p className="text-xs font-semibold text-[var(--zaad-danger)]">
