@@ -28,12 +28,27 @@ comms.zaad.org.sa → 1.2.3.4
 | `NODE_ENV` | `production` |
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM` | بريد الإشعارات |
 
-## النشر الأول
+## Coolify (Dockerfile)
+
+1. Resource: **Application** + **PostgreSQL** منفصل.
+2. Build Pack: **Dockerfile** — المنفذ **3001**.
+3. المتغيرات: اجعل `NODE_ENV=production` **Runtime only** (ليس Build-time).
+4. أضف على الأقل: `DATABASE_URL` · `SESSION_SECRET` · `NEXT_PUBLIC_APP_URL` · SMTP (Outlook: `smtp.office365.com:587`).
+5. بعد أول نشر ناجح (Execute Command):
+
+```bash
+npx prisma migrate deploy
+ADMIN_PASSWORD='كلمة-قوية' node scripts/create-director.mjs
+```
+
+الحساب الافتراضي: `td@alzaad.org.sa` بدور `DIRECTOR`.
+
+## النشر الأول (Docker Compose على VPS)
 
 ```bash
 git clone https://github.com/asamani092-ux/itsalplatform.zaad.git
 cd itsalplatform.zaad
-git checkout cursor/zaad-portal-architecture-f122
+git checkout main
 cp .env.example .env
 # املأ القيم في .env
 chmod +x scripts/deploy.sh scripts/backup-db.sh
