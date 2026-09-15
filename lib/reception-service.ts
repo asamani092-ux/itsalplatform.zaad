@@ -1,5 +1,8 @@
 import { prisma } from "./prisma";
-import { VisitScheduleStatus } from "../generated/prisma/client";
+import {
+  RequestStatus,
+  VisitScheduleStatus,
+} from "../generated/prisma/client";
 import {
   combineVisitAt,
   isOrganizationRequired,
@@ -16,6 +19,7 @@ const scheduleInclude = {
     select: {
       id: true,
       title: true,
+      status: true,
       contactName: true,
       contactPhone: true,
       contactEmail: true,
@@ -144,7 +148,16 @@ export async function listPendingScheduledVisits() {
     include: scheduleInclude,
     orderBy: [{ scheduledAt: "asc" }, { createdAt: "asc" }],
   });
-  return rows.map(mapScheduleRow);
+  // Safety (8.14): hide orphans still PENDING while request is closed.
+  return rows
+    .filter((row) => {
+      const reqStatus = row.request?.status;
+      return (
+        reqStatus !== RequestStatus.Rejected &&
+        reqStatus !== RequestStatus.Cancelled
+      );
+    })
+    .map(mapScheduleRow);
 }
 
 export async function listRejectedScheduledVisits(limit = 100) {
@@ -190,10 +203,25 @@ export async function listWeekReceptionFeed(params: {
     }),
   ]);
 
+  // Safety filter (8.14): never show pending/approved for a rejected/cancelled request.
+  const visibleSchedules = schedules.filter((row) => {
+    const reqStatus = row.request?.status;
+    if (
+      reqStatus === RequestStatus.Rejected ||
+      reqStatus === RequestStatus.Cancelled
+    ) {
+      return (
+        row.status === VisitScheduleStatus.REJECTED ||
+        row.status === VisitScheduleStatus.CANCELLED
+      );
+    }
+    return true;
+  });
+
   return {
     weekStart: start.toISOString(),
     weekEnd: new Date(end.getTime() - 1).toISOString(),
-    schedules: schedules.map(mapScheduleRow),
+    schedules: visibleSchedules.map(mapScheduleRow),
     attendanceEvents: attendanceEvents.map((e) => ({
       id: e.id,
       title: e.title,
@@ -369,6 +397,90 @@ export async function approvePendingScheduleForRequest(params: {
     scheduleId: existing.id,
     approvedById: params.approvedById || null,
   });
+}
+
+/**
+ * Decision 8.14: request status is the source of truth for linked schedules.
+ * Keeps weekly calendar / desk views aligned with request reject/cancel/assign.
+ */
+export async function syncScheduleFromRequest(params: {
+  requestId: string;
+  requestStatus: RequestStatus;
+  reason?: string | null;
+  actorId?: string | null;
+}) {
+  const existing = await prisma.receptionScheduledVisit.findFirst({
+    where: { requestId: params.requestId },
+  });
+  if (!existing) return null;
+
+  const reason = params.reason?.trim() || null;
+
+  if (
+    params.requestStatus === RequestStatus.Rejected ||
+    params.requestStatus === RequestStatus.Cancelled
+  ) {
+    if (
+      existing.status === VisitScheduleStatus.REJECTED ||
+      existing.status === VisitScheduleStatus.CANCELLED
+    ) {
+      return mapScheduleRow(
+        await prisma.receptionScheduledVisit.findUniqueOrThrow({
+          where: { id: existing.id },
+          include: scheduleInclude,
+        }),
+      );
+    }
+
+    const targetStatus =
+      params.requestStatus === RequestStatus.Cancelled
+        ? VisitScheduleStatus.CANCELLED
+        : VisitScheduleStatus.REJECTED;
+
+    const updated = await prisma.receptionScheduledVisit.update({
+      where: { id: existing.id },
+      data: {
+        status: targetStatus,
+        approvedById: params.actorId || null,
+        rejectedAt: new Date(),
+        rejectionReason:
+          reason ||
+          (params.requestStatus === RequestStatus.Cancelled
+            ? "أُلغي مع الطلب"
+            : "رُفض مع الطلب"),
+        approvedAt: null,
+      },
+      include: scheduleInclude,
+    });
+    return mapScheduleRow(updated);
+  }
+
+  if (
+    params.requestStatus === RequestStatus.Approved_Pending_Assignment ||
+    params.requestStatus === RequestStatus.In_Progress ||
+    params.requestStatus === RequestStatus.Pending_Review ||
+    params.requestStatus === RequestStatus.Completed
+  ) {
+    if (existing.status === VisitScheduleStatus.PENDING_APPROVAL) {
+      return approvePendingScheduleForRequest({
+        requestId: params.requestId,
+        approvedById: params.actorId || null,
+      });
+    }
+    return mapScheduleRow(
+      await prisma.receptionScheduledVisit.findUniqueOrThrow({
+        where: { id: existing.id },
+        include: scheduleInclude,
+      }),
+    );
+  }
+
+  return mapScheduleRow(
+    await prisma.receptionScheduledVisit.findUniqueOrThrow({
+      where: { id: existing.id },
+      include: scheduleInclude,
+    }),
+  );
 }
 
 export async function rejectScheduledVisit(params: {

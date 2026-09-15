@@ -615,6 +615,23 @@ export async function rejectRequest(params: {
     reason,
   });
 
+  // Decision 8.14: keep reception schedule aligned with request rejection.
+  try {
+    const { syncScheduleFromRequest } = await import("./reception-service");
+    await syncScheduleFromRequest({
+      requestId: updated.id,
+      requestStatus: RequestStatus.Rejected,
+      reason,
+      // changedBy may be an email; approvedById is an employee FK — omit here.
+      actorId: null,
+    });
+  } catch (error) {
+    console.error(
+      "[request-service] syncScheduleFromRequest after reject failed",
+      error,
+    );
+  }
+
   return withSla(updated);
 }
 
@@ -663,6 +680,23 @@ export async function cancelRequest(params: {
     emailKind: "cancelled",
     reason,
   });
+
+  // Decision 8.14: keep reception schedule aligned with request cancellation.
+  try {
+    const { syncScheduleFromRequest } = await import("./reception-service");
+    await syncScheduleFromRequest({
+      requestId: updated.id,
+      requestStatus: RequestStatus.Cancelled,
+      reason,
+      // changedBy may be an email; approvedById is an employee FK — omit here.
+      actorId: null,
+    });
+  } catch (error) {
+    console.error(
+      "[request-service] syncScheduleFromRequest after cancel failed",
+      error,
+    );
+  }
 
   return withSla(updated);
 }
