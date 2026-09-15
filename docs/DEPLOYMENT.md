@@ -35,15 +35,14 @@ comms.zaad.org.sa → 1.2.3.4
 3. المتغيرات: اجعل `NODE_ENV=production` **Runtime only** (ليس Build-time).
 4. أضف على الأقل: `DATABASE_URL` · `SESSION_SECRET` · `NEXT_PUBLIC_APP_URL` · SMTP (Outlook: `smtp.office365.com:587`).
 5. عند إقلاع الحاوية يُنفَّذ تلقائياً: `prisma migrate deploy` (إنشاء الجداول مثل `PlatformModule`).
-6. بعد أول نشر ناجح أنشئ المدير (Execute Command):
+6. بعد أول نشر ناجح أنشئ المدير (Execute Command) — بهذا الترتيب:
 
 ```bash
+node scripts/migrate-deploy.mjs
 ADMIN_PASSWORD='كلمة-قوية' node scripts/create-director.mjs
 ```
 
-الحساب الافتراضي: `td@alzaad.org.sa` بدور `DIRECTOR`.
-
-> خطأ `relation "PlatformModule" does not exist` = الجداول لم تُرحَّل بعد. أعد النشر بعد تحديث الصورة أو نفّذ الترحيل يدوياً.
+> لا تستخدم `npx prisma` داخل الحاوية (يثبّت إصداراً مختلفاً ويفقد `DATABASE_URL`). استخدم السكربتات أعلاه.
 
 ## النشر الأول (Docker Compose على VPS)
 

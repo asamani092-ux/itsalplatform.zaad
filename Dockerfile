@@ -44,6 +44,7 @@ COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 COPY --from=builder /app/node_modules/dotenv ./node_modules/dotenv
 COPY --from=builder /app/node_modules/bcryptjs ./node_modules/bcryptjs
 COPY --from=builder /app/scripts/create-director.mjs ./scripts/create-director.mjs
+COPY --from=builder /app/scripts/migrate-deploy.mjs ./scripts/migrate-deploy.mjs
 COPY --from=builder /app/scripts/docker-entrypoint.sh ./scripts/docker-entrypoint.sh
 RUN chmod +x ./scripts/docker-entrypoint.sh \
   && mkdir -p ./node_modules/.bin \
