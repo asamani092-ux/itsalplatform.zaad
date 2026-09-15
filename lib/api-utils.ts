@@ -19,6 +19,7 @@ function isMissingRelationError(message: string): boolean {
   return (
     /relation .* does not exist/i.test(message) ||
     /table .* does not exist/i.test(message) ||
+    /does not exist in the current database/i.test(message) ||
     message.includes("P2021")
   );
 }
