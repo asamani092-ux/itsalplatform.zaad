@@ -2,7 +2,7 @@
 set -e
 cd /app
 
-echo "[entrypoint] Running prisma migrate deploy..."
+echo "[entrypoint] Running database migrations..."
 node ./scripts/migrate-deploy.mjs
 
 echo "[entrypoint] Starting app..."
