@@ -28,28 +28,23 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3001
 ENV HOSTNAME=0.0.0.0
 
-RUN addgroup --system --gid 1001 nodejs \
+RUN apk add --no-cache libc6-compat \
+  && addgroup --system --gid 1001 nodejs \
   && adduser --system --uid 1001 nextjs
 
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/prisma.config.ts ./prisma.config.ts
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
-# migrate deploy + director bootstrap tools
-COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
-COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
-COPY --from=builder /app/node_modules/dotenv ./node_modules/dotenv
+# Bootstrap tools (pg comes from standalone; migrate uses pg only — no Prisma CLI)
 COPY --from=builder /app/node_modules/bcryptjs ./node_modules/bcryptjs
 COPY --from=builder /app/scripts/create-director.mjs ./scripts/create-director.mjs
 COPY --from=builder /app/scripts/migrate-deploy.mjs ./scripts/migrate-deploy.mjs
 COPY --from=builder /app/scripts/docker-entrypoint.sh ./scripts/docker-entrypoint.sh
 RUN chmod +x ./scripts/docker-entrypoint.sh \
-  && mkdir -p ./node_modules/.bin \
-  && ln -sf ../prisma/build/index.js ./node_modules/.bin/prisma \
-  && chown -R nextjs:nodejs ./scripts ./node_modules/prisma ./node_modules/@prisma ./node_modules/dotenv ./node_modules/bcryptjs ./node_modules/.bin ./prisma.config.ts
+  && chown -R nextjs:nodejs ./scripts ./node_modules/bcryptjs ./prisma
 
 USER nextjs
 EXPOSE 3001

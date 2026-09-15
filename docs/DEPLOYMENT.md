@@ -34,15 +34,21 @@ comms.zaad.org.sa → 1.2.3.4
 2. Build Pack: **Dockerfile** — المنفذ **3001**.
 3. المتغيرات: اجعل `NODE_ENV=production` **Runtime only** (ليس Build-time).
 4. أضف على الأقل: `DATABASE_URL` · `SESSION_SECRET` · `NEXT_PUBLIC_APP_URL` · SMTP (Outlook: `smtp.office365.com:587`).
-5. عند إقلاع الحاوية يُنفَّذ تلقائياً: `prisma migrate deploy` (إنشاء الجداول مثل `PlatformModule`).
-6. بعد أول نشر ناجح أنشئ المدير (Execute Command) — بهذا الترتيب:
+5. عند الإقلاع يُرحَّل المخطط تلقائياً عبر `scripts/migrate-deploy.mjs` (بـ `pg` فقط).
+6. بعد دمج إصلاحات النشر: **Redeploy + Force Rebuild** (لا تعتمد على صورة SHA قديمة).
+7. بعد إقلاع ناجح أنشئ المدير مرة واحدة:
 
 ```bash
-node scripts/migrate-deploy.mjs
 ADMIN_PASSWORD='كلمة-قوية' node scripts/create-director.mjs
 ```
 
-> لا تستخدم `npx prisma` داخل الحاوية (يثبّت إصداراً مختلفاً ويفقد `DATABASE_URL`). استخدم السكربتات أعلاه.
+ترحيل يدوي عند الحاجة:
+
+```bash
+node scripts/migrate-deploy.mjs
+```
+
+الحساب الافتراضي: `td@alzaad.org.sa` بدور `DIRECTOR`.
 
 ## النشر الأول (Docker Compose على VPS)
 
