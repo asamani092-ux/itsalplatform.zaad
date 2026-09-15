@@ -3,6 +3,7 @@
  * Creates/updates the single highest-privilege account (DIRECTOR).
  *
  * Coolify → Application → Execute Command:
+ *   node scripts/migrate-deploy.mjs
  *   ADMIN_PASSWORD='YourStrongPass' node scripts/create-director.mjs
  *
  * Optional:
@@ -10,14 +11,30 @@
  *   ADMIN_NAME='مدير الإدارة'
  */
 import { randomBytes } from "node:crypto";
+import { readFileSync } from "node:fs";
 import bcrypt from "bcryptjs";
 import pg from "pg";
+
+function loadDatabaseUrl() {
+  if (process.env.DATABASE_URL?.trim()) return process.env.DATABASE_URL.trim();
+  try {
+    const raw = readFileSync("/proc/1/environ", "utf8");
+    const match = raw
+      .split("\0")
+      .find((line) => line.startsWith("DATABASE_URL="));
+    if (match) return match.slice("DATABASE_URL=".length);
+  } catch {
+    // ignore
+  }
+  return "";
+}
 
 const email = (process.env.ADMIN_EMAIL || "td@alzaad.org.sa").trim().toLowerCase();
 const name = (process.env.ADMIN_NAME || "مدير الإدارة").trim();
 const password = process.env.ADMIN_PASSWORD || "";
+const databaseUrl = loadDatabaseUrl();
 
-if (!process.env.DATABASE_URL) {
+if (!databaseUrl) {
   console.error("DATABASE_URL is required");
   process.exit(1);
 }
@@ -26,7 +43,7 @@ if (password.length < 8) {
   process.exit(1);
 }
 
-const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 1 });
+const pool = new pg.Pool({ connectionString: databaseUrl, max: 1 });
 
 function newId() {
   return `c${Date.now().toString(36)}${randomBytes(8).toString("hex")}`;

@@ -33,13 +33,24 @@ RUN addgroup --system --gid 1001 nodejs \
 
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/prisma.config.ts ./prisma.config.ts
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-# Bootstrap admin account (Coolify Execute Command)
-COPY --from=builder /app/scripts/create-director.mjs ./scripts/create-director.mjs
+
+# migrate deploy + director bootstrap tools
+COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
+COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
+COPY --from=builder /app/node_modules/dotenv ./node_modules/dotenv
 COPY --from=builder /app/node_modules/bcryptjs ./node_modules/bcryptjs
+COPY --from=builder /app/scripts/create-director.mjs ./scripts/create-director.mjs
+COPY --from=builder /app/scripts/migrate-deploy.mjs ./scripts/migrate-deploy.mjs
+COPY --from=builder /app/scripts/docker-entrypoint.sh ./scripts/docker-entrypoint.sh
+RUN chmod +x ./scripts/docker-entrypoint.sh \
+  && mkdir -p ./node_modules/.bin \
+  && ln -sf ../prisma/build/index.js ./node_modules/.bin/prisma \
+  && chown -R nextjs:nodejs ./scripts ./node_modules/prisma ./node_modules/@prisma ./node_modules/dotenv ./node_modules/bcryptjs ./node_modules/.bin ./prisma.config.ts
 
 USER nextjs
 EXPOSE 3001
-CMD ["node", "server.js"]
+CMD ["sh", "./scripts/docker-entrypoint.sh"]

@@ -15,6 +15,15 @@ export function getAppUrl() {
   return process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3001";
 }
 
+function isMissingRelationError(message: string): boolean {
+  return (
+    /relation .* does not exist/i.test(message) ||
+    /table .* does not exist/i.test(message) ||
+    /does not exist in the current database/i.test(message) ||
+    message.includes("P2021")
+  );
+}
+
 export function handleApiError(error: unknown) {
   if (error instanceof Error) {
     if (error.message.startsWith("TIMEOUT:")) {
@@ -47,7 +56,16 @@ export function handleApiError(error: unknown) {
     if (error.message.startsWith("RATE_LIMITED:")) {
       return jsonError(error.message.replace("RATE_LIMITED: ", ""), "RATE_LIMITED", 429);
     }
-    return jsonError(error.message, "INTERNAL_ERROR", 500);
+    if (isMissingRelationError(error.message)) {
+      return jsonError(
+        "قاعدة البيانات غير مهيأة بعد. نفّذ ترحيل الجداول ثم أعد المحاولة.",
+        "DB_NOT_READY",
+        503,
+      );
+    }
+    // Never leak raw English infrastructure errors to the UI.
+    console.error("[api]", error);
+    return jsonError("حدث خطأ في الخادم. حاول لاحقاً.", "INTERNAL_ERROR", 500);
   }
   return jsonError("حدث خطأ غير متوقع", "INTERNAL_ERROR", 500);
 }
